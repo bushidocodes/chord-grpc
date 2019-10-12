@@ -1,0 +1,61 @@
+syntax = "proto3";
+package chord;
+
+service Node {
+  // Returns the IP address of the node responsible for the key passed as an argument
+  // This presumably recurses through the nodes on the finger table until the owner is found
+  // rpc lookup (UserRequest) returns (IPResponse) {}
+
+  // Once a client knows the node to connect to, it can fetch the data
+  rpc fetch (UserRequest) returns (User) {}
+
+  // Once a client knows the node to connect to, we can insert the user at that node.
+  rpc insert (User) returns (InsertResponse) {}
+
+  // Given , returns the IP address of the closest known predecessor
+//   rpc closestKnownPredecessor () return () {}
+
+//   rpc transfer(TransferRequest) returns (TransferResponse) {}
+
+//   rpc predecessor () returns () {}
+//   rpc successor () returns () {}
+}
+
+message InsertResponse {
+  int32 id = 1;
+}
+// message TransferRequest {}
+// message TransferResponse {}
+// Returns the IP address of the closest known predecessor of the ID. If the node at that IP address is 
+// message closestKnownPredecessorResponse {
+//   string ipAddress = 1;
+//   bool isOwner = 2;
+// }
+
+// The request message containing the user's name.
+message UserRequest {
+  int32 id = 1;
+}
+
+// // The request message containing the user's name.
+// message IPResponse {
+//   string ipAddress = 1;
+// }
+
+// A User seems to have a local Id and profile associated with the StackOverflow group. These Ids are tied together via AccountIds
+// For the chord project, I think we can just hash off the Id key, since these are unique.
+message User {
+  int32 id = 1;
+  int32 reputation = 2;
+  string creationDate = 3;
+  string displayName = 4;
+  string lastAccessDate = 5;
+  string websiteUrl = 6;
+  string location = 7;
+  string aboutMe = 8;
+  int32 views = 9;
+  int32 upVotes = 10;
+  int32 downVotes = 11;
+  string profileImageUrl = 12;
+  int32 accountId = 13;
+}
