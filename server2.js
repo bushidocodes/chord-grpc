@@ -1,3 +1,6 @@
+// Copy of original Server
+// I creat it to test calls between servers
+
 const grpc = require('grpc');
 const users = require('./data/tinyUsers.json')
 const protoLoader = require('@grpc/proto-loader');
@@ -11,7 +14,6 @@ const packageDefinition = protoLoader.loadSync(
      oneofs: true
     });
 const chord = grpc.loadPackageDefinition(packageDefinition).chord;
-
 
 
 function fetch({request: {id}}, callback) {
@@ -36,29 +38,20 @@ function insert({request: user}, callback) {
   }
 }
 
-// Returns information about this particular node
 function summary({}, callback){
-  summary = {summary: `This is node 50053`};
+  summary = {summary: `This is node 50054`};
   console.log(summary.summary); 
   callback(null, summary); 
 }
 
-// Test function that calls a second node and concats its information with ours
-// The addresses are hard coded at the moment
 function chordInformation({}, callback){
-  console.log("I get into chordInformation"); 
   const client = new chord.Node('localhost:50054',
   grpc.credentials.createInsecure());
+  
+  client.summary({}, (err, summary))
 
-  client.summary({}, (err, summary) => {
-    if (err) {
-      console.log(err);
-    } else {
-      summary.summary = summary.summary + " This is node 50053"
-      console.log(summary);
-    }
-  });
-  callback(null, summary); 
+  summary.summary = summary.summary + "This is node 50054"
+
 }
 
 /**
@@ -68,7 +61,7 @@ function chordInformation({}, callback){
 function main() {
   const server = new grpc.Server();
   server.addService(chord.Node.service, {fetch, insert, summary, chordInformation});
-  server.bind('0.0.0.0:50053', grpc.ServerCredentials.createInsecure());
+  server.bind('0.0.0.0:50054', grpc.ServerCredentials.createInsecure());
   server.start();
 }
 

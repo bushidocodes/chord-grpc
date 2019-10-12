@@ -12,6 +12,10 @@ service Node {
   // Once a client knows the node to connect to, we can insert the user at that node.
   rpc insert (User) returns (InsertResponse) {}
 
+  rpc summary (UserRequest) returns (Summary) {}
+  rpc chordInformation (UserRequest) returns (Summary) {}
+
+
   // Given , returns the IP address of the closest known predecessor
 //   rpc closestKnownPredecessor () return () {}
 
@@ -58,4 +62,8 @@ message User {
   int32 downVotes = 11;
   string profileImageUrl = 12;
   int32 accountId = 13;
+}
+
+message Summary{
+  string summary = 1;
 }
