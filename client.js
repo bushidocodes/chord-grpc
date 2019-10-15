@@ -11,9 +11,13 @@ const packageDefinition = protoLoader.loadSync(
     oneofs: true
   });
 
+const target = {
+  ip: `localhost`,
+  port: 1337
+}
+
 const chord = grpc.loadPackageDefinition(packageDefinition).chord;
-const client = new chord.Node('localhost:50053',
-  grpc.credentials.createInsecure());
+let client;
 
 function fetch({ _: args }) {
   if (!args[0]) {
@@ -68,44 +72,29 @@ function insert({ _, ...rest }) {
   });
 }
 
-// Returns information about a particular node
-function summary() {
-  client.summary({}, (err, summary) => {
-    if (err) {
-      console.log(err);
-    } else {
-      console.log(summary);
-    }
-  });
-}
-
-// Returns summary of multiple nodes that they will get it from each other
-function chordInformation() {
-  client.chordInformation({}, (err, summary) => {
-    if (err) {
-      console.log(err);
-    } else {
-      console.log(summary);
-    }
-  });
-}
-
 function main() {
   if (process.argv.length >= 3) {
     const args = minimist(process.argv.slice(3));
+
+    if (args.ip) {
+      target.ip = args.ip;
+    }
+    if (args.port) {
+      target.port = args.port;
+    }
+
+    console.log(`Connecting to ${target.ip}:${target.port}`);
+    
     const command = process.argv[2];
+    
     switch (command) {
       case "fetch":
+        client = new chord.Node(`${target.ip}:${target.port}`, grpc.credentials.createInsecure());
         fetch(args);
         break;
       case "insert":
+        client = new chord.Node(`${target.ip}:${target.port}`, grpc.credentials.createInsecure());
         insert(args);
-        break;
-      case "summary":
-        summary();
-        break;
-      case "chordInformation":
-        chordInformation();
         break;
     }
   }

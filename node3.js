@@ -15,6 +15,10 @@ const packageDefinition = protoLoader.loadSync(
     });
 const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 
+var FingerTable = {4:0, 5:0, 7:0};
+var predecessor = 1;
+var successor = 0;
+
 
 function fetch({request: {id}}, callback) {
   console.log(`Requested User ${id}`);
@@ -53,6 +57,11 @@ function chordInformation({}, callback){
   summary.summary = summary.summary + "This is node 50054"
 
 }
+
+function findSuccessor({}, callback){
+
+}
+
 
 /**
  * Starts an RPC server that receives requests for the Greeter service at the

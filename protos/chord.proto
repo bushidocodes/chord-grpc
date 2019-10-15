@@ -1,50 +1,48 @@
+
 syntax = "proto3";
 package chord;
 
+import "google/protobuf/empty.proto";
+
 service Node {
-  // Returns the IP address of the node responsible for the key passed as an argument
-  // This presumably recurses through the nodes on the finger table until the owner is found
-  // rpc lookup (UserRequest) returns (IPResponse) {}
+
+  // Application Level RPC Calls
 
   // Once a client knows the node to connect to, it can fetch the data
   rpc fetch (UserRequest) returns (User) {}
-
   // Once a client knows the node to connect to, we can insert the user at that node.
-  rpc insert (User) returns (InsertResponse) {}
+  rpc insert (User) returns (google.protobuf.Empty) {}
 
-  rpc summary (UserRequest) returns (Summary) {}
-  rpc chordInformation (UserRequest) returns (Summary) {}
-
-
-  // Given , returns the IP address of the closest known predecessor
-//   rpc closestKnownPredecessor () return () {}
-
-//   rpc transfer(TransferRequest) returns (TransferResponse) {}
-
-//   rpc predecessor () returns () {}
-//   rpc successor () returns () {}
+  // Chord Library Level RPC Calls
+  rpc findSuccessor (NodeAddress) returns (NodeAddress) {}
+  rpc findPredecessor (NodeAddress) returns (NodeAddress) {}
+  rpc getSuccessor (google.protobuf.Empty) returns (NodeAddress) {}
+  rpc getPredecessor (google.protobuf.Empty) returns (NodeAddress) {}
+  rpc setPredecessor (NodeAddress) returns (google.protobuf.Empty) {}
+  rpc notify (NodeAddress) returns (google.protobuf.Empty) {}
+  rpc closestPrecedingFinger (NodeAddress) returns (NodeAddress) {}
+  rpc update_finger_table (FingerTableEntry) returns (NodeAddress) {}
 }
 
-message InsertResponse {
-  int32 id = 1;
+message NodeAddress {
+  uint32 id = 1;
+  string ip = 2;
+  uint32 port = 3;
 }
-// message TransferRequest {}
-// message TransferResponse {}
-// Returns the IP address of the closest known predecessor of the ID. If the node at that IP address is 
-// message closestKnownPredecessorResponse {
-//   string ipAddress = 1;
-//   bool isOwner = 2;
-// }
+
+message FingerTableEntry {
+  message NodeAddress {
+    uint32 id = 1;
+    string ip = 2;
+    uint32 port = 3;
+  }
+  uint32 idx = 2;
+}
 
 // The request message containing the user's name.
 message UserRequest {
   int32 id = 1;
 }
-
-// // The request message containing the user's name.
-// message IPResponse {
-//   string ipAddress = 1;
-// }
 
 // A User seems to have a local Id and profile associated with the StackOverflow group. These Ids are tied together via AccountIds
 // For the chord project, I think we can just hash off the Id key, since these are unique.
@@ -62,8 +60,4 @@ message User {
   int32 downVotes = 11;
   string profileImageUrl = 12;
   int32 accountId = 13;
-}
-
-message Summary{
-  string summary = 1;
 }
