@@ -14,14 +14,19 @@ service Node {
   rpc insert (User) returns (google.protobuf.Empty) {}
 
   // Chord Library Level RPC Calls
-  rpc findSuccessor (NodeAddress) returns (NodeAddress) {}
-  rpc findPredecessor (NodeAddress) returns (NodeAddress) {}
-  rpc getSuccessor (google.protobuf.Empty) returns (NodeAddress) {}
-  rpc getPredecessor (google.protobuf.Empty) returns (NodeAddress) {}
+  rpc findSuccessor (NodeId) returns (NodeAddress) {}
+//  rpc findPredecessor (NodeId) returns (NodeAddress) {}
+  rpc getSuccessor (NodeAddress) returns (NodeAddress) {}
+  rpc getPredecessor (NodeAddress) returns (NodeAddress) {}
   rpc setPredecessor (NodeAddress) returns (google.protobuf.Empty) {}
   rpc notify (NodeAddress) returns (google.protobuf.Empty) {}
   rpc closestPrecedingFinger (NodeAddress) returns (NodeAddress) {}
   rpc update_finger_table (FingerTableEntry) returns (NodeAddress) {}
+  rpc summary(Trash) returns (NodeAddress) {}
+}
+
+message NodeId {
+  uint32 id = 1;
 }
 
 message NodeAddress {
@@ -30,14 +35,26 @@ message NodeAddress {
   uint32 port = 3;
 }
 
-message FingerTableEntry {
+message Trash{
+  uint32 id = 1;
+}
+
+// message Summary{
+//   message NodeAddress {
+//     uint32 id = 1;
+//     string ip = 2;
+//     uint32 port = 3;
+//   }
+// }
+
+ message FingerTableEntry {
   message NodeAddress {
     uint32 id = 1;
     string ip = 2;
     uint32 port = 3;
   }
   uint32 idx = 2;
-}
+ }
 
 // The request message containing the user's name.
 message UserRequest {

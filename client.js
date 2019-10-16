@@ -72,6 +72,21 @@ function insert({ _, ...rest }) {
   });
 }
 
+//Requests basic information about the target node
+function summary(){
+  console.log("Client requesting summary:")
+  client.summary({id: 1}, (err, node) => {
+    if (err) {
+      console.log(err);
+      console.log(node);
+    } else {
+      //console.log(node);
+      console.log(`The node returned id: ${node.id}, ip: ${node.ip}, port: ${node.port}`);
+    }
+  });
+}
+
+
 function main() {
   if (process.argv.length >= 3) {
     const args = minimist(process.argv.slice(3));
@@ -95,6 +110,11 @@ function main() {
       case "insert":
         client = new chord.Node(`${target.ip}:${target.port}`, grpc.credentials.createInsecure());
         insert(args);
+        break;
+      case "summary":
+        client = new chord.Node(`${target.ip}:${target.port}`, grpc.credentials.createInsecure());
+        console.log(client);
+        summary();
         break;
     }
   }
