@@ -1,9 +1,11 @@
+const path = require('path');
 const grpc = require('grpc');
-const users = require('./data/tinyUsers.json')
+const users = require('./data/tinyUsers.json');
 const protoLoader = require('@grpc/proto-loader');
-const minimist = require('minimist')
+const minimist = require('minimist');
+const PROTO_PATH = path.resolve(__dirname, './protos/chord.proto');
 const packageDefinition = protoLoader.loadSync(
-    `${__dirname}/protos/chord.proto`,
+    PROTO_PATH,
     {keepCase: true,
      longs: String,
      enums: String, 
@@ -12,7 +14,11 @@ const packageDefinition = protoLoader.loadSync(
     });
 const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 
-const HASH_BIT_LENGTH = 3
+
+const caller = require('grpc-caller');
+
+
+const HASH_BIT_LENGTH = 3;
 
 const FingerTable = [
   {
@@ -32,7 +38,7 @@ const _self = {id: 0, ip: null, port: null};
 
 function summary(_, callback){
   console.log("Summary request received");
-  callback({err:5}, _self);
+  callback(null, _self);
 }
 
 
@@ -165,39 +171,54 @@ function findPredecessor(id){
 //////////////////////////////
 
 // Pass a null as known_node to force the node to be the first in the cluster
-function join(known_node) {
+async function join(known_node) {
   // if (n')
   console.log(`Known node: ${known_node}`);
+  console.log("Just Fishing...");
+  const client = caller('localhost:8448', PROTO_PATH, 'Node');
+
+  const thing = await client.summary({ id: 33 });
+  
+  console.log(thing);
+
+
+  // client.sayHello({ name: 'Bob' }, (err, res) => {
+  //   console.log(res)
+  // })
+
+
+  // let client = new chord.Node(`localhost:8448`, grpc.credentials.createInsecure()); 
+  // client.summary({id: 33}, () => console.log("PC LOAD LETTER"));
   /* vvvvv these lines used to be in the else vvvvv */
   // remove dummy template initializer
-  FingerTable.pop();
-  // initialize table with reasonable values
-  for (let i = 0; i < HASH_BIT_LENGTH; i++) {
-    // finger[i].node = n
-    FingerTable.push({start: (2**i) % (2**HASH_BIT_LENGTH), successor: _self});
-  }
-  // predecessor = n
-  predecessor = _self;
-  /* ^^^^^ these lines used to be in the else ^^^^^ */
-  if (known_node && confirm_exist(known_node)){
-    // init_finger_table(n')
-    init_finger_table(known_node);
-    // update_others
-    update_others();
-  } else {
-    // TODO: maybe we don't need this anymore
-    // known_node wasn't really there
-    for (let i = 0; i < HASH_BIT_LENGTH; i++) {
-      // finger[i].node = n
-      FingerTable[i].successor = _self;
-    }
-    // predecessor = n
-    predecessor = _self;
-  }
-  console.log("FingerTable: ");
-  for (let i = 0; i < HASH_BIT_LENGTH;  i++) {
-    console.log(FingerTable[i]);
-  }
+  // FingerTable.pop();
+  // // initialize table with reasonable values
+  // for (let i = 0; i < HASH_BIT_LENGTH; i++) {
+  //   // finger[i].node = n
+  //   FingerTable.push({start: (2**i) % (2**HASH_BIT_LENGTH), successor: _self});
+  // }
+  // // predecessor = n
+  // predecessor = _self;
+  // /* ^^^^^ these lines used to be in the else ^^^^^ */
+  // if (known_node && confirm_exist(known_node)){
+  //   // init_finger_table(n')
+  //   init_finger_table(known_node);
+  //   // update_others
+  //   update_others();
+  // } else {
+  //   // TODO: maybe we don't need this anymore
+  //   // known_node wasn't really there
+  //   for (let i = 0; i < HASH_BIT_LENGTH; i++) {
+  //     // finger[i].node = n
+  //     FingerTable[i].successor = _self;
+  //   }
+  //   // predecessor = n
+  //   predecessor = _self;
+  // }
+  // console.log("FingerTable: ");
+  // for (let i = 0; i < HASH_BIT_LENGTH;  i++) {
+  //   console.log(FingerTable[i]);
+  // }
 }
 
 function confirm_exist(known_node) {
@@ -210,14 +231,14 @@ function init_finger_table(known_node) {
   console.log(`We are connecting from localhost:${_self.port}`);
   console.log(`We are connecting to localhost:${known_node.port}`);
 
-  let client = new chord.Node(`localhost:${known_node.port}`, grpc.credentials.createInsecure()); 
-  console.log(client);
+  let client = new chord.Node(`localhost:8448`, grpc.credentials.createInsecure()); 
+  console.log("requesting summary");
+  client.summary({id: 33}, () => console.log("PC LOAD LETTER"));
+  
+  console.log("requesting summary 2");
   client.summary({id: 1}, (err, node) => {
+    console.log("HELLO WORLD IS THIS HERE");
     if (err) {
-      console.log("HELLO WORLD IS THIS HERE");
-      console.log("HELLO WORLD IS THIS HERE");
-      console.log("HELLO WORLD IS THIS HERE");
-      console.log("HELLO WORLD IS THIS HERE");
       console.log(err);
     } else {
       //console.log(node);
