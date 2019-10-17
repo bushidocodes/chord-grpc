@@ -19,6 +19,7 @@ service Node {
   rpc getSuccessor (NodeAddress) returns (NodeAddress) {}
   rpc getPredecessor (NodeAddress) returns (NodeAddress) {}
   rpc setPredecessor (NodeAddress) returns (google.protobuf.Empty) {}
+  rpc setSuccessor (NodeAddress) returns (google.protobuf.Empty) {}
   rpc notify (NodeAddress) returns (google.protobuf.Empty) {}
   rpc closestPrecedingFinger (NodeAddress) returns (NodeAddress) {}
   rpc update_finger_table (FingerTableEntry) returns (NodeAddress) {}
@@ -47,13 +48,10 @@ message Trash{
 //   }
 // }
 
+
  message FingerTableEntry {
-  message NodeAddress {
-    uint32 id = 1;
-    string ip = 2;
-    uint32 port = 3;
-  }
-  uint32 idx = 2;
+  NodeAddress node = 1;
+  uint32 index = 2;
  }
 
 // The request message containing the user's name.

@@ -113,7 +113,6 @@ function main() {
         break;
       case "summary":
         client = new chord.Node(`${target.ip}:${target.port}`, grpc.credentials.createInsecure());
-        console.log(client);
         summary();
         break;
     }
