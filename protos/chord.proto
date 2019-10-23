@@ -7,6 +7,7 @@ import "google/protobuf/empty.proto";
 service Node {
 
   // Application Level RPC Calls
+  rpc summary(Trash) returns (NodeAddress) {}
 
   // Once a client knows the node to connect to, it can fetch the data
   rpc fetch (UserRequest) returns (User) {}
@@ -14,16 +15,18 @@ service Node {
   rpc insert (User) returns (google.protobuf.Empty) {}
 
   // Chord Library Level RPC Calls
-  rpc findSuccessor (NodeId) returns (NodeAddress) {}
-//  rpc findPredecessor (NodeId) returns (NodeAddress) {}
-  rpc getSuccessor (NodeAddress) returns (NodeAddress) {}
+  rpc getSuccessor_remote (NodeAddress) returns (NodeAddress) {}
   rpc getPredecessor (NodeAddress) returns (NodeAddress) {}
   rpc setPredecessor (NodeAddress) returns (google.protobuf.Empty) {}
-  rpc setSuccessor (NodeAddress) returns (google.protobuf.Empty) {}
   rpc notify (NodeAddress) returns (google.protobuf.Empty) {}
-  rpc closestPrecedingFinger (NodeAddress) returns (NodeAddress) {}
   rpc update_finger_table (FingerTableEntry) returns (NodeAddress) {}
-  rpc summary(Trash) returns (NodeAddress) {}
+  rpc find_successor_remote (NodeId) returns (NodeAddress) {}
+  rpc getClosestPrecedingFinger (RemoteId) returns (NodeAddress) {}
+}
+
+message RemoteId {
+  uint32 id = 1;
+  NodeAddress node = 2;
 }
 
 message NodeId {
@@ -76,3 +79,8 @@ message User {
   string profileImageUrl = 12;
   int32 accountId = 13;
 }
+
+
+
+
+
