@@ -19,6 +19,10 @@ const target = {
 const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 let client;
 
+// Used by Crawl to accumulate data about the Chord ring
+const bigBucketOfData = {};
+let lastNode;
+
 function fetch({ _: args }) {
   if (!args[0]) {
     console.log("fetch required an ID");
@@ -86,6 +90,24 @@ function summary(){
   });
 }
 
+//Requests basic information about the target node
+async function crawl(){
+  client = new chord.Node(`${lastNode.ip}:${lastNode.port}`, grpc.credentials.createInsecure());
+  // The argument is total garbage
+  client.getSuccessor_remote({id: 99}, (err, node) => {
+    if (err) {
+      console.log(err);
+      console.log(node);
+    } else {
+      if (bigBucketOfData[lastNode.id]){
+        bigBucketOfData[lastNode.id].successor = node; 
+      }
+      bigBucketOfData[node.id] = {...bigBucketOfData[node.id], ...node};
+      lastNode = node;
+    }
+  });
+}
+
 
 function main() {
   if (process.argv.length >= 3) {
@@ -114,6 +136,17 @@ function main() {
       case "summary":
         client = new chord.Node(`${target.ip}:${target.port}`, grpc.credentials.createInsecure());
         summary();
+        break;
+      case "crawl":
+        client = new chord.Node(`${target.ip}:${target.port}`, grpc.credentials.createInsecure());
+        lastNode = {id: target.id, ip: target.ip, port: target.port};
+        setInterval(async () => { await crawl() }, 3000);
+        const express = require('express');
+        const app = express();
+        const port = args.webPort || 3000;
+        app.use(express.static('public'))
+        app.get('/data', (req, res) => res.json(bigBucketOfData));
+        app.listen(port, () => console.log(`Example app listening on port ${port}!`))
         break;
     }
   }
