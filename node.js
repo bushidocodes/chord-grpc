@@ -206,7 +206,7 @@ async function find_predecessor(id) {
     // while (id 'not-in' (n', n'.successor] )
     while (!(isInModuloRange(id, n_prime.id, false, n_prime_successor.id, true))
         && (n_prime.id !== n_prime_successor.id)
-        && (n_prime.id !== prior_n_prime.id)
+        // && (n_prime.id !== prior_n_prime.id)
         && (iteration_counter >= 0)) {
         // loop should exit if n' and its successor are the same
         // loop should exit if n' and the prior n' are the same
