@@ -43,16 +43,7 @@ message Trash{
   uint32 id = 1;
 }
 
-// message Summary{
-//   message NodeAddress {
-//     uint32 id = 1;
-//     string ip = 2;
-//     uint32 port = 3;
-//   }
-// }
-
-
- message FingerTableEntry {
+message FingerTableEntry {
   NodeAddress node = 1;
   uint32 index = 2;
  }
