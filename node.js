@@ -246,7 +246,7 @@ async function find_predecessor(id) {
 }
 
 /* added 20191019 */
-async function getSuccessor(id, node_querying, node_to_query) {
+async function getSuccessor(id, node_querying, node_queried) {
     /**
      * Return the successor of a given node id by either a local lookup or an RPC.
      * If the querying node is the same as the queried node, it will be a local lookup.
@@ -257,22 +257,22 @@ async function getSuccessor(id, node_querying, node_to_query) {
     /* vvvvv     vvvvv     TBD debugging code     vvvvv     vvvvv */
     if (DEBUGGING_LOCAL) {
         console.log("vvvvv     vvvvv     getSuccessor     vvvvv     vvvvv");
-        console.log("id = ", id, "node_querying is ", node_querying, "node being queried is ", node_to_query);
+        console.log("id = ", id, "node_querying is ", node_querying, "node being queried is ", node_queried);
     }
     /* ^^^^^     ^^^^^     TBD debugging code     ^^^^^     ^^^^^ */
 
     // get n.successor either locally or remotely
     let n_successor;
-    if (node_querying.id == node_to_query.id) {
+    if (node_querying.id == node_queried.id) {
         // use local value
         n_successor = FingerTable[0].successor;
     } else {
         // use remote value
         // create client for remote call
-        const node_to_query_client = caller(`localhost:${node_to_query.port}`, PROTO_PATH, "Node");
+        const node_queried_client = caller(`localhost:${node_queried.port}`, PROTO_PATH, "Node");
         // now grab the remote value
         try {
-            n_successor = await node_to_query_client.getSuccessor_remote(node_to_query);
+            n_successor = await node_queried_client.getSuccessor_remote(node_queried);
         } catch (err) {
             console.error("getSuccessor_remote error in getSuccessor() ", err);
         }
@@ -289,34 +289,34 @@ async function getSuccessor(id, node_querying, node_to_query) {
 }
 
 /* added 20191019 */
-async function closest_preceding_finger(id, node_querying, node_to_query) {
+async function closest_preceding_finger(id, node_querying, node_queried) {
     /**
      * Directly implement the pseudocode's closest_preceding_finger() method.
      * However, it is able to discern whether to do a local lookup or an RPC.
      * If the querying node is the same as the queried node, it will stay local.
      */
   let n_preceding;
-  if (node_querying.id == node_to_query.id) {
+  if (node_querying.id == node_queried.id) {
     // use local value
     // for i = m downto 1
     for (let i = HASH_BIT_LENGTH - 1; i >= 0; i--) {
       // if ( finger[i].node 'is-in' (n, id) )
-      if ( isInModuloRange(FingerTable[i].successor.id, node_to_query.id, false, id, false) ) {
+      if ( isInModuloRange(FingerTable[i].successor.id, node_queried.id, false, id, false) ) {
         // return finger[i].node;
         n_preceding = FingerTable[i].successor;
         return n_preceding;
       }
     }
     // return n;
-    n_preceding = node_to_query;
+    n_preceding = node_queried;
     return n_preceding;
   } else {
     // use remote value
     // create client for remote call
-    const node_to_query_client = caller(`localhost:${node_to_query.port}`, PROTO_PATH, "Node");
+    const node_queried_client = caller(`localhost:${node_queried.port}`, PROTO_PATH, "Node");
     // now grab the remote value
     try {
-      n_preceding = await node_to_query_client.getClosestPrecedingFinger({id: id, node: node_to_query});
+      n_preceding = await node_queried_client.getClosestPrecedingFinger({id: id, node: node_queried});
     } catch (err) {
       console.error("getClosestPrecedingFinger error in closest_preceding_finger() ", err);
     }
@@ -326,14 +326,14 @@ async function closest_preceding_finger(id, node_querying, node_to_query) {
 }
 
 /* added 20191019 */
-async function getClosestPrecedingFinger(id_and_node_to_query, callback) {
+async function getClosestPrecedingFinger(id_and_node_queried, callback) {
     /** 
      * RPC equivalent of the pseudocode's closest_preceding_finger() method.
      * It is implemented as simply a wrapper for the local closest_preceding_finger() function.
      */
-    const id = id_and_node_to_query.request.id;
-    const node_to_query = id_and_node_to_query.request.node;
-    const n_preceding = await closest_preceding_finger(id, _self, node_to_query);
+    const id = id_and_node_queried.request.id;
+    const node_queried = id_and_node_queried.request.node;
+    const n_preceding = await closest_preceding_finger(id, _self, node_queried);
     callback(null, n_preceding);
 }
 
@@ -578,36 +578,32 @@ async function update_finger_table(message, callback) {
     const DEBUGGING_LOCAL = true;
 
     const s_node = message.request.node;
-    const index = message.request.index;
+    const finger_index = message.request.index;
 
     /* vvvvv     vvvvv     debugging code     vvvvv     vvvvv */
     if (DEBUGGING_LOCAL) {
         console.log("vvvvv     vvvvv     update_finger_table     vvvvv     vvvvv");
         console.log("{", _self.id, "}.FingerTable[] =\n", FingerTable);
-        console.log("s_node = ", message.request.node, "; index =", index);
-        if (message.request.node == null) {
-            console.log("Message:\n", message);
-        }
+        console.log("s_node = ", message.request.node.id, "; finger_index =", finger_index);
     }
     /* ^^^^^     ^^^^^     debugging code     ^^^^^     ^^^^^ */
 
     // if ( s 'is in' [n, finger[i].node) )
-    if (isInModuloRange(s_node.id, _self.id, true, FingerTable[index].successor.id, false)) {
+    if (isInModuloRange(s_node.id, _self.id, true, FingerTable[finger_index].successor.id, false)) {
         // finger[i].node = s;
-        FingerTable[index].successor = s_node;
+        FingerTable[finger_index].successor = s_node;
         // p = predecessor;
         const p_client = caller(`localhost:${predecessor.port}`, PROTO_PATH, "Node");
         // p.update_finger_table(s, i);
-        console.log(`localhost:${predecessor.port}`);
         try {
-            await p_client.update_finger_table({ s_node, index });
+            await p_client.update_finger_table({ node: s_node, index: finger_index });
         } catch (err) {
             console.error("Error updating the finger table of {", s_node.id, "}.\n\n", err);
         }
 
         /* vvvvv     vvvvv     debugging code     vvvvv     vvvvv */
         if (DEBUGGING_LOCAL) {
-            console.log("Updated {", _self.id, "}.FingerTable[", index, "] to ", s_node);
+            console.log("Updated {", _self.id, "}.FingerTable[", finger_index, "] to ", s_node);
             console.log("^^^^^     ^^^^^     update_finger_table     ^^^^^     ^^^^^");
         }
         /* ^^^^^     ^^^^^     debugging code     ^^^^^     ^^^^^ */
@@ -615,6 +611,7 @@ async function update_finger_table(message, callback) {
         // TODO: Figure out how to determine if the above had an RC of 0
         // If so call callback({status: 0, message: "OK"}, {});
         callback(null, {});
+        return;
     }
 
     /* vvvvv     vvvvv     debugging code     vvvvv     vvvvv */
@@ -640,7 +637,7 @@ async function stabilize() {
     // x = successor.predecessor;
     if (FingerTable[0].successor.id == _self.id) {
         // use local value
-        stabilize_self();
+        await stabilize_self();
         x = _self;
     } else {
         // use remote value
@@ -730,7 +727,7 @@ async function fix_fingers() {
      * Directly implements the pseudocode's fix_fingers() method.
      */
     // enable debugging output
-    const DEBUGGING_LOCAL = true;
+    const DEBUGGING_LOCAL = false;
 
     // i = random index > 1 into finger[]; but really >0 because 0-based
     // random integer within the range (0, m)
