@@ -666,6 +666,7 @@ async function stabilize() {
 
 /* added 20191021 */
 async function stabilize_self() {
+    console.log("Here is a terrible bug");
     /**
      * This function tries to kick a node, such as the original, with a successor of self.
      * The kick comes from setting the successor to be equal to the predecessor.
