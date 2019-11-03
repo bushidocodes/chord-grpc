@@ -20,8 +20,8 @@ service Node {
   rpc setPredecessor (NodeAddress) returns (google.protobuf.Empty) {}
   rpc notify (NodeAddress) returns (google.protobuf.Empty) {}
   rpc update_finger_table (FingerTableEntry) returns (NodeAddress) {}
-  rpc find_successor_remote (NodeId) returns (NodeAddress) {}
-  rpc getClosestPrecedingFinger (RemoteId) returns (NodeAddress) {}
+  rpc find_successor_remotehelper (RemoteId) returns (NodeAddress) {}
+  rpc closest_preceding_finger_remotehelper (RemoteId) returns (NodeAddress) {}
 }
 
 message RemoteId {
