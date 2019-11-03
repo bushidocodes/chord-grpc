@@ -3,6 +3,7 @@ const grpc = require("grpc");
 const users = require("./data/tinyUsers.json");
 const protoLoader = require("@grpc/proto-loader");
 const minimist = require("minimist");
+const { Worker } = require("worker_threads");
 
 const PROTO_PATH = path.resolve(__dirname, "./protos/chord.proto");
 
@@ -805,5 +806,25 @@ async function main() {
     console.log(`Serving on ${_self.ip}:${_self.port}`);
     server.start();
 }
+
+// Creates a worker thread to execute crypto and returns a result.
+// To use `const result = await sha1("stuff2");`
+function sha1 (source) {
+    return new Promise((resolve, reject) => {
+      const worker = new Worker(path.join(__dirname, "./cryptoThread.js"), { workerData: source });
+      worker.on("message", resolve);
+      worker.on("error", reject);
+    });
+  };
+  
+// Example of using the thread
+// async function test(){
+//     let result = await sha1("stuff");
+//     console.log("Result is: ", result);
+//     result = await sha1("stuff2");
+//     console.log("Result is: ", result);
+// };
+// test();
+  
 
 main();
