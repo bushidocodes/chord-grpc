@@ -94,7 +94,7 @@ function summary(){
 async function crawl(){
   client = new chord.Node(`${lastNode.ip}:${lastNode.port}`, grpc.credentials.createInsecure());
   // The argument is total garbage
-  client.getSuccessor_remote({id: 99}, (err, node) => {
+  client.getSuccessor_remotehelper({id: 99}, (err, node) => {
     if (err) {
       console.log(err);
       console.log(node);
