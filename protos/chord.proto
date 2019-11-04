@@ -17,7 +17,6 @@ service Node {
   // Chord Library Level RPC Calls
   rpc find_successor_remotehelper (RemoteId) returns (NodeAddress) {}
   rpc getSuccessor_remotehelper (NodeAddress) returns (NodeAddress) {}
-  rpc getSuccessorTable_remotehelper (NodeAddress) returns (SuccessorTable) {}
   rpc getPredecessor (NodeAddress) returns (NodeAddress) {}
   rpc setPredecessor (NodeAddress) returns (google.protobuf.Empty) {}
   rpc closest_preceding_finger_remotehelper (RemoteId) returns (NodeAddress) {}
@@ -44,10 +43,6 @@ message FingerTableEntry {
   NodeAddress node = 1;
   uint32 index = 2;
  }
-
-message SuccessorTable {
-  {NodeAddress} SuccessorTable = 1;
-}
 
 message Trash{
   uint32 id = 1;

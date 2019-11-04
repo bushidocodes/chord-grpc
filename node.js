@@ -20,6 +20,7 @@ const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 const caller = require("grpc-caller");
 
 const HASH_BIT_LENGTH = 3;
+const CHECK_NODE_TIMEOUT_ms = 1000;
 
 const NULL_NODE = { id: null, ip: null, port: null };
 
@@ -30,9 +31,7 @@ let FingerTable = [
     }
 ];
 
-let SuccessorTable = [
-    { successor: NULL_NODE }
-]
+let SuccessorTable = [ NULL_NODE ];
 
 let _self = NULL_NODE;
 
@@ -110,36 +109,48 @@ function insert({ request: user }, callback) {
     }
 }
 
-/* added 20191102 */
+/**
+ * Directly implement the pseudocode's find_successor() method.
+ * 
+ * However, it is able to discern whether to do a local lookup or an RPC.
+ * If the querying node is the same as the queried node, it will stay local.
+ * 
+ * @argument id value being searched
+ * @argument node_querying node initiating the query
+ * @argument node_queried node being queried for the ID
+ * 
+ * @version 20191103
+ */
 async function find_successor(id, node_querying, node_queried) {
-    /**
-     * Directly implement the pseudocode's find_successor() method.
-     * However, it is able to discern whether to do a local lookup or an RPC.
-     * If the querying node is the same as the queried node, it will stay local.
-     */
     // enable debugging output
     const DEBUGGING_LOCAL = false;
 
-    let n_prime_successor;
+    let n_prime = NULL_NODE;
+    let n_prime_successor = NULL_NODE;
 
-    /* vvvvv     vvvvv     TBD debugging code     vvvvv     vvvvv */
     if (DEBUGGING_LOCAL) {
         console.log("vvvvv     vvvvv     find_successor     vvvvv     vvvvv");
     }
-    /* ^^^^^     ^^^^^     TBD debugging code     ^^^^^     ^^^^^ */
+
     if (node_querying.id == node_queried.id) {
         // use local value
         // n' = find_predecessor(id);
-        let n_prime = await find_predecessor(id);
+        try {
+            n_prime = await find_predecessor(id);
+        } catch (err) {
+            n_prime = NULL_NODE;
+        }
 
-        /* vvvvv     vvvvv     TBD debugging code     vvvvv     vvvvv */
         if (DEBUGGING_LOCAL) {
             console.log("find_successor: n_prime is ", n_prime.id);
         }
-        /* ^^^^^     ^^^^^     TBD debugging code     ^^^^^     ^^^^^ */
 
         // get n'.successor either locally or remotely
-        n_prime_successor = await getSuccessor(id, _self, n_prime);
+        try {
+            n_prime_successor = await getSuccessor(_self, n_prime);
+        } catch (err) {
+            n_prime_successor = NULL_NODE;
+        }
     } else {
         // create client for remote call
         const node_queried_client = caller(`localhost:${node_queried.port}`, PROTO_PATH, "Node");
@@ -147,30 +158,35 @@ async function find_successor(id, node_querying, node_queried) {
         try {
             n_prime_successor = await node_queried_client.find_successor_remotehelper({ id: id, node: node_queried });
         } catch (err) {
-            console.error("remote helper error in find_successor() ", err);
+            n_prime_successor = NULL_NODE;
+            console.error("Remote error in find_successor() ", err);
         }
     }
 
-    /* vvvvv     vvvvv     TBD debugging code     vvvvv     vvvvv */
     if (DEBUGGING_LOCAL) {
         console.log("find_successor: n_prime_successor = ", n_prime_successor.id);
         console.log("^^^^^     ^^^^^     find_successor     ^^^^^     ^^^^^");
     }
-    /* ^^^^^     ^^^^^     TBD debugging code     ^^^^^     ^^^^^ */
 
     // return n'.successor;
     return n_prime_successor;
 }
 
-/* added 20191019 */
+/** 
+ * RPC equivalent of the pseudocode's find_successor() method.
+ * It is implemented as simply a wrapper for the local find_successor() method.
+ * 
+ * @version 20191103
+ */
 async function find_successor_remotehelper(id_and_node_queried, callback) {
-    /** 
-     * RPC equivalent of the pseudocode's find_successor() method.
-     * It is implemented as simply a wrapper for the local find_successor() method.
-     */
     const id = id_and_node_queried.request.id;
     const node_queried = id_and_node_queried.request.node;
-    let n_prime_successor = await find_successor(id, _self, node_queried);
+    let n_prime_successor = NULL_NODE;
+    try {
+        n_prime_successor = await find_successor(id, _self, node_queried);
+    } catch (err) {
+        n_prime_successor = NULL_NODE;
+    }
     callback(null, n_prime_successor);
 }
 
@@ -192,8 +208,13 @@ async function find_predecessor(id) {
 
     // n' = n;
     let n_prime = _self;
-    let prior_n_prime = { id: null, ip: null, port: null };
-    let n_prime_successor = await getSuccessor(id, _self, n_prime);
+    let prior_n_prime = NULL_NODE;
+    let n_prime_successor = NULL_NODE;
+    try {
+        n_prime_successor = await getSuccessor(_self, n_prime);
+    } catch (err) {
+        n_prime_successor = NULL_NODE;
+    }
 
     /* vvvvv     vvvvv     TBD debugging code     vvvvv     vvvvv */
     if (DEBUGGING_LOCAL) {
@@ -223,7 +244,7 @@ async function find_predecessor(id) {
         }
         /* ^^^^^     ^^^^^     TBD debugging code     ^^^^^     ^^^^^ */
 
-        n_prime_successor = await getSuccessor(id, _self, n_prime);
+        n_prime_successor = await getSuccessor(_self, n_prime);
         // store state
         prior_n_prime = n_prime;
 
@@ -246,19 +267,19 @@ async function find_predecessor(id) {
 }
 
 /**
- * Return the successor of a given node ID by either a local lookup or an RPC.
+ * Return the successor of a given node by either a local lookup or an RPC.
  * If the querying node is the same as the queried node, it will be a local lookup.
  * 
  * @returns : the successor if the successor seems valid, or a null node otherwise
  * @version 20191103
  */
-async function getSuccessor(id, node_querying, node_queried) {
+async function getSuccessor(node_querying, node_queried) {
     // enable debugging output
     const DEBUGGING_LOCAL = false;
 
     if (DEBUGGING_LOCAL) {
         console.log("vvvvv     vvvvv     getSuccessor     vvvvv     vvvvv");
-        console.log("id = ", id, "; node_querying is ", node_querying, "; node being queried is ", node_queried);
+        console.log("node_querying is ", node_querying, "; node being queried is ", node_queried);
     }
 
     // get n.successor either locally or remotely
@@ -274,7 +295,9 @@ async function getSuccessor(id, node_querying, node_queried) {
         try {
             n_successor = await node_queried_client.getSuccessor_remotehelper(node_queried);
         } catch (err) {
-            console.error("Remote error in getSuccessor() ", err);
+            if (DEBUGGING_LOCAL) {
+                console.log("Remote error in getSuccessor() ", err);
+            }
             n_successor = NULL_NODE;
         }
     }
@@ -346,6 +369,12 @@ async function closest_preceding_finger_remotehelper(id_and_node_queried, callba
     callback(null, n_preceding);
 }
 
+/**
+ * RPC to return the node's predecessor.
+ * 
+ * @returns predecessor node
+ * @version 20191103
+ */
 async function getPredecessor(thing, callback) {
     callback(null, predecessor);
 }
@@ -419,13 +448,15 @@ async function join(known_node) {
     await migrate_keys();
 
     // initialize successor table - deviates from SIGCOMM
-    SuccessorTable[0].successor = FingerTable[0].successor;
+    SuccessorTable[0] = FingerTable[0].successor;
+    /* TBD remove 20191103 /
     // initialize rest of table with dummy values
     for (let i = 1; i < HASH_BIT_LENGTH; i++) {
         SuccessorTable.push({
             successor: { id: null, ip: null, port: null }
         });
     }
+    / TBD remove 20191103 */
 
     if (DEBUGGING_LOCAL) {
         console.log(">>>>>     join          ");
@@ -646,40 +677,68 @@ async function update_successor_table() {
         console.log("{", _self.id, "}.SuccessorTable[] =\n", SuccessorTable);
         console.log("s_node = ", FingerTable[0].successor.id);
     }
-    // check for error in table
-    if (SuccessorTable.length !== HASH_BIT_LENGTH) {
-        if (DEBUGGING_LOCAL) {
-            console.log("Malformed SuccessorTable[]: expected length ", HASH_BIT_LENGTH, 
-                " but actual length is ", SuccessorTable.length, ".");
-        }
-        return false;
-    }
     // check whether the successor is available
+    let successor_seems_ok = false;
     try {
         successor_seems_ok = await check_successor();
+        console.log("TBD successor_seems_ok");
     } catch (err) {
         successor_seems_ok = false;
+        console.log("%%%%%\n%%%%%\nTBD update_error_669\n%%%%%\n%%%%%");
     }
-    // check whether 
-    while ((!successor_seems_ok) && (SuccessorTable.length > 0)) {
-        // try again, to account for contention or bad luck
-        try {
-            successor_seems_ok = await check_successor();
-        } catch (err) {
-            successor_seems_ok = false;
+    if (successor_seems_ok) {
+        // synchronize immediate successor if it is valid
+        SuccessorTable[0] = FingerTable[0].successor;
+    } else {
+        // or prune if the successor is not valid
+        while ((!successor_seems_ok) && (SuccessorTable.length > 0)) {
+            // try current successor again to account for contention or bad luck
+            try {
+                successor_seems_ok = await check_successor();
+            } catch (err) {
+                successor_seems_ok = false;
+                console.log("%%%%%\n%%%%%\nTBD update_error_680\n%%%%%\n%%%%%");
+            }
+            if (successor_seems_ok) {
+                // synchronize immediate successor if it is valid
+                SuccessorTable[0] = FingerTable[0].successor;
+            } else {
+                // drop the first successor candidate
+                SuccessorTable.shift();
+                // update the finger table to the next candidate
+                FingerTable[0].successor = SuccessorTable[0];
+            }
         }
-        if (!successor_seems_ok) {
-            // drop the first successor candidate
-            SuccessorTable.shift();
-            // update the finger table
-            FingerTable[0].successor = SuccessorTable[0];
+    }
+    // try to bulk up the table
+    if (SuccessorTable.length < HASH_BIT_LENGTH) {
+        if (DEBUGGING_LOCAL) {
+            console.log("Short SuccessorTable[]: prefer length ", HASH_BIT_LENGTH,
+                " but actual length is ", SuccessorTable.length, ".");
+        }
+        for (let i = 0; (i < SuccessorTable.length) && (i <= HASH_BIT_LENGTH); i++) {
+            try {
+                successor_successor = await getSuccessor(_self, SuccessorTable[i]);
+            } catch (err) {
+                successor_successor = NULL_NODE;
+            }
+            if ((successor_successor.id !== null) && 
+                !isInModuloRange(successor_successor.id, _self.id, true, SuccessorTable[i].id, true)) {
+                // append the additional value
+                SuccessorTable.splice(i + 1, 1, successor_successor);
+            }
+        }
+        // don't let the table get too long
+        if (SuccessorTable.length >= HASH_BIT_LENGTH) {
+            SuccessorTable.splice(HASH_BIT_LENGTH, SuccessorTable.length - HASH_BIT_LENGTH);
         }
     }
 
     if (DEBUGGING_LOCAL) {
+        console.log("New {", _self.id, "}.SuccessorTable[] =\n", SuccessorTable);
         console.log("^^^^^     ^^^^^     update_successor_table     ^^^^^     ^^^^^");
     }
-    return true;
+    return successor_seems_ok;
 }
 
 /**
@@ -763,7 +822,6 @@ async function stabilize() {
             x = _self;
             console.log("Warning! \"successor.predecessor\" (i.e., {", 
                 FingerTable[0].successor.id, "}.predecessor), failed in stabilize({", _self.id, "}).");
-            // TODO: consider looping through the rest of the fingers or asking the predecessor.
         }
     }
 
@@ -808,36 +866,41 @@ async function stabilize() {
  * @version 20191103
 */
 async function stabilize_self() {
-    let other_node_client;
+    let predecessor_seems_ok = false;
     if (predecessor.id == null) {
         // this node is in real trouble since its predecessor is no good either
         // TODO try to rescue it by stepping through the rest of its finger table, else destroy it
-        return false;
+        predecessor_seems_ok = false;
+        return predecessor_seems_ok;
     }
     if (predecessor.id !== _self.id) {
-        other_node_client = caller(`localhost:${predecessor.port}`, PROTO_PATH, "Node");
         try {
             // confirm that the predecessor is actually there
-            await other_node_client.getPredecessor(_self);
-            // then kick by setting the successor to the same as the predecessor
-            FingerTable[0].successor = predecessor;
+            predecessor_seems_ok = await check_predecessor();
         } catch (err) {
             console.error(err);
+            predecessor_seems_ok = false;
+        }
+        if (predecessor_seems_ok) {
+            // then kick by setting the successor to the same as the predecessor
+            FingerTable[0].successor = predecessor;
+            SuccessorTable[0] = FingerTable[0].successor;
         }
     } else {
         console.log("\nWarning: {", _self.id, "} is isolated because",
             "predecessor is", predecessor.id,
             "and successor is", FingerTable[0].successor.id, ".");
-        return false;
+            predecessor_seems_ok = true;
     }
-    return true;
+    return predecessor_seems_ok;
 }
 
-/* modified 20191021 */
+/**
+ * Directly implements the pseudocode's notify() method.
+ * 
+ * @version 20191021
+ */
 async function notify(message, callback) {
-    /**
-     * Directly implements the pseudocode's notify() method.
-     */
     const n_prime = message.request;
     // if (predecessor is nil or n' 'is in' (predecessor, n))
     if ((predecessor.id == null)
@@ -848,11 +911,12 @@ async function notify(message, callback) {
     callback(null, {});
 }
 
-/* modified 20191022 */
+/**
+ * Directly implements the pseudocode's fix_fingers() method.
+ * 
+ * @version 20191022
+ */
 async function fix_fingers() {
-    /**
-     * Directly implements the pseudocode's fix_fingers() method.
-     */
     // enable debugging output
     const DEBUGGING_LOCAL = false;
 
@@ -898,19 +962,25 @@ async function check_predecessor() {
  */
 async function check_successor() {
     // enable debugging output
-    const DEBUGGING_LOCAL = false;
+    const DEBUGGING_LOCAL = true;
+    let successor_seems_ok = false;
     if ((FingerTable[0].successor.id !== null) && (FingerTable[0].successor.id !== _self.id)) {
         try {
             // just ask anything
-            await getSuccessor(FingerTable[0].successor.id, _self, FingerTable[0].successor);
+            n_successor = await getSuccessor(_self, FingerTable[0].successor);
+            successor_seems_ok = true;
         } catch (err) {
             if (DEBUGGING_LOCAL) {
                 console.log("Error in check_successor({", _self.id, "})\n", err);
             }
-            return false;
+            successor_seems_ok = false;
+        }
+    } else {
+        if (FingerTable[0].successor.id !== _self.id) {
+            successor_seems_ok = true;
         }
     }
-    return true;
+    return successor_seems_ok;
 }
 
 /**
@@ -920,43 +990,44 @@ async function check_successor() {
  */
 async function migrate_keys() {}
 
-/* modified 20191021 */
+/**
+ * Starts an RPC server that receives requests for the Greeter service at the
+ * sample server port
+ *
+ * Takes the following optional flags
+ * --id         - This node's id
+ * --ip         - This node's IP Address'
+ * --port       - This node's Port
+ *
+ * --targetId   - The ID of a node in the cluster
+ * --targetIp   - The IP of a node in the cluster
+ * --targetPort - The Port of a node in the cluster
+ *
+ * @version 20191021
+ */
 async function main() {
-    /**
-     * Starts an RPC server that receives requests for the Greeter service at the
-     * sample server port
-     *
-     * Takes the following optional flags
-     * --id         - This node's id
-     * --ip         - This node's IP Address'
-     * --port       - This node's Port
-     *
-     * --targetId   - The ID of a node in the cluster
-     * --targetIp   - The IP of a node in the cluster
-     * --targetPort - The Port of a node in the cluster
-     *
-     */
+    // enable debugging output
+    const DEBUGGING_LOCAL = true;
+
     const args = minimist(process.argv.slice(2));
     _self.id = args.id ? args.id : 0;
     _self.ip = args.ip ? args.ip : `0.0.0.0`;
     _self.port = args.port ? args.port : 1337;
 
-    if (
-        args.targetIp !== null &&
-        args.targetPort !== null &&
-        args.targetId !== null
-    ) {
+    if (args.targetIp !== null && 
+        args.targetPort !== null && 
+        args.targetId !== null) {
         await join({ id: args.targetId, ip: args.targetIp, port: args.targetPort });
     } else {
         await join(null);
     }
 
-    // Periodically run stabilize and fix_fingers
-    // TODO this application of async/await may not be appropriate
+    // periodically run stabilization functions
     setInterval(async () => { await stabilize() }, 3000);
     setInterval(async () => { await fix_fingers() }, 3000);
-    setInterval(async () => { await check_predecessor() }, 1000);
+    setInterval(async () => { await check_predecessor() }, CHECK_NODE_TIMEOUT_ms);
 
+    // server instantiation
     const server = new grpc.Server();
     server.addService(chord.Node.service, {
         summary,
@@ -971,12 +1042,11 @@ async function main() {
         update_finger_table,
         notify
     });
-    server.bind(
-        `${_self.ip}:${_self.port}`,
-        grpc.ServerCredentials.createInsecure()
-    );
-    console.log(`Serving on ${_self.ip}:${_self.port}`);
+    server.bind(`${_self.ip}:${_self.port}`, grpc.ServerCredentials.createInsecure());
     server.start();
+    if (DEBUGGING_LOCAL) {
+        console.log(`Serving on ${_self.ip}:${_self.port}`);
+    }
 }
 
 // Creates a worker thread to execute crypto and returns a result.
