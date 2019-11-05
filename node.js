@@ -46,8 +46,12 @@ let predecessor = NULL_NODE;
  * Accounts for the modulo arithmetic to determine whether the input value is within the bounds.
  * Implements inclusive and exclusive properties for each bound, as specified.
  * 
- * @returns true if the input value is in - modulo - bounds; false otherwise
- * 
+ * @param {number} input_value 
+ * @param {number} lower_bound
+ * @param {boolean} include_lower
+ * @param {number} upper_bound
+ * @param {boolean} include_upper
+ * @returns {boolean} true if the input value is in - modulo - bounds; false otherwise
  */
 function isInModuloRange(input_value, lower_bound, include_lower, upper_bound, include_upper) {
     /*
@@ -91,6 +95,11 @@ function isInModuloRange(input_value, lower_bound, include_lower, upper_bound, i
     }
 }
 
+/**
+ * Print Summary of state of node
+ * @param userRequestObject 
+ * @param callback gRPC callback
+ */
 function summary(_, callback) {
     console.log("vvvvv     vvvvv     Summary     vvvvv     vvvvv");
     console.log("fingerTable: \n", fingerTable);
@@ -99,6 +108,11 @@ function summary(_, callback) {
     callback(null, _self);
 }
 
+/**
+ * Fetch a user
+ * @param userRequestObject 
+ * @param callback gRPC callback
+ */
 function fetch({ request: { id } }, callback) {
     console.log(`Requested User ${id}`);
     if (!users[id]) {
@@ -108,6 +122,11 @@ function fetch({ request: { id } }, callback) {
     }
 }
 
+/**
+ * Insert a user
+ * @param grpcRequest 
+ * @param callback gRPC callback
+ */
 function insert({ request: user }, callback) {
     if (users[user.id]) {
         const message = `Err: ${user.id} already exits`;
@@ -127,9 +146,9 @@ function insert({ request: user }, callback) {
  * However, it is able to discern whether to do a local lookup or an RPC.
  * If the querying node is the same as the queried node, it will stay local.
  * 
- * @argument id value being searched
- * @argument node_querying node initiating the query
- * @argument node_queried node being queried for the ID
+ * @param {number} id value being searched
+ * @param node_querying node initiating the query
+ * @param node_queried node being queried for the ID
  * @returns id.successor
  * 
  */
@@ -192,7 +211,8 @@ async function find_successor(id, node_querying, node_queried) {
  * RPC equivalent of the pseudocode's find_successor() method.
  * It is implemented as simply a wrapper for the local find_successor() method.
  * 
- * @argument id_and_node_queried {id:, node:}, where ID is the key sought
+ * @param id_and_node_queried {id:, node:}, where ID is the key sought
+ * @param callback grpc callback function
  * 
  */
 async function find_successor_remotehelper(id_and_node_queried, callback) {
@@ -226,7 +246,7 @@ async function find_successor_remotehelper(id_and_node_queried, callback) {
  *  with the exception of the limits on the while loop.
  * 
  * @todo 20191103.hk: re-examine the limits on the while loop
- * @argument id the key sought
+ * @param {number} id the key sought
 */
 async function find_predecessor(id) {
     // enable debugging output
@@ -300,7 +320,8 @@ async function find_predecessor(id) {
 /**
  * Return the successor of a given node by either a local lookup or an RPC.
  * If the querying node is the same as the queried node, it will be a local lookup.
- * 
+ * @param node_querying
+ * @param node_queried
  * @returns : the successor if the successor seems valid, or a null node otherwise
  */
 async function getSuccessor(node_querying, node_queried) {
@@ -344,9 +365,10 @@ async function getSuccessor(node_querying, node_queried) {
 /** 
  * RPC equivalent of the getSuccessor() method.
  * It is implemented as simply a wrapper for the getSuccessor() function.
- * 
+ * @param _ - dummy parameter
+ * @param callback - grpc callback
  */
-async function getSuccessor_remotehelper(thing, callback) {
+async function getSuccessor_remotehelper(_, callback) {
     callback(null, fingerTable[0].successor);
 }
 
@@ -356,6 +378,9 @@ async function getSuccessor_remotehelper(thing, callback) {
  * However, it is able to discern whether to do a local lookup or an RPC.
  * If the querying node is the same as the queried node, it will stay local.
  * 
+ * @param id
+ * @param node_querying
+ * @param node_queried
  * @returns the closest preceding node to ID
  * 
  */
@@ -395,7 +420,8 @@ async function closest_preceding_finger(id, node_querying, node_queried) {
  * RPC equivalent of the pseudocode's closest_preceding_finger() method.
  * It is implemented as simply a wrapper for the local closest_preceding_finger() function.
  * 
- * @argument id_and_node_queried {id:, node:}, where ID is the key sought
+ * @param id_and_node_queried {id:, node:}, where ID is the key sought
+ * @param callback - grpc callback
  * 
  */
 async function closest_preceding_finger_remotehelper(id_and_node_queried, callback) {
@@ -413,17 +439,19 @@ async function closest_preceding_finger_remotehelper(id_and_node_queried, callba
 /**
  * RPC to return the node's predecessor.
  * 
- * @argument : NONE
+ * @param _ - unused dummy argument
+ * @param callback - grpc callback
  * @returns predecessor node
  */
-async function getPredecessor(thing, callback) {
+async function getPredecessor(_, callback) {
     callback(null, predecessor);
 }
 
 /**
  * RPC to replace the value of the node's predecessor.
  * 
- * @argument message is a node object
+ * @param message is a node object
+ * @param callback
  */
 async function setPredecessor(message, callback) {
     // enable debugging output
@@ -452,7 +480,7 @@ async function setPredecessor(message, callback) {
  * Modification consists of an additional step of initializing the successor table
  *   as described in the IEEE paper.
  * 
- * @argument known_node: known_node structure; e.g., {id, ip, port}
+ * @param known_node: known_node structure; e.g., {id, ip, port}
  *   Pass a null known node to force the node to be the first in a new chord.
  */
 async function join(known_node) {
@@ -495,7 +523,8 @@ async function join(known_node) {
 
 /**
  * Determine whether a node exists by pinging it.
- * 
+ * @param known_node: known_node structure; e.g., {id, ip, port}
+ * @returns {boolean}
  */
 function confirm_exist(known_node) {
     // TODO: confirm_exist actually needs to ping the endpoint to ensure it's real
@@ -504,7 +533,7 @@ function confirm_exist(known_node) {
 
 /**
  * Directly implement the pseudocode's init_finger_table() method.
- * 
+ * @param n_prime
  */
 async function init_finger_table(n_prime) {
     // enable debugging output
@@ -631,7 +660,8 @@ async function update_others() {
 /**
  * RPC that directly implements the pseudocode's update_finger_table() method.
  * 
- * @argument message : consists of {s_node, finger_index} * 
+ * @param message - consists of {s_node, finger_index} * 
+ * @param callback - grpc callback
  */
 async function update_finger_table(message, callback) {
     // enable debugging output
@@ -690,7 +720,7 @@ async function update_finger_table(message, callback) {
  *      [1-] it replaces it with the first live entry in its successor list 
  *      [2-] and reconciles its successor list with its new successor."
  * 
- * @returns : true if it was successful; false otherwise.
+ * @returns {boolean} true if it was successful; false otherwise.
  * 
  */
 async function update_successor_table() {
@@ -798,15 +828,16 @@ async function update_successor_table() {
  *  1- additional logic to stabilize a node whose predecessor is itself
  *      as would be the case for the initial node in a chord.
  *  2- additional step of updating the successor table as recommended by the IEEE paper.
- *
+ *  @returns {boolean}
  */
 async function stabilize() {
     // enable debugging output
     const DEBUGGING_LOCAL = true;
+    let successor_client;
 
     let x;
     try {
-        let successor_client = caller(`localhost:${fingerTable[0].successor.port}`, PROTO_PATH, "Node");
+        successor_client = caller(`localhost:${fingerTable[0].successor.port}`, PROTO_PATH, "Node");
     } catch {
         return false;
     }
@@ -867,7 +898,7 @@ async function stabilize() {
  * 
  * This is an original function, not described in either version of the paper - added 20191021.
  *
- * @returns : true if it was a good kick; false if bad kick.
+ * @returns {boolean} true if it was a good kick; false if bad kick.
 */
 async function stabilize_self() {
     let predecessor_seems_ok = false;
@@ -901,7 +932,8 @@ async function stabilize_self() {
 
 /**
  * Directly implements the pseudocode's notify() method.
- * 
+ * @param message
+ * @param callback the gRPC callback
  */
 async function notify(message, callback) {
     const n_prime = message.request;
@@ -944,7 +976,7 @@ async function fix_fingers() {
 /**
  * Directly implements the check_predecessor() method from the IEEE version of the paper.
  * 
- * @returns : true if predecessor was still reasonable; false otherwise.
+ * @returns {boolean} true if predecessor was still reasonable; false otherwise.
  */
 async function check_predecessor() {
     if ((predecessor.id !== null) && (predecessor.id !== _self.id)) {
@@ -966,7 +998,7 @@ async function check_predecessor() {
  * 
  * This is an original function, not described in either version of the paper - added 20191103.
  * 
- * @returns : true if successor was still reasonable; false otherwise.
+ * @returns {boolean} true if successor was still reasonable; false otherwise.
  */
 async function check_successor() {
     // enable debugging output
@@ -1065,8 +1097,12 @@ async function main() {
     }
 }
 
-// Creates a worker thread to execute crypto and returns a result.
-// To use `const result = await sha1("stuff2");`
+/**
+ * Creates a worker thread to execute crypto and returns a result.
+ * To use `const result = await sha1("stuff2");`
+ * @param {string} source 
+ * @returns {Promise} - Resolves to the SHA-1 hash of source
+ */
 function sha1(source) {
     return new Promise((resolve, reject) => {
         const worker = new Worker(path.join(__dirname, "./cryptoThread.js"), { workerData: source });
