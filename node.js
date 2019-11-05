@@ -1,9 +1,6 @@
 /**
  * Implements a node in a Chord, per Stoica et al., ca 2001. 
  * 
- * @requires gRPC
- * 
- * @version 20191103
  */
 
 const path = require("path");
@@ -51,7 +48,6 @@ let predecessor = NULL_NODE;
  * 
  * @returns true if the input value is in - modulo - bounds; false otherwise
  * 
- * @version 20191103
  */
 function isInModuloRange(input_value, lower_bound, include_lower, upper_bound, include_upper) {
     /*
@@ -136,7 +132,6 @@ function insert({ request: user }, callback) {
  * @argument node_queried node being queried for the ID
  * @returns id.successor
  * 
- * @version 20191103
  */
 async function find_successor(id, node_querying, node_queried) {
     // enable debugging output
@@ -199,7 +194,6 @@ async function find_successor(id, node_querying, node_queried) {
  * 
  * @argument id_and_node_queried {id:, node:}, where ID is the key sought
  * 
- * @version 20191103
  */
 async function find_successor_remotehelper(id_and_node_queried, callback) {
     // enable debugging output
@@ -233,7 +227,6 @@ async function find_successor_remotehelper(id_and_node_queried, callback) {
  * 
  * @todo 20191103.hk: re-examine the limits on the while loop
  * @argument id the key sought
- * @version 20191103
 */
 async function find_predecessor(id) {
     // enable debugging output
@@ -309,7 +302,6 @@ async function find_predecessor(id) {
  * If the querying node is the same as the queried node, it will be a local lookup.
  * 
  * @returns : the successor if the successor seems valid, or a null node otherwise
- * @version 20191103
  */
 async function getSuccessor(node_querying, node_queried) {
     // enable debugging output
@@ -353,7 +345,6 @@ async function getSuccessor(node_querying, node_queried) {
  * RPC equivalent of the getSuccessor() method.
  * It is implemented as simply a wrapper for the getSuccessor() function.
  * 
- * @version 20191103
  */
 async function getSuccessor_remotehelper(thing, callback) {
     callback(null, FingerTable[0].successor);
@@ -367,7 +358,6 @@ async function getSuccessor_remotehelper(thing, callback) {
  * 
  * @returns the closest preceding node to ID
  * 
- * @version 20191103
  */
 async function closest_preceding_finger(id, node_querying, node_queried) {
     let n_preceding = NULL_NODE;
@@ -407,7 +397,6 @@ async function closest_preceding_finger(id, node_querying, node_queried) {
  * 
  * @argument id_and_node_queried {id:, node:}, where ID is the key sought
  * 
- * @version 20191103
  */
 async function closest_preceding_finger_remotehelper(id_and_node_queried, callback) {
     const id = id_and_node_queried.request.id;
@@ -426,7 +415,6 @@ async function closest_preceding_finger_remotehelper(id_and_node_queried, callba
  * 
  * @argument : NONE
  * @returns predecessor node
- * @version 20191103
  */
 async function getPredecessor(thing, callback) {
     callback(null, predecessor);
@@ -436,7 +424,6 @@ async function getPredecessor(thing, callback) {
  * RPC to replace the value of the node's predecessor.
  * 
  * @argument message is a node object
- * @version 20191103
  */
 async function setPredecessor(message, callback) {
     // enable debugging output
@@ -467,7 +454,6 @@ async function setPredecessor(message, callback) {
  * 
  * @argument known_node: known_node structure; e.g., {id, ip, port}
  *   Pass a null known node to force the node to be the first in a new chord.
- * @version 20191103
  */
 async function join(known_node) {
     // enable debugging output
@@ -510,7 +496,6 @@ async function join(known_node) {
 /**
  * Determine whether a node exists by pinging it.
  * 
- * @version 20191103
  */
 function confirm_exist(known_node) {
     // TODO: confirm_exist actually needs to ping the endpoint to ensure it's real
@@ -520,7 +505,6 @@ function confirm_exist(known_node) {
 /**
  * Directly implement the pseudocode's init_finger_table() method.
  * 
- * @version 20191103
  */
 async function init_finger_table(n_prime) {
     // enable debugging output
@@ -591,7 +575,6 @@ async function init_finger_table(n_prime) {
 /**
  * Directly implement the pseudocode's update_others() method.
  * 
- * @version 20191102
  */
 async function update_others() {
     // enable debugging output
@@ -649,7 +632,6 @@ async function update_others() {
  * RPC that directly implements the pseudocode's update_finger_table() method.
  * 
  * @argument message : consists of {s_node, finger_index} * 
- * @version 20191102
  */
 async function update_finger_table(message, callback) {
     // enable debugging output
@@ -710,7 +692,6 @@ async function update_finger_table(message, callback) {
  * 
  * @returns : true if it was successful; false otherwise.
  * 
- * @version 20191103
  */
 async function update_successor_table() {
     // enable debugging output
@@ -818,7 +799,6 @@ async function update_successor_table() {
  *      as would be the case for the initial node in a chord.
  *  2- additional step of updating the successor table as recommended by the IEEE paper.
  *
- * @version 20191103
  */
 async function stabilize() {
     // enable debugging output
@@ -888,7 +868,6 @@ async function stabilize() {
  * This is an original function, not described in either version of the paper - added 20191021.
  *
  * @returns : true if it was a good kick; false if bad kick.
- * @version 20191103
 */
 async function stabilize_self() {
     let predecessor_seems_ok = false;
@@ -923,7 +902,6 @@ async function stabilize_self() {
 /**
  * Directly implements the pseudocode's notify() method.
  * 
- * @version 20191021
  */
 async function notify(message, callback) {
     const n_prime = message.request;
@@ -939,7 +917,6 @@ async function notify(message, callback) {
 /**
  * Directly implements the pseudocode's fix_fingers() method.
  * 
- * @version 20191103
  */
 async function fix_fingers() {
     // enable debugging output
@@ -968,7 +945,6 @@ async function fix_fingers() {
  * Directly implements the check_predecessor() method from the IEEE version of the paper.
  * 
  * @returns : true if predecessor was still reasonable; false otherwise.
- * @version 20191021
  */
 async function check_predecessor() {
     if ((predecessor.id !== null) && (predecessor.id !== _self.id)) {
@@ -991,7 +967,6 @@ async function check_predecessor() {
  * This is an original function, not described in either version of the paper - added 20191103.
  * 
  * @returns : true if successor was still reasonable; false otherwise.
- * @version 20191103
  */
 async function check_successor() {
     // enable debugging output
@@ -1030,7 +1005,6 @@ async function check_successor() {
 /**
  * Placeholder for data migration within the join() call.
  * 
- * @version 20191103
  */
 async function migrate_keys() {}
 
@@ -1047,7 +1021,6 @@ async function migrate_keys() {}
  * --targetIp   - The IP of a node in the cluster
  * --targetPort - The Port of a node in the cluster
  *
- * @version 20191021
  */
 async function main() {
     // enable debugging output
