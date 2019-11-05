@@ -111,7 +111,6 @@ async function crawl() {
       // Remove the node from the bucket and select a random node
       for (elem in Object.keys(bigBucketOfData)) {
         if (
-          elem &&
           bigBucketOfData[elem] &&
           bigBucketOfData[elem].successor &&
           bigBucketOfData[elem].successor.id &&
