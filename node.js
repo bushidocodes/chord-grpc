@@ -132,12 +132,74 @@ function fetch({ request: { id } }, callback) {
 }
 
 /**
+ * remove a user
+ * @param grpcRequest
+ * @param callback gRPC callback
+ */
+async function remove(message, callback) {
+  const userId = message.request.id;
+  // TODO: Use hashing to get the key
+  let successor = NULL_NODE;
+
+  console.log("In remove: userId");
+  console.log(userId);
+
+  try {
+    successor = await find_successor(userId, _self, _self);
+  } catch (err) {
+    successor = NULL_NODE;
+    console.error("in remove call: find_successor failed with ", err);
+  }
+
+  if (successor.id == _self.id) {
+    console.log("In remove: remove user from local node");
+    removeUser(userId);
+    console.log("remove finishing");
+    callback(null, {});
+  } else {
+    // create client
+    try {
+      console.log("In remove: remove user from remote node");
+      console.log(userId);
+      const successorClient = caller(
+        `localhost:${successor.port}`,
+        PROTO_PATH,
+        "Node"
+      );
+      await successorClient.removeUser_remoteHelper({ id: userId });
+      callback(null, {});
+    } catch (err) {
+      console.error("remove call to removeUser failed with ", err);
+      callback(err, null);
+    }
+  }
+}
+
+async function removeUser_remoteHelper(message, callback) {
+  console.log("removeUser_remoteHelper beginning: ", message);
+  removeUser(message.request.id);
+  console.log("reomveUser_remoteHelper finishing");
+  callback(null, {});
+}
+
+function removeUser(id) {
+  console.log("removeUser beginning: ", id);
+  if (userMap[id]) {
+    delete userMap[id];
+    console.log("removeUser finishing");
+  } else {
+    console.log("in removeUser, user DNE");
+  }
+}
+
+/**
  * Insert a user
  * @param grpcRequest
  * @param callback gRPC callback
  */
 async function insert(message, callback) {
-  const user = message.request;
+  const userEdit = message.request;
+  const user = userEdit.user;
   // TODO: Use hasing to get the key
   const lookupKey = user.id;
   let successor = NULL_NODE;
@@ -154,7 +216,7 @@ async function insert(message, callback) {
 
   if (successor.id == _self.id) {
     console.log("In insert: insert user to local node");
-    insertUser(user);
+    insertUser(userEdit);
     console.log("insert finishing");
     callback(null, {});
   } else {
@@ -167,7 +229,7 @@ async function insert(message, callback) {
         PROTO_PATH,
         "Node"
       );
-      await successorClient.insertUser_remoteHelper(user);
+      await successorClient.insertUser_remoteHelper(userEdit);
       callback(null, {});
     } catch (err) {
       console.error("insert call to insertUser failed with ", err);
@@ -182,15 +244,18 @@ async function insertUser_remoteHelper(message, callback) {
   callback(null, {});
 }
 
-function insertUser(user) {
-  if (userMap[user.id]) {
-    const message = `Err: ${user.id} already exits`;
+function insertUser(userEdit) {
+  console.log("insertUser userEdit: ", userEdit);
+  const user = userEdit.user;
+  const edit = userEdit.edit;
+  if (userMap[user.id] && !edit) {
+    const message = `Err: ${user.id} already exits and overwrite = false`;
     console.log(message);
   } else {
     userMap[user.id] = user;
     const message = `Inserted User ${user.id}:`;
     console.log(message);
-    console.log(userMap);
+    //console.log(userMap);
   }
   console.log("insertUser finishing");
   return null;
@@ -1493,6 +1558,8 @@ async function main() {
   server.addService(chord.Node.service, {
     summary,
     fetch,
+    remove,
+    removeUser_remoteHelper,
     insert,
     insertUser_remoteHelper,
     lookup,
