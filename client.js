@@ -1,6 +1,6 @@
-const grpc = require('grpc');
-const protoLoader = require('@grpc/proto-loader');
-const minimist = require('minimist')
+const grpc = require("grpc");
+const protoLoader = require("@grpc/proto-loader");
+const minimist = require("minimist");
 const packageDefinition = protoLoader.loadSync(
   `${__dirname}/protos/chord.proto`,
   {
@@ -9,12 +9,13 @@ const packageDefinition = protoLoader.loadSync(
     enums: String,
     defaults: true,
     oneofs: true
-  });
+  }
+);
 
 const target = {
   ip: `localhost`,
   port: 1337
-}
+};
 
 const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 let client;
@@ -41,14 +42,17 @@ function fetch({ _: args }) {
 
 // I was originally thinking that the user service would assign the id, but this doesn't really seem possible...
 
-
 function insert({ _, ...rest }) {
   if (!rest.id) {
     console.log("id is a mandatory field!");
     console.log("node client insert --id=42424242");
 
-    console.log("optional fields include reputation, creationDate, displayName, lastAccessDate, websiteUrl, location, aboutMe, views, upVotes, downVotes, profileImageUrl, accountId");
-    console.log('node client insert --id=42424242 --displayName="Sean McBride" --reputation=3 --website="https://www.bushido.codes"');
+    console.log(
+      "optional fields include reputation, creationDate, displayName, lastAccessDate, websiteUrl, location, aboutMe, views, upVotes, downVotes, profileImageUrl, accountId"
+    );
+    console.log(
+      'node client insert --id=42424242 --displayName="Sean McBride" --reputation=3 --website="https://www.bushido.codes"'
+    );
     process.exit();
   }
   console.log(rest);
@@ -65,7 +69,7 @@ function insert({ _, ...rest }) {
     upVotes: rest.upVotes || 0,
     downVotes: rest.downVotes || 0,
     profileImageUrl: rest.profileImageUrl || 0,
-    accountId: rest.accoutId || 0,
+    accountId: rest.accoutId || 0
   };
   console.log(user);
   client.insert(user, (err, user) => {
@@ -78,58 +82,67 @@ function insert({ _, ...rest }) {
 }
 
 //Requests basic information about the target node
-function summary(){
-  console.log("Client requesting summary:")
-  client.summary({id: 1}, (err, node) => {
+function summary() {
+  console.log("Client requesting summary:");
+  client.summary({ id: 1 }, (err, node) => {
     if (err) {
       console.log(err);
       console.log(node);
     } else {
       //console.log(node);
-      console.log(`The node returned id: ${node.id}, ip: ${node.ip}, port: ${node.port}`);
+      console.log(
+        `The node returned id: ${node.id}, ip: ${node.ip}, port: ${node.port}`
+      );
     }
   });
 }
 
 //Requests basic information about the target node
-async function crawl(){
-  client = new chord.Node(`${lastNode.ip}:${lastNode.port}`, grpc.credentials.createInsecure());
+async function crawl() {
+  client = new chord.Node(
+    `${lastNode.ip}:${lastNode.port}`,
+    grpc.credentials.createInsecure()
+  );
   // The argument is total garbage
-  client.getSuccessor_remotehelper({id: 99}, (err, node) => {
+  client.getSuccessor_remotehelper({ id: 99 }, (err, node) => {
     if (err) {
       console.log(err);
       let nodeToDelete = lastNode.id;
       // Remove the node from the bucket and select a random node
-      for (elem in Object.keys(bigBucketOfData)){ 
-        if (elem && bigBucketOfData[elem] && bigBucketOfData[elem].successor && bigBucketOfData[elem].successor.id && bigBucketOfData[elem].successor.id !== lastNode.id) {
+      for (elem in Object.keys(bigBucketOfData)) {
+        if (
+          elem &&
+          bigBucketOfData[elem] &&
+          bigBucketOfData[elem].successor &&
+          bigBucketOfData[elem].successor.id &&
+          bigBucketOfData[elem].successor.id !== lastNode.id
+        ) {
           lastNode = bigBucketOfData[elem].successor;
           break;
         }
       }
       delete bigBucketOfData[nodeToDelete];
-      
     } else {
-      if (bigBucketOfData[lastNode.id]){
-        bigBucketOfData[lastNode.id].successor = node; 
+      if (bigBucketOfData[lastNode.id]) {
+        bigBucketOfData[lastNode.id].successor = node;
       }
 
       // If we've walked the logical ring and we didn't touch a node, delete it
       if (ring.has(node.id)) {
-        for (elem of Object.keys(bigBucketOfData)){ 
+        for (elem of Object.keys(bigBucketOfData)) {
           console.log(bigBucketOfData[elem]);
-          if (!ring.has(bigBucketOfData[elem].id)){
+          if (!ring.has(bigBucketOfData[elem].id)) {
             delete bigBucketOfData[elem];
           }
         }
         ring.clear();
       }
       ring.add(node.id);
-      bigBucketOfData[node.id] = {...bigBucketOfData[node.id], ...node};
+      bigBucketOfData[node.id] = { ...bigBucketOfData[node.id], ...node };
       lastNode = node;
     }
   });
 }
-
 
 function main() {
   if (process.argv.length >= 3) {
@@ -143,32 +156,48 @@ function main() {
     }
 
     console.log(`Connecting to ${target.ip}:${target.port}`);
-    
+
     const command = process.argv[2];
-    
+
     switch (command) {
       case "fetch":
-        client = new chord.Node(`${target.ip}:${target.port}`, grpc.credentials.createInsecure());
+        client = new chord.Node(
+          `${target.ip}:${target.port}`,
+          grpc.credentials.createInsecure()
+        );
         fetch(args);
         break;
       case "insert":
-        client = new chord.Node(`${target.ip}:${target.port}`, grpc.credentials.createInsecure());
+        client = new chord.Node(
+          `${target.ip}:${target.port}`,
+          grpc.credentials.createInsecure()
+        );
         insert(args);
         break;
       case "summary":
-        client = new chord.Node(`${target.ip}:${target.port}`, grpc.credentials.createInsecure());
+        client = new chord.Node(
+          `${target.ip}:${target.port}`,
+          grpc.credentials.createInsecure()
+        );
         summary();
         break;
       case "crawl":
-        client = new chord.Node(`${target.ip}:${target.port}`, grpc.credentials.createInsecure());
-        lastNode = {id: target.id, ip: target.ip, port: target.port};
-        setInterval(async () => { await crawl() }, 3000);
-        const express = require('express');
+        client = new chord.Node(
+          `${target.ip}:${target.port}`,
+          grpc.credentials.createInsecure()
+        );
+        lastNode = { id: target.id, ip: target.ip, port: target.port };
+        setInterval(async () => {
+          await crawl();
+        }, 3000);
+        const express = require("express");
         const app = express();
         const port = args.webPort || 3000;
-        app.use(express.static('public'))
-        app.get('/data', (req, res) => res.json(bigBucketOfData));
-        app.listen(port, () => console.log(`Example app listening on port ${port}!`))
+        app.use(express.static("public"));
+        app.get("/data", (req, res) => res.json(bigBucketOfData));
+        app.listen(port, () =>
+          console.log(`Example app listening on port ${port}!`)
+        );
         break;
     }
   }
