@@ -93,7 +93,7 @@ function isInModuloRange(input_value, lower_bound, include_lower, upper_bound, i
 
 function summary(_, callback) {
     console.log("vvvvv     vvvvv     Summary     vvvvv     vvvvv");
-    console.log("FingerTable: \n", FingerTable);
+    console.log("fingerTable: \n", fingerTable);
     console.log("Predecessor: ", predecessor);
     console.log("^^^^^     ^^^^^     End Summary     ^^^^^     ^^^^^")
     callback(null, _self);
@@ -316,7 +316,7 @@ async function getSuccessor(node_querying, node_queried) {
     let n_successor = NULL_NODE;
     if (node_querying.id == node_queried.id) {
         // use local value
-        n_successor = FingerTable[0].successor;
+        n_successor = fingerTable[0].successor;
     } else {
         // use remote value
         // create client for remote call
@@ -347,7 +347,7 @@ async function getSuccessor(node_querying, node_queried) {
  * 
  */
 async function getSuccessor_remotehelper(thing, callback) {
-    callback(null, FingerTable[0].successor);
+    callback(null, fingerTable[0].successor);
 }
 
 /**
@@ -366,9 +366,9 @@ async function closest_preceding_finger(id, node_querying, node_queried) {
         // for i = m downto 1
         for (let i = HASH_BIT_LENGTH - 1; i >= 0; i--) {
             // if ( finger[i].node 'is-in' (n, id) )
-            if (isInModuloRange(FingerTable[i].successor.id, node_queried.id, false, id, false)) {
+            if (isInModuloRange(fingerTable[i].successor.id, node_queried.id, false, id, false)) {
                 // return finger[i].node;
-                n_preceding = FingerTable[i].successor;
+                n_preceding = fingerTable[i].successor;
                 return n_preceding;
             }
         }
@@ -459,10 +459,10 @@ async function join(known_node) {
     // enable debugging output
     const DEBUGGING_LOCAL = false;
     // remove dummy template initializer from table
-    FingerTable.pop();
+    fingerTable.pop();
     // initialize table with reasonable values
     for (let i = 0; i < HASH_BIT_LENGTH; i++) {
-        FingerTable.push({
+        fingerTable.push({
             start: (_self.id + 2 ** i) % (2 ** HASH_BIT_LENGTH),
             successor: _self
         });
@@ -483,11 +483,11 @@ async function join(known_node) {
     await migrate_keys();
 
     // initialize successor table - deviates from SIGCOMM
-    SuccessorTable[0] = FingerTable[0].successor;
+    successorTable[0] = fingerTable[0].successor;
 
     if (DEBUGGING_LOCAL) {
         console.log(">>>>>     join          ");
-        console.log("The FingerTable[] leaving {", _self.id, "}.join(", known_node.id, ") is:\n", FingerTable);
+        console.log("The fingerTable[] leaving {", _self.id, "}.join(", known_node.id, ") is:\n", fingerTable);
         console.log("The {", _self.id, "}.predecessor leaving join() is ", predecessor);
         console.log("          join     <<<<<\n");
     }
@@ -512,29 +512,29 @@ async function init_finger_table(n_prime) {
 
     if (DEBUGGING_LOCAL) {
         console.log("vvvvv     vvvvv     init_finger_table     vvvvv     vvvvv");
-        console.log("self = ", _self.id, "; self.successor = ", FingerTable[0].successor.id, "; finger[0].start = ", FingerTable[0].start);
+        console.log("self = ", _self.id, "; self.successor = ", fingerTable[0].successor.id, "; finger[0].start = ", fingerTable[0].start);
         console.log("n' = ", n_prime.id);
     }
 
     let n_prime_successor = NULL_NODE;
     try {
-        n_prime_successor = await find_successor(FingerTable[0].start, _self, n_prime);
+        n_prime_successor = await find_successor(fingerTable[0].start, _self, n_prime);
     } catch (err) {
         n_prime_successor = NULL_NODE;
         console.error("find_successor error in init_finger_table() ", err);
     }
     // finger[1].node = n'.find_successor(finger[1].start);
-    FingerTable[0].successor = n_prime_successor;
+    fingerTable[0].successor = n_prime_successor;
 
     if (DEBUGGING_LOCAL) {
         console.log("n'.successor (now  self.successor) = ", n_prime_successor);
     }
 
     // client for newly-determined successor
-    let successor_client = caller(`localhost:${FingerTable[0].successor.port}`, PROTO_PATH, "Node");
+    let successor_client = caller(`localhost:${fingerTable[0].successor.port}`, PROTO_PATH, "Node");
     // predecessor = successor.predecessor;
     try {
-        predecessor = await successor_client.getPredecessor(FingerTable[0].successor);
+        predecessor = await successor_client.getPredecessor(fingerTable[0].successor);
     } catch (err) {
         predecessor = NULL_NODE;
         console.error("getPredecessor error in init_finger_table() ", err);
@@ -553,21 +553,21 @@ async function init_finger_table(n_prime) {
     // for (i=1 to m-1){}, where 1 is really 0, and skip last element
     for (let i = 0; i < HASH_BIT_LENGTH - 1; i++) {
         // if ( finger[i+1].start 'is in' [n, finger[i].node) )
-        if (isInModuloRange(FingerTable[i + 1].start, _self.id, true, FingerTable[i].successor.id, false)) {
+        if (isInModuloRange(fingerTable[i + 1].start, _self.id, true, fingerTable[i].successor.id, false)) {
             // finger[i+1].node = finger[i].node;
-            FingerTable[i + 1].successor = FingerTable[i].successor;
+            fingerTable[i + 1].successor = fingerTable[i].successor;
         } else {
             // finger[i+1].node = n'.find_successor(finger[i+1].start);
             try {
-                FingerTable[i + 1].successor = await find_successor(FingerTable[i + 1].start, _self, n_prime);
+                fingerTable[i + 1].successor = await find_successor(fingerTable[i + 1].start, _self, n_prime);
             } catch (err) {
-                FingerTable[i + 1].successor = NULL_NODE;
+                fingerTable[i + 1].successor = NULL_NODE;
                 console.error("find_successor error in init_finger_table ", err);
             }
         }
     }
     if (DEBUGGING_LOCAL) {
-        console.log("init_finger_table: FingerTable[] =\n", FingerTable);
+        console.log("init_finger_table: fingerTable[] =\n", fingerTable);
         console.log("^^^^^     ^^^^^     init_finger_table     ^^^^^     ^^^^^");
     }
 }
@@ -642,14 +642,14 @@ async function update_finger_table(message, callback) {
 
     if (DEBUGGING_LOCAL) {
         console.log("vvvvv     vvvvv     update_finger_table     vvvvv     vvvvv");
-        console.log("{", _self.id, "}.FingerTable[] =\n", FingerTable);
+        console.log("{", _self.id, "}.fingerTable[] =\n", fingerTable);
         console.log("s_node = ", message.request.node.id, "; finger_index =", finger_index);
     }
 
     // if ( s 'is in' [n, finger[i].node) )
-    if (isInModuloRange(s_node.id, _self.id, true, FingerTable[finger_index].successor.id, false)) {
+    if (isInModuloRange(s_node.id, _self.id, true, fingerTable[finger_index].successor.id, false)) {
         // finger[i].node = s;
-        FingerTable[finger_index].successor = s_node;
+        fingerTable[finger_index].successor = s_node;
         // p = predecessor;
         const p_client = caller(`localhost:${predecessor.port}`, PROTO_PATH, "Node");
         // p.update_finger_table(s, i);
@@ -660,7 +660,7 @@ async function update_finger_table(message, callback) {
         }
 
         if (DEBUGGING_LOCAL) {
-            console.log("Updated {", _self.id, "}.FingerTable[", finger_index, "] to ", s_node);
+            console.log("Updated {", _self.id, "}.fingerTable[", finger_index, "] to ", s_node);
             console.log("^^^^^     ^^^^^     update_finger_table     ^^^^^     ^^^^^");
         }
 
@@ -698,8 +698,8 @@ async function update_successor_table() {
     const DEBUGGING_LOCAL = false;
     if (DEBUGGING_LOCAL) {
         console.log("vvvvv     vvvvv     update_successor_table     vvvvv     vvvvv");
-        console.log("{", _self.id, "}.SuccessorTable[] =\n", SuccessorTable);
-        console.log("s_node = ", FingerTable[0].successor.id);
+        console.log("{", _self.id, "}.successorTable[] =\n", successorTable);
+        console.log("s_node = ", fingerTable[0].successor.id);
     }
 
     // check whether the successor is available
@@ -711,10 +711,10 @@ async function update_successor_table() {
     }
     if (successor_seems_ok) {
         // synchronize immediate successor if it is valid
-        SuccessorTable[0] = FingerTable[0].successor;
+        successorTable[0] = fingerTable[0].successor;
     } else {
         // or prune if the successor is not valid
-        while ((!successor_seems_ok) && (SuccessorTable.length > 0)) {
+        while ((!successor_seems_ok) && (successorTable.length > 0)) {
             // try current successor again to account for contention or bad luck
             try {
                 successor_seems_ok = await check_successor();
@@ -723,52 +723,52 @@ async function update_successor_table() {
             }
             if (successor_seems_ok) {
                 // synchronize immediate successor if it is valid
-                SuccessorTable[0] = FingerTable[0].successor;
+                successorTable[0] = fingerTable[0].successor;
             } else {
                 // drop the first successor candidate
-                SuccessorTable.shift();
+                successorTable.shift();
                 // update the finger table to the next candidate
-                FingerTable[0].successor = SuccessorTable[0];
+                fingerTable[0].successor = successorTable[0];
             }
         }
     }
-    if (SuccessorTable.length < 1) {
+    if (successorTable.length < 1) {
         // this node is isolated
-        SuccessorTable.push({id: _self.id, ip: _self.ip, port: _self.port});
+        successorTable.push({id: _self.id, ip: _self.ip, port: _self.port});
     }
     // try to bulk up the table
     let successor_successor = NULL_NODE;
-    if ((SuccessorTable.length < HASH_BIT_LENGTH) && 
-        (_self.id !== FingerTable[0].successor)) {
+    if ((successorTable.length < HASH_BIT_LENGTH) && 
+        (_self.id !== fingerTable[0].successor)) {
         if (DEBUGGING_LOCAL) {
-            console.log("Short SuccessorTable[]: prefer length ", HASH_BIT_LENGTH,
-                " but actual length is ", SuccessorTable.length, ".");
+            console.log("Short successorTable[]: prefer length ", HASH_BIT_LENGTH,
+                " but actual length is ", successorTable.length, ".");
         }
-        for (let i = 0; (i < SuccessorTable.length) && (i <= HASH_BIT_LENGTH); i++) {
+        for (let i = 0; (i < successorTable.length) && (i <= HASH_BIT_LENGTH); i++) {
             try {
-                successor_successor = await getSuccessor(_self, SuccessorTable[i]);
+                successor_successor = await getSuccessor(_self, successorTable[i]);
             } catch (err) {
                 successor_successor = {id: null, ip: null, port: null};
             }
             if (DEBUGGING_LOCAL) {
-                console.log("{", _self.id, "}.st[", i, "] = ", SuccessorTable[i].id, 
-                    "; {", SuccessorTable[i].id, "}.successor[0] = ", successor_successor.id);
+                console.log("{", _self.id, "}.st[", i, "] = ", successorTable[i].id, 
+                    "; {", successorTable[i].id, "}.successor[0] = ", successor_successor.id);
             }
             if ((successor_successor.id !== null) && 
-                !isInModuloRange(successor_successor.id, _self.id, true, SuccessorTable[i].id, true)) {
+                !isInModuloRange(successor_successor.id, _self.id, true, successorTable[i].id, true)) {
                 // append the additional value
-                SuccessorTable.splice(i + 1, 1, successor_successor);
+                successorTable.splice(i + 1, 1, successor_successor);
                 successor_seems_ok = true;
             }
         }
     }
     // prune from the bottom
-    let i = SuccessorTable.length - 1;
+    let i = successorTable.length - 1;
     successor_seems_ok = false
     successor_successor = {id: null, ip: null, port: null};
-    while (((!successor_seems_ok) || (SuccessorTable.length > HASH_BIT_LENGTH)) && (i > 0)) {
+    while (((!successor_seems_ok) || (successorTable.length > HASH_BIT_LENGTH)) && (i > 0)) {
         try {
-            successor_successor = await getSuccessor(_self, SuccessorTable[i]);
+            successor_successor = await getSuccessor(_self, successorTable[i]);
             if (successor_successor.id !== null) {
                 successor_seems_ok = true;
             }
@@ -778,13 +778,13 @@ async function update_successor_table() {
         }
         if ((!successor_seems_ok) || (i >= HASH_BIT_LENGTH)) {
             // remove successor candidate
-            SuccessorTable.pop();
+            successorTable.pop();
         }
         i -= 1;
     }
 
     if (DEBUGGING_LOCAL) {
-        console.log("New {", _self.id, "}.SuccessorTable[] =\n", SuccessorTable);
+        console.log("New {", _self.id, "}.successorTable[] =\n", successorTable);
         console.log("^^^^^     ^^^^^     update_successor_table     ^^^^^     ^^^^^");
     }
 
@@ -806,43 +806,43 @@ async function stabilize() {
 
     let x;
     try {
-        let successor_client = caller(`localhost:${FingerTable[0].successor.port}`, PROTO_PATH, "Node");
+        let successor_client = caller(`localhost:${fingerTable[0].successor.port}`, PROTO_PATH, "Node");
     } catch {
         return false;
     }
     // x = successor.predecessor;
-    if (FingerTable[0].successor.id == _self.id) {
+    if (fingerTable[0].successor.id == _self.id) {
         // use local value
         await stabilize_self();
         x = _self;
     } else {
         // use remote value
         try {
-            x = await successor_client.getPredecessor(FingerTable[0].successor);
+            x = await successor_client.getPredecessor(fingerTable[0].successor);
         } catch (err) {
             x = _self;
             console.log("Warning! \"successor.predecessor\" (i.e., {", 
-                FingerTable[0].successor.id, "}.predecessor), failed in stabilize({", _self.id, "}).");
+                fingerTable[0].successor.id, "}.predecessor), failed in stabilize({", _self.id, "}).");
         }
     }
 
     // if (x 'is in' (n, n.successor))
-    if (isInModuloRange(x.id, _self.id, false, FingerTable[0].successor.id, false)) {
+    if (isInModuloRange(x.id, _self.id, false, fingerTable[0].successor.id, false)) {
         // successor = x;
-        FingerTable[0].successor = x;
+        fingerTable[0].successor = x;
     }
 
     if (DEBUGGING_LOCAL) {
         console.log(">>>>>     stabilize          ");
         console.log("{", _self.id, "}.predecessor leaving stabilize() is ", predecessor);
-        console.log("{", _self.id, "}.FingerTable[] is:\n", FingerTable);
-        console.log("{", _self.id, "}.SuccessorTable[] is \n", SuccessorTable);
+        console.log("{", _self.id, "}.fingerTable[] is:\n", fingerTable);
+        console.log("{", _self.id, "}.successorTable[] is \n", successorTable);
         console.log("          stabilize     <<<<<");
     }
 
     // successor.notify(n);
-    if (_self.id !== FingerTable[0].successor.id) {
-        successor_client = caller(`localhost:${FingerTable[0].successor.port}`, PROTO_PATH, "Node");
+    if (_self.id !== fingerTable[0].successor.id) {
+        successor_client = caller(`localhost:${fingerTable[0].successor.port}`, PROTO_PATH, "Node");
         try {
             await successor_client.notify(_self);
         } catch (err) {
@@ -887,13 +887,13 @@ async function stabilize_self() {
         }
         if (predecessor_seems_ok) {
             // then kick by setting the successor to the same as the predecessor
-            FingerTable[0].successor = predecessor;
-            SuccessorTable[0] = FingerTable[0].successor;
+            fingerTable[0].successor = predecessor;
+            successorTable[0] = fingerTable[0].successor;
         }
     } else {
         console.log("\nWarning: {", _self.id, "} is isolated because",
             "predecessor is", predecessor.id,
-            "and successor is", FingerTable[0].successor.id, ".");
+            "and successor is", fingerTable[0].successor.id, ".");
             predecessor_seems_ok = true;
     }
     return predecessor_seems_ok;
@@ -928,16 +928,16 @@ async function fix_fingers() {
     const i = Math.ceil(Math.random() * (HASH_BIT_LENGTH - 1));
     // finger[i].node = find_successor(finger[i].start);
     try {
-        n_successor = await find_successor(FingerTable[i].start, _self, _self);
+        n_successor = await find_successor(fingerTable[i].start, _self, _self);
         if (n_successor.id !== null) {
-            FingerTable[i].successor = n_successor;
+            fingerTable[i].successor = n_successor;
         }
     } catch (err) {
         // don't change the finger just yet
     }
     if (DEBUGGING_LOCAL) {
-        console.log("\n>>>>>     Fix {", _self.id, "}.FingerTable[", i, "], with start = ", FingerTable[i].start, ".");
-        console.log("     FingerTable[", i, "] =", FingerTable[i].successor, "     <<<<<\n");
+        console.log("\n>>>>>     Fix {", _self.id, "}.fingerTable[", i, "], with start = ", fingerTable[i].start, ".");
+        console.log("     fingerTable[", i, "] =", fingerTable[i].successor, "     <<<<<\n");
     }
 }
 
@@ -973,23 +973,23 @@ async function check_successor() {
     const DEBUGGING_LOCAL = false;
 
     if (DEBUGGING_LOCAL) {
-        console.log("{", _self.id, "}.check_successor(", FingerTable[0].successor.id, ")");
+        console.log("{", _self.id, "}.check_successor(", fingerTable[0].successor.id, ")");
     }
 
     let n_successor = NULL_NODE;
     let successor_seems_ok = false;
-    if (FingerTable[0].successor.id == null) {
+    if (fingerTable[0].successor.id == null) {
         successor_seems_ok = false;
-    } else if (FingerTable[0].successor.id == _self.id) {
+    } else if (fingerTable[0].successor.id == _self.id) {
         successor_seems_ok = true;
     } else {
         try {
             // just ask anything
-            n_successor = await getSuccessor(_self, FingerTable[0].successor);
+            n_successor = await getSuccessor(_self, fingerTable[0].successor);
             if (n_successor.id == null) {
                 successor_seems_ok = false;
             } else {
-                console.log("{", FingerTable[0].successor.id, "}.successor =", n_successor.id);
+                console.log("{", fingerTable[0].successor.id, "}.successor =", n_successor.id);
                 successor_seems_ok = true;
             }
         } catch (err) {
