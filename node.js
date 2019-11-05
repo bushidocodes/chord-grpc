@@ -29,14 +29,14 @@ const CHECK_NODE_TIMEOUT_ms = 1000;
 
 const NULL_NODE = { id: null, ip: null, port: null };
 
-let FingerTable = [
+let fingerTable = [
     {
         start: null,
         successor: NULL_NODE
     }
 ];
 
-let SuccessorTable = [ NULL_NODE ];
+let successorTable = [ NULL_NODE ];
 
 let _self = NULL_NODE;
 
