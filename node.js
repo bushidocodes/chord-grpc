@@ -5,8 +5,8 @@
 
 const path = require("path");
 const grpc = require("grpc");
-// const users = require("./data/tinyUsers.json");
-const users = {};
+// const userMap = require("./data/tinyuserMap.json");
+const userMap = {};
 const protoLoader = require("@grpc/proto-loader");
 const minimist = require("minimist");
 const { Worker } = require("worker_threads");
@@ -30,6 +30,7 @@ const HASH_BIT_LENGTH = 3;
 const CHECK_NODE_TIMEOUT_ms = 1000;
 
 const NULL_NODE = { id: null, ip: null, port: null };
+const NULL_USER = { id: null };
 
 let fingerTable = [
   {
@@ -123,10 +124,10 @@ function summary(_, callback) {
  */
 function fetch({ request: { id } }, callback) {
   console.log(`Requested User ${id}`);
-  if (!users[id]) {
+  if (!userMap[id]) {
     callback({ code: 5 }, null); // NOT_FOUND error
   } else {
-    callback(null, users[id]);
+    callback(null, userMap[id]);
   }
 }
 
@@ -150,42 +151,119 @@ async function insert(message, callback) {
     successor = NULL_NODE;
     console.error("insert call to find_successor failed with ", err);
   }
-  // once i have successor, either i call my self addUser or I use a client
+
   if (successor.id == _self.id) {
-    console.log("In insert: add user to local node");
-    addUser(user);
+    console.log("In insert: insert user to local node");
+    insertUser(user);
+    console.log("insert finishing");
+    callback(null, {});
   } else {
     // create client
     try {
-      console.log("In insert: add user to remote node");
+      console.log("In insert: insert user to remote node");
       console.log(user, lookupKey);
       const successorClient = caller(
         `localhost:${successor.port}`,
         PROTO_PATH,
         "Node"
       );
-      await successorClient.addUser_remoteHelper(user);
-      callback({}, user);
+      await successorClient.insertUser_remoteHelper(user);
+      callback(null, {});
     } catch (err) {
-      console.error("insert call to addUser failed with ", err);
-      callback(err, {});
+      console.error("insert call to insertUser failed with ", err);
+      callback(err, null);
     }
   }
 }
 
-async function addUser_remoteHelper(message, callback) {
-  addUser(message.request);
+async function insertUser_remoteHelper(message, callback) {
+  insertUser(message.request);
+  console.log("insertUser_remoteHelper finishing");
+  callback(null, {});
 }
 
-async function addUser(user) {
-  if (users[user.id]) {
+function insertUser(user) {
+  if (userMap[user.id]) {
     const message = `Err: ${user.id} already exits`;
     console.log(message);
   } else {
-    users[user.id] = user;
+    userMap[user.id] = user;
     const message = `Inserted User ${user.id}:`;
     console.log(message);
-    console.log(users);
+    console.log(userMap);
+  }
+  console.log("insertUser finishing");
+  return null;
+}
+
+/**
+ * Insert a user
+ * @param grpcRequest
+ * @param callback gRPC callback
+ */
+//called by client/webapp
+async function lookup(message, callback) {
+  console.log("In lookup");
+  console.log(message);
+  const userId = message.request.id;
+  // TODO: Use hasing to get the key
+  const lookupKey = userId;
+  let successor = NULL_NODE;
+
+  console.log(userId);
+
+  try {
+    successor = await find_successor(lookupKey, _self, _self);
+  } catch (err) {
+    successor = NULL_NODE;
+    console.error("insert call to find_successor failed with ", err);
+  }
+  // once i have successor, either i call my self addUser or I use a client
+  if (successor.id == _self.id) {
+    console.log("In lookup: lookup user to local node");
+    const foundUser = await lookupUser(userId);
+    console.log("finished Server-side lookup, returning: ", foundUser);
+    //callback(null, lookupUser(message.request.id));
+    callback(null, foundUser);
+  } else {
+    // create client
+    try {
+      console.log("In lookup: lookup user to remote node");
+      const successorClient = caller(
+        `localhost:${successor.port}`,
+        PROTO_PATH,
+        "Node"
+      );
+      const user = await successorClient.lookupUser_remoteHelper({
+        id: userId
+      });
+      callback(null, user);
+    } catch (err) {
+      console.error("lookup call to lookupUser failed with ", err);
+      callback(err, null);
+    }
+  }
+}
+
+async function lookupUser_remoteHelper(message, callback) {
+  console.log("beginning lookupUser_remoteHelper: ", message.request.id);
+  let temp = lookupUser(message.request.id);
+  console.log("finishing lookupuser_remoteHelper: ", temp);
+  callback(null, temp);
+}
+
+function lookupUser(userId) {
+  //if we have the user
+  if (userMap[userId]) {
+    const user = userMap[userId];
+    const message = `User found ${user.id}`;
+    console.log(message);
+    return user;
+  } else {
+    //we don't have user
+    const message = `User with user ID ${userId} not found`;
+    console.log(message);
+    return NULL_USER;
   }
 }
 
@@ -1087,7 +1165,7 @@ async function update_successor_table() {
  */
 async function stabilize() {
   // enable debugging output
-  const DEBUGGING_LOCAL = true;
+  const DEBUGGING_LOCAL = false;
   let successor_client;
 
   let x;
@@ -1416,7 +1494,9 @@ async function main() {
     summary,
     fetch,
     insert,
-    addUser_remoteHelper,
+    insertUser_remoteHelper,
+    lookup,
+    lookupUser_remoteHelper,
     find_successor_remotehelper,
     getSuccessor_remotehelper,
     getPredecessor,
