@@ -21,6 +21,7 @@ let client;
 
 // Used by Crawl to accumulate data about the Chord ring
 const bigBucketOfData = {};
+const ring = new Set([]);
 let lastNode;
 
 function fetch({ _: args }) {
@@ -94,14 +95,35 @@ function summary(){
 async function crawl(){
   client = new chord.Node(`${lastNode.ip}:${lastNode.port}`, grpc.credentials.createInsecure());
   // The argument is total garbage
-  client.getSuccessor_remote({id: 99}, (err, node) => {
+  client.getSuccessor_remotehelper({id: 99}, (err, node) => {
     if (err) {
       console.log(err);
-      console.log(node);
+      let nodeToDelete = lastNode.id;
+      // Remove the node from the bucket and select a random node
+      for (elem in Object.keys(bigBucketOfData)){ 
+        if (elem && bigBucketOfData[elem] && bigBucketOfData[elem].successor && bigBucketOfData[elem].successor.id && bigBucketOfData[elem].successor.id !== lastNode.id) {
+          lastNode = bigBucketOfData[elem].successor;
+          break;
+        }
+      }
+      delete bigBucketOfData[nodeToDelete];
+      
     } else {
       if (bigBucketOfData[lastNode.id]){
         bigBucketOfData[lastNode.id].successor = node; 
       }
+
+      // If we've walked the logical ring and we didn't touch a node, delete it
+      if (ring.has(node.id)) {
+        for (elem of Object.keys(bigBucketOfData)){ 
+          console.log(bigBucketOfData[elem]);
+          if (!ring.has(bigBucketOfData[elem].id)){
+            delete bigBucketOfData[elem];
+          }
+        }
+        ring.clear();
+      }
+      ring.add(node.id);
       bigBucketOfData[node.id] = {...bigBucketOfData[node.id], ...node};
       lastNode = node;
     }
