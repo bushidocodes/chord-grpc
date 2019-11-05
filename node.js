@@ -169,6 +169,7 @@ async function find_successor(id, node_querying, node_queried) {
         try {
             n_prime = await find_predecessor(id);
         } catch (err) {
+            console.error(`find_successor's call to find_predecessor failed with `, err);
             n_prime = NULL_NODE;
         }
 
@@ -180,6 +181,7 @@ async function find_successor(id, node_querying, node_queried) {
         try {
             n_prime_successor = await getSuccessor(_self, n_prime);
         } catch (err) {
+            console.error(`find_successor's call to getSuccessor failed with `, err);
             n_prime_successor = NULL_NODE;
         }
 
@@ -194,7 +196,7 @@ async function find_successor(id, node_querying, node_queried) {
             n_prime_successor = await node_queried_client.find_successor_remotehelper({ id: id, node: node_queried });
         } catch (err) {
             n_prime_successor = NULL_NODE;
-            console.error("Remote error in find_successor() ", err);
+            console.error("find_successor call to find_successor_remotehelper failed with", err);
         }
     }
 
@@ -231,6 +233,7 @@ async function find_successor_remotehelper(id_and_node_queried, callback) {
     try {
         n_prime_successor = await find_successor(id, _self, node_queried);
     } catch (err) {
+        console.error("n_prime_successor call to find_successor failed with", err);
         n_prime_successor = NULL_NODE;
     }
     callback(null, n_prime_successor);
@@ -264,6 +267,7 @@ async function find_predecessor(id) {
     try {
         n_prime_successor = await getSuccessor(_self, n_prime);
     } catch (err) {
+        console.error("find_predecessor call to getSuccessor failed with", err);
         n_prime_successor = NULL_NODE;
     }
 
@@ -298,6 +302,7 @@ async function find_predecessor(id) {
         try {
             n_prime_successor = await getSuccessor(_self, n_prime);
         } catch (err) {
+            console.error("find_predecessor call to getSuccessor (2) failed with", err);
             n_prime_successor = NULL_NODE;
         }
 
@@ -348,9 +353,7 @@ async function getSuccessor(node_querying, node_queried) {
         } catch (err) {
             // TBD 20191103.hk: why does "n_successor = NULL_NODE;" not do the same as explicit?!?!
             n_successor = {id: null, ip: null, port: null};
-            if (DEBUGGING_LOCAL) {
-                console.trace("Remote error in getSuccessor() ", err);
-            }
+            console.trace("Remote error in getSuccessor() ", err);
         }
     }
 
@@ -409,7 +412,7 @@ async function closest_preceding_finger(id, node_querying, node_queried) {
             n_preceding = await node_queried_client.closest_preceding_finger_remotehelper({ id: id, node: node_queried });
         } catch (err) {
             n_preceding = NULL_NODE;
-            console.error("Remote error in closest_preceding_finger() ", err);
+            console.error("closest_preceding_finger call to closest_preceding_finger_remotehelper failed with ", err);
         }
         // return n;
         return n_preceding;
@@ -431,6 +434,7 @@ async function closest_preceding_finger_remotehelper(id_and_node_queried, callba
     try {
         n_preceding = await closest_preceding_finger(id, _self, node_queried);
     } catch (err) {
+        console.error("closest_preceding_finger_remotehelper call to closest_preceding_finger failed with ", err);
         n_preceding = NULL_NODE;
     }
     callback(null, n_preceding);
@@ -550,7 +554,7 @@ async function init_finger_table(n_prime) {
         n_prime_successor = await find_successor(fingerTable[0].start, _self, n_prime);
     } catch (err) {
         n_prime_successor = NULL_NODE;
-        console.error("find_successor error in init_finger_table() ", err);
+        console.error("init_finger_table call to find_successor failed with ", err);
     }
     // finger[1].node = n'.find_successor(finger[1].start);
     fingerTable[0].successor = n_prime_successor;
@@ -566,13 +570,13 @@ async function init_finger_table(n_prime) {
         predecessor = await successor_client.getPredecessor(fingerTable[0].successor);
     } catch (err) {
         predecessor = NULL_NODE;
-        console.error("getPredecessor error in init_finger_table() ", err);
+        console.error("init_finger_table call to getPredecessor failed with", err);
     }
     // successor.predecessor = n;
     try {
         await successor_client.setPredecessor(_self);
     } catch (err) {
-        console.error("setPredecessor() error in init_finger_table() ", err);
+        console.error("init_finger_table call to setPredecessor() failed with ", err);
     }
 
     if (DEBUGGING_LOCAL) {
@@ -591,7 +595,7 @@ async function init_finger_table(n_prime) {
                 fingerTable[i + 1].successor = await find_successor(fingerTable[i + 1].start, _self, n_prime);
             } catch (err) {
                 fingerTable[i + 1].successor = NULL_NODE;
-                console.error("find_successor error in init_finger_table ", err);
+                console.error("init_finger_table call to find_successor() failed with ", err);
             }
         }
     }
@@ -634,7 +638,7 @@ async function update_others() {
             p_node = await find_predecessor(p_node_search_id);
         } catch (err) {
             p_node = NULL_NODE;
-            console.error("\nError from find_predecessor(", p_node_search_id, ") in update_others().\n");
+            console.error("Error from find_predecessor(", p_node_search_id, ") in update_others().", err);
         }
 
         if (DEBUGGING_LOCAL) {
@@ -737,6 +741,7 @@ async function update_successor_table() {
     try {
         successor_seems_ok = await check_successor();
     } catch (err) {
+        console.error(`update_successor_table call to check_successor failed with `, err);
         successor_seems_ok = false;
     }
     if (successor_seems_ok) {
@@ -749,6 +754,7 @@ async function update_successor_table() {
             try {
                 successor_seems_ok = await check_successor();
             } catch (err) {
+                console.error(`update_successor_table call to check_successor failed with `, err);
                 successor_seems_ok = false;
             }
             if (successor_seems_ok) {
@@ -778,6 +784,7 @@ async function update_successor_table() {
             try {
                 successor_successor = await getSuccessor(_self, successorTable[i]);
             } catch (err) {
+                console.error(`update_successor_table call to getSuccessor failed with `, err);
                 successor_successor = {id: null, ip: null, port: null};
             }
             if (DEBUGGING_LOCAL) {
@@ -803,6 +810,7 @@ async function update_successor_table() {
                 successor_seems_ok = true;
             }
         } catch (err) {
+            console.error(`update_successor_table call to getSuccessor failed with `, err);
             successor_seems_ok = false;
             successor_successor = NULL_NODE;
         }
@@ -839,6 +847,7 @@ async function stabilize() {
     try {
         successor_client = caller(`localhost:${fingerTable[0].successor.port}`, PROTO_PATH, "Node");
     } catch {
+        console.error(`stabilize call to caller failed with `, err);
         return false;
     }
     // x = successor.predecessor;
@@ -877,7 +886,7 @@ async function stabilize() {
         try {
             await successor_client.notify(_self);
         } catch (err) {
-            // no need for handler
+            console.error(`stabilize call to successor_client.notify failed with `, err);
         }
     }
 
@@ -886,7 +895,7 @@ async function stabilize() {
     try {
         await update_successor_table();
     } catch (err) {
-        // probably no need for error handler
+        console.error(`stabilize call to update_successor_table failed with `, err);
     }
     /* TBD 20191103 */
     return true;
@@ -914,7 +923,7 @@ async function stabilize_self() {
             predecessor_seems_ok = await check_predecessor();
         } catch (err) {
             predecessor_seems_ok = false;
-            console.error(err);
+            console.error(`stabilize_self call to check_predecessor failed with `, err);
         }
         if (predecessor_seems_ok) {
             // then kick by setting the successor to the same as the predecessor
@@ -965,7 +974,7 @@ async function fix_fingers() {
             fingerTable[i].successor = n_successor;
         }
     } catch (err) {
-        // don't change the finger just yet
+        console.error(`fix_fingers call to find_successor failed with `, err);
     }
     if (DEBUGGING_LOCAL) {
         console.log("\n>>>>>     Fix {", _self.id, "}.fingerTable[", i, "], with start = ", fingerTable[i].start, ".");
@@ -985,7 +994,7 @@ async function check_predecessor() {
             // just ask anything
             const x = await predecessor_client.getPredecessor(_self.id);
         } catch (err) {
-            // predecessor = nil;
+            console.error(`check_predecessor call to getPredecessor failed with `, err);
             predecessor = { id: null, ip: null, port: null };
             return false;
         }
@@ -1026,9 +1035,7 @@ async function check_successor() {
             }
         } catch (err) {
             successor_seems_ok = false;
-            if (DEBUGGING_LOCAL) {
-                console.log("Error in check_successor({", _self.id, "})\n", err);
-            }
+            console.log("Error in check_successor({", _self.id, "}) call to getSuccessor", err);
         }
     }
     return successor_seems_ok;
