@@ -9,7 +9,8 @@ const grpc = require("grpc");
 const userMap = {};
 const protoLoader = require("@grpc/proto-loader");
 const minimist = require("minimist");
-const { Worker } = require("worker_threads");
+const { isInModuloRange, sha1 } = require("./utils.js");
+
 const PROTO_PATH = path.resolve(__dirname, "./protos/chord.proto");
 
 // import * as dataAPI from "dataAPI";
@@ -44,65 +45,6 @@ let successorTable = [NULL_NODE];
 let _self = NULL_NODE;
 
 let predecessor = NULL_NODE;
-
-/**
- * Accounts for the modulo arithmetic to determine whether the input value is within the bounds.
- * Implements inclusive and exclusive properties for each bound, as specified.
- *
- * @param {number} input_value
- * @param {number} lower_bound
- * @param {boolean} include_lower
- * @param {number} upper_bound
- * @param {boolean} include_upper
- * @returns {boolean} true if the input value is in - modulo - bounds; false otherwise
- */
-function isInModuloRange(
-  input_value,
-  lower_bound,
-  include_lower,
-  upper_bound,
-  include_upper
-) {
-  /*
-        USAGE
-        include_lower == true means [lower_bound, ...
-        include_lower == false means (lower_bound, ...
-        include_upper == true means ..., upper_bound]
-        include_upper == false means ..., upper_bound)
-    */
-  if (include_lower && include_upper) {
-    if (lower_bound > upper_bound) {
-      //looping through 0
-      return input_value >= lower_bound || input_value <= upper_bound;
-    } else {
-      return input_value >= lower_bound && input_value <= upper_bound;
-    }
-  } else if (include_lower && !include_upper) {
-    if (lower_bound > upper_bound) {
-      //looping through 0
-      return input_value >= lower_bound || input_value < upper_bound;
-    } else {
-      return input_value >= lower_bound && input_value < upper_bound;
-    }
-  } else if (!include_lower && include_upper) {
-    if (lower_bound > upper_bound) {
-      //looping through 0
-      return input_value > lower_bound || input_value <= upper_bound;
-    } else {
-      // start < end
-      return input_value > lower_bound && input_value <= upper_bound;
-    }
-  } else {
-    //include neither
-    if (lower_bound > upper_bound) {
-      //looping through 0
-      return input_value > lower_bound || input_value < upper_bound;
-    } else {
-      // start < end
-      return input_value > lower_bound && input_value < upper_bound;
-    }
-  }
-}
 
 /**
  * Print Summary of state of node
@@ -1581,30 +1523,5 @@ async function main() {
     console.log(`Serving on ${_self.ip}:${_self.port}`);
   }
 }
-
-/**
- * Creates a worker thread to execute crypto and returns a result.
- * To use `const result = await sha1("stuff2");`
- * @param {string} source
- * @returns {Promise} - Resolves to the SHA-1 hash of source
- */
-function sha1(source) {
-  return new Promise((resolve, reject) => {
-    const worker = new Worker(path.join(__dirname, "./cryptoThread.js"), {
-      workerData: source
-    });
-    worker.on("message", resolve);
-    worker.on("error", reject);
-  });
-}
-
-// Example of using the thread
-// async function test(){
-//     let result = await sha1("stuff");
-//     console.log("Result is: ", result);
-//     result = await sha1("stuff2");
-//     console.log("Result is: ", result);
-// };
-// test();
 
 main();
