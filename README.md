@@ -1,13 +1,13 @@
 # Chord (Node.js and gRPC)
 
-This project is an implementation of a p2p distributed hash table using the Chord algorithm by Ion Stoica, Robert Morris, David Karger, Kaashoek, and Hari Balakrishnan. It uses Node.js to implement the nodes, and gRPC as the method of inter-node communiation. 
+This project is an implementation of a p2p distributed hash table using the Chord algorithm by Ion Stoica, Robert Morris, David Karger, Kaashoek, and Hari Balakrishnan. It uses Node.js to implement the nodes, and gRPC as the method of inter-node communiation.
 
-The client script: 
-* runs a crawler that walks the Chord successor chain to build an in-memory representaiton of the state of the overlay network
-* serves a simple web UI that visualizes the overlay network
+The client script:
+
+- runs a crawler that walks the Chord successor chain to build an in-memory representaiton of the state of the overlay network
+- serves a simple web UI that visualizes the overlay network
 
 In the future, the project will implement a "Stack Exchange Computer Science User Service" on top of this DHT, complete with a simple web app to demonstrate transparency and real-work use of a DHT. It will also enhance the admin pain to add controls to dynamically add and remove nodes from the Chord.
-
 
 ## To Run
 
@@ -34,6 +34,7 @@ node client crawl --ip localhost --port 8440 --webPort 1337
 Then open localhost:1337 in a browser
 
 Then run the following commands one at a time in separate tabs:
+
 ```
 node node --ip localhost --port 8441 --id 6 --targetIp localhost --targetPort 8440 --targetId 0
 node node --ip localhost --port 8442 --id 1 --targetIp localhost --targetPort 8440 --targetId 0
