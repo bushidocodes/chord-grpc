@@ -16,8 +16,10 @@ const packageDefinition = protoLoader.loadSync(
   }
 );
 
+const HOST = "127.0.0.1";
+
 const target = {
-  ip: `localhost`,
+  ip: HOST,
   port: 1337
 };
 
@@ -125,7 +127,7 @@ async function crawl() {
   // The argument is total garbage
   client.getSuccessor_remotehelper({ id: 99 }, (err, node) => {
     if (err) {
-      console.log(err);
+      console.log("Error is : ", err);
       let nodeToDelete = lastNode.id;
       // Remove the node from the bucket and select a random node
       for (elem in Object.keys(bigBucketOfData)) {
@@ -166,6 +168,8 @@ async function crawl() {
 function main() {
   if (process.argv.length >= 3) {
     const args = minimist(process.argv.slice(3));
+
+    console.log(args);
 
     if (args.ip) {
       target.ip = args.ip;

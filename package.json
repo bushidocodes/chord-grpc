@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "cleanData": "node cleanData.js",
-    "server": "node server.js",
+    "server": "node node.js",
     "client": "node client.js"
   },
   "author": "",

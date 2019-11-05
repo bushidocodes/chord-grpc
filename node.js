@@ -386,7 +386,7 @@ async function find_successor(id, node_querying, node_queried) {
   } else {
     // create client for remote call
     const node_queried_client = caller(
-      `localhost:${node_queried.port}`,
+      `${node_queried.ip}:${node_queried.port}`,
       PROTO_PATH,
       "Node"
     );
@@ -571,7 +571,7 @@ async function getSuccessor(node_querying, node_queried) {
     // use remote value
     // create client for remote call
     const node_queried_client = caller(
-      `localhost:${node_queried.port}`,
+      `${node_queried.ip}:${node_queried.port}`,
       PROTO_PATH,
       "Node"
     );
@@ -650,7 +650,7 @@ async function closest_preceding_finger(id, node_querying, node_queried) {
     // use remote value
     // create client for remote call
     const node_queried_client = caller(
-      `localhost:${node_queried.port}`,
+      `${node_queried.ip}:${node_queried.port}`,
       PROTO_PATH,
       "Node"
     );
@@ -844,7 +844,7 @@ async function init_finger_table(n_prime) {
 
   // client for newly-determined successor
   let successor_client = caller(
-    `localhost:${fingerTable[0].successor.port}`,
+    `${fingerTable[0].successor.ip}:${fingerTable[0].successor.port}`,
     PROTO_PATH,
     "Node"
   );
@@ -962,7 +962,7 @@ async function update_others() {
 
     // p.update_finger_table(n, i);
     if (_self.id !== p_node.id) {
-      p_node_client = caller(`localhost:${p_node.port}`, PROTO_PATH, "Node");
+      p_node_client = caller(`${p_node.ip}:${p_node.port}`, PROTO_PATH, "Node");
       try {
         await p_node_client.update_finger_table({ node: _self, index: i });
       } catch (err) {
@@ -1014,7 +1014,7 @@ async function update_finger_table(message, callback) {
     fingerTable[finger_index].successor = s_node;
     // p = predecessor;
     const p_client = caller(
-      `localhost:${predecessor.port}`,
+      `${predecessor.ip}:${predecessor.port}`,
       PROTO_PATH,
       "Node"
     );
@@ -1236,7 +1236,7 @@ async function stabilize() {
   let x;
   try {
     successor_client = caller(
-      `localhost:${fingerTable[0].successor.port}`,
+      `${fingerTable[0].successor.ip}:${fingerTable[0].successor.port}`,
       PROTO_PATH,
       "Node"
     );
@@ -1289,7 +1289,7 @@ async function stabilize() {
   // successor.notify(n);
   if (_self.id !== fingerTable[0].successor.id) {
     successor_client = caller(
-      `localhost:${fingerTable[0].successor.port}`,
+      `${fingerTable[0].successor.ip}:${fingerTable[0].successor.port}`,
       PROTO_PATH,
       "Node"
     );
@@ -1429,7 +1429,7 @@ async function fix_fingers() {
 async function check_predecessor() {
   if (predecessor.id !== null && predecessor.id !== _self.id) {
     const predecessor_client = caller(
-      `localhost:${predecessor.port}`,
+      `${predecessor.ip}:${predecessor.port}`,
       PROTO_PATH,
       "Node"
     );

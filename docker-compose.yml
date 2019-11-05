@@ -1,0 +1,67 @@
+version: "3"
+services:
+  node0:
+    network_mode: "host"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8440:8440"
+    command: npm run server -- --ip localhost --port 8440 --id 0 --targetIp node0 --targetPort 8440 --targetId 0
+  node1:
+    network_mode: "host"
+    build: .
+    command: npm run server -- --port 8441 --id 6 --targetIp node0 --targetPort 8440 --targetId 0
+    ports:
+      - "8441:8441"
+    depends_on:
+      - node0
+  # node2:
+  #   build: .
+  #   command: npm run server -- --port 8442 --id 1 --targetIp node0 --targetPort 8440 --targetId 0
+  #   ports:
+  #     - "8442:8442"
+  #   depends_on:
+  #     - node0
+  # node3:
+  #   build: .
+  #   command: npm run server -- --port 8443 --id 2 --targetIp node0 --targetPort 8440 --targetId 0
+  #   volumes:
+  #     - .:/usr/app/
+  #     - /usr/app/node_modules
+  #   ports:
+  #     - "8443:8443"
+  #   depends_on:
+  #     - node0
+  # node4:
+  #   build: .
+  #   command: npm run server -- --port 8445 --id 3 --targetIp node0 --targetPort 8440 --targetId 0
+  #   volumes:
+  #     - .:/usr/app/
+  #     - /usr/app/node_modules
+  #   ports:
+  #     - "8445:8445"
+  #   depends_on:
+  #     - node0
+  # node5:
+  #   build: .
+  #   command: npm run server -- --port 8444 --id 7 --targetIp localhost --targetPort 8440 --targetId 0
+  #   volumes:
+  #     - .:/usr/app/
+  #     - /usr/app/node_modules
+  #   ports:
+  #     - "8444:8444"
+  #   depends_on:
+  #     - node0
+  client:
+    network_mode: "host"
+    build:
+      context: .
+      dockerfile: ClientDockerfile
+    command: npm run client -- crawl --ip 0.0.0.0 --port 8440 --webPort 1337
+    expose:
+      - "1337"
+    ports:
+      - "1337:1337"
+    depends_on:
+      - node0
