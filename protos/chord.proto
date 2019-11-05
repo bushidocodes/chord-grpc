@@ -13,7 +13,9 @@ service Node {
   rpc fetch (UserRequest) returns (User) {}
   // Once a client knows the node to connect to, we can insert the user at that node.
   rpc insert (User) returns (google.protobuf.Empty) {}
-  rpc addUser_remoteHelper (User) returns (google.protobuf.Empty) {}
+  rpc insertUser_remoteHelper (User) returns (google.protobuf.Empty) {}
+  rpc lookup (UserRequest) returns (User) {}
+  rpc lookupUser_remoteHelper (UserRequest) returns (User) {}
 
   // Chord Library Level RPC Calls
   rpc find_successor_remotehelper (RemoteId) returns (NodeAddress) {}
