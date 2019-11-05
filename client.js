@@ -45,9 +45,24 @@ async function lookup({ _, ...rest }) {
   }
 }
 
+function remove({ _, ...rest }) {
+  if (!rest.id) {
+    console.log("remove required an ID");
+    process.exit();
+  }
+  console.log("Beginning client-side remove: ", rest.id);
+  try {
+    client.remove({ id: rest.id });
+    console.log("Remove successful, finishing");
+  } catch (err) {
+    conosle.log("Remove failed, err: ", err);
+  }
+}
+
 // I was originally thinking that the user service would assign the id, but this doesn't really seem possible...
 
 async function insert({ _, ...rest }) {
+  console.log(rest);
   if (!rest.id) {
     console.log("id is a mandatory field!");
     console.log("node client insert --id=42424242");
@@ -77,8 +92,12 @@ async function insert({ _, ...rest }) {
     accountId: rest.accoutId || 0
   };
   console.log(user);
-  await client.insert(user);
-  console.log("User inserted successfully.");
+  await client.insert({ user, edit: rest.edit });
+  if (rest.edit) {
+    console.log("User editted successfully.");
+  } else {
+    console.log("User inserted successfully.");
+  }
 }
 
 //Requests basic information about the target node
@@ -165,7 +184,15 @@ function main() {
       case "lookup":
         lookup(args);
         break;
+      case "remove":
+        remove(args);
+        break;
       case "insert":
+        args["edit"] = false;
+        insert(args);
+        break;
+      case "edit":
+        args["edit"] = true;
         insert(args);
         break;
       case "summary":
