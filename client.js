@@ -156,36 +156,24 @@ function main() {
     }
 
     console.log(`Connecting to ${target.ip}:${target.port}`);
+    client = new chord.Node(
+      `${target.ip}:${target.port}`,
+      grpc.credentials.createInsecure()
+    );
 
     const command = process.argv[2];
 
     switch (command) {
       case "fetch":
-        client = new chord.Node(
-          `${target.ip}:${target.port}`,
-          grpc.credentials.createInsecure()
-        );
         fetch(args);
         break;
       case "insert":
-        client = new chord.Node(
-          `${target.ip}:${target.port}`,
-          grpc.credentials.createInsecure()
-        );
         insert(args);
         break;
       case "summary":
-        client = new chord.Node(
-          `${target.ip}:${target.port}`,
-          grpc.credentials.createInsecure()
-        );
         summary();
         break;
       case "crawl":
-        client = new chord.Node(
-          `${target.ip}:${target.port}`,
-          grpc.credentials.createInsecure()
-        );
         lastNode = { id: target.id, ip: target.ip, port: target.port };
         setInterval(async () => {
           await crawl();
