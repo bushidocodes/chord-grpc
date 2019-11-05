@@ -531,7 +531,6 @@ async function join(known_node) {
  * @returns {boolean}
  */
 function confirm_exist(known_node) {
-    // TODO: confirm_exist actually needs to ping the endpoint to ensure it's real
     return !(_self.id == known_node.id);
 }
 
