@@ -5,12 +5,14 @@
 
 const path = require("path");
 const grpc = require("grpc");
-const users = require("./data/tinyUsers.json");
+// const users = require("./data/tinyUsers.json");
+const users = {};
 const protoLoader = require("@grpc/proto-loader");
 const minimist = require("minimist");
 const { Worker } = require("worker_threads");
-
 const PROTO_PATH = path.resolve(__dirname, "./protos/chord.proto");
+
+// import * as dataAPI from "dataAPI";
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
@@ -133,16 +135,57 @@ function fetch({ request: { id } }, callback) {
  * @param grpcRequest
  * @param callback gRPC callback
  */
-function insert({ request: user }, callback) {
+async function insert(message, callback) {
+  const user = message.request;
+  // TODO: Use hasing to get the key
+  const lookupKey = user.id;
+  let successor = NULL_NODE;
+
+  console.log("In insert: user");
+  console.log(user);
+
+  try {
+    successor = await find_successor(lookupKey, _self, _self);
+  } catch (err) {
+    successor = NULL_NODE;
+    console.error("insert call to find_successor failed with ", err);
+  }
+  // once i have successor, either i call my self addUser or I use a client
+  if (successor.id == _self.id) {
+    console.log("In insert: add user to local node");
+    addUser(user);
+  } else {
+    // create client
+    try {
+      console.log("In insert: add user to remote node");
+      console.log(user, lookupKey);
+      const successorClient = caller(
+        `localhost:${successor.port}`,
+        PROTO_PATH,
+        "Node"
+      );
+      await successorClient.addUser_remoteHelper(user);
+      callback({}, user);
+    } catch (err) {
+      console.error("insert call to addUser failed with ", err);
+      callback(err, {});
+    }
+  }
+}
+
+async function addUser_remoteHelper(message, callback) {
+  addUser(message.request);
+}
+
+async function addUser(user) {
   if (users[user.id]) {
     const message = `Err: ${user.id} already exits`;
     console.log(message);
-    callback({ code: 6, message }, null); // ALREADY_EXISTS error
   } else {
     users[user.id] = user;
     const message = `Inserted User ${user.id}:`;
     console.log(message);
-    callback({ status: 0, message }, null);
+    console.log(users);
   }
 }
 
@@ -1373,6 +1416,7 @@ async function main() {
     summary,
     fetch,
     insert,
+    addUser_remoteHelper,
     find_successor_remotehelper,
     getSuccessor_remotehelper,
     getPredecessor,
