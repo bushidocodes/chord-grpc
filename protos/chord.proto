@@ -12,7 +12,12 @@ service Node {
   // Once a client knows the node to connect to, it can fetch the data
   rpc fetch (UserRequest) returns (User) {}
   // Once a client knows the node to connect to, we can insert the user at that node.
-  rpc insert (User) returns (google.protobuf.Empty) {}
+  rpc insert (UserEdit) returns (google.protobuf.Empty) {}
+  rpc insertUser_remoteHelper (UserEdit) returns (google.protobuf.Empty) {}
+  rpc lookup (UserRequest) returns (User) {}
+  rpc lookupUser_remoteHelper (UserRequest) returns (User) {}
+  rpc remove(UserRequest) returns (google.protobuf.Empty){}
+  rpc removeUser_remoteHelper(UserRequest) returns (google.protobuf.Empty){}
 
   // Chord Library Level RPC Calls
   rpc find_successor_remotehelper (RemoteId) returns (NodeAddress) {}
@@ -69,6 +74,11 @@ message User {
   int32 downVotes = 11;
   string profileImageUrl = 12;
   int32 accountId = 13;
+}
+
+message UserEdit {
+  User user = 1;
+  bool edit = 2; 
 }
 
 

@@ -1,6 +1,10 @@
 const grpc = require("grpc");
 const protoLoader = require("@grpc/proto-loader");
 const minimist = require("minimist");
+const path = require("path");
+const caller = require("grpc-caller");
+const PROTO_PATH = path.resolve(__dirname, "./protos/chord.proto");
+
 const packageDefinition = protoLoader.loadSync(
   `${__dirname}/protos/chord.proto`,
   {
@@ -24,25 +28,41 @@ let client;
 const bigBucketOfData = {};
 const ring = new Set([]);
 let lastNode;
+const NULL_USER = { id: null };
 
-function fetch({ _: args }) {
-  if (!args[0]) {
+async function lookup({ _, ...rest }) {
+  if (!rest.id) {
     console.log("fetch required an ID");
     process.exit();
   }
-  id = parseInt(process.argv[3], 10);
-  client.fetch({ id }, (err, user) => {
-    if (err) {
-      console.log(err);
-    } else {
-      console.log(user);
-    }
-  });
+  console.log("Beginning client-side lookup: ", rest.id);
+  const lookedUpUser = await client.lookup({ id: rest.id });
+  console.log(lookedUpUser);
+  if (!lookedUpUser) {
+    console.log("Finished client-side lookup, found nothing");
+  } else {
+    console.log("Finished client-side lookup: ", lookedUpUser);
+  }
+}
+
+function remove({ _, ...rest }) {
+  if (!rest.id) {
+    console.log("remove required an ID");
+    process.exit();
+  }
+  console.log("Beginning client-side remove: ", rest.id);
+  try {
+    client.remove({ id: rest.id });
+    console.log("Remove successful, finishing");
+  } catch (err) {
+    conosle.log("Remove failed, err: ", err);
+  }
 }
 
 // I was originally thinking that the user service would assign the id, but this doesn't really seem possible...
 
-function insert({ _, ...rest }) {
+async function insert({ _, ...rest }) {
+  console.log(rest);
   if (!rest.id) {
     console.log("id is a mandatory field!");
     console.log("node client insert --id=42424242");
@@ -72,13 +92,12 @@ function insert({ _, ...rest }) {
     accountId: rest.accoutId || 0
   };
   console.log(user);
-  client.insert(user, (err, user) => {
-    if (err) {
-      console.log(err);
-    } else {
-      console.log(user);
-    }
-  });
+  await client.insert({ user, edit: rest.edit });
+  if (rest.edit) {
+    console.log("User editted successfully.");
+  } else {
+    console.log("User inserted successfully.");
+  }
 }
 
 //Requests basic information about the target node
@@ -157,35 +176,29 @@ function main() {
 
     console.log(`Connecting to ${target.ip}:${target.port}`);
 
+    client = caller(`localhost:${target.port}`, PROTO_PATH, "Node");
+
     const command = process.argv[2];
 
     switch (command) {
-      case "fetch":
-        client = new chord.Node(
-          `${target.ip}:${target.port}`,
-          grpc.credentials.createInsecure()
-        );
-        fetch(args);
+      case "lookup":
+        lookup(args);
+        break;
+      case "remove":
+        remove(args);
         break;
       case "insert":
-        client = new chord.Node(
-          `${target.ip}:${target.port}`,
-          grpc.credentials.createInsecure()
-        );
+        args["edit"] = false;
+        insert(args);
+        break;
+      case "edit":
+        args["edit"] = true;
         insert(args);
         break;
       case "summary":
-        client = new chord.Node(
-          `${target.ip}:${target.port}`,
-          grpc.credentials.createInsecure()
-        );
         summary();
         break;
       case "crawl":
-        client = new chord.Node(
-          `${target.ip}:${target.port}`,
-          grpc.credentials.createInsecure()
-        );
         lastNode = { id: target.id, ip: target.ip, port: target.port };
         setInterval(async () => {
           await crawl();
