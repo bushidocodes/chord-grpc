@@ -4,6 +4,7 @@ const caller = require("grpc-caller");
 const PROTO_PATH = path.resolve(__dirname, "./protos/chord.proto");
 
 const HOST = "127.0.0.1";
+const DUMMY_REQUEST_OBJECT = { id: 99 };
 
 const target = {
   ip: HOST,
@@ -96,82 +97,76 @@ async function summary() {
 }
 
 class ChordCrawler {
-  constructor(ip, port, stepInSeconds) {
+  constructor(ip, port, stepInMS) {
     this.ip = ip;
     this.port = port;
     this.state = {};
-    this.ring = new Set([]);
+    this.walk = new Set([]);
     setInterval(async () => {
       await this.crawl();
-    }, stepInSeconds);
+    }, stepInMS);
   }
-  static buildConnectionString(ip, port) {
-    return `${ip}:${port}`;
+  pruneUponCycle(connectionString) {
+    // If we touch a node we've already touched, we've walked a complete cycle
+    if (this.walk.has(connectionString)) {
+      // We can now flush dangling nodes not encountered during the walk
+      for (let storedConnectionString of Object.keys(this.state)) {
+        if (!this.walk.has(storedConnectionString)) {
+          delete this.state[storedConnectionString];
+        }
+      }
+      // Clear to start a new walk
+      this.walk.clear();
+    } else {
+      // Not yet a cycle, so add node to the walk
+      this.walk.add(connectionString);
+    }
   }
-  getConnectionString() {
-    return ChordCrawler.buildConnectionString(this.ip, this.port);
+  updateSuccessor(connectionStringOfSourceNode, successorNode) {
+    if (this.state[connectionStringOfSourceNode]) {
+      this.state[connectionStringOfSourceNode].successor = successorNode;
+    }
+  }
+  updateNode(node) {
+    const connectionString = `${node.ip}:${node.port}`;
+    this.state[connectionString] = {
+      ...this.state[connectionString],
+      ...node
+    };
+  }
+  shuffleCurrentNode() {
+    // If we have trouble reaching a node, just shuffle to any other node and walk from there
+    const otherNodes = Object.values(this.state).filter(
+      node =>
+        (node.ip !== this.ip || node.port !== this.port) && this.ip && this.port
+    );
+
+    const randomNode =
+      otherNodes[Math.floor(Math.random() * otherNodes.length)];
+
+    this.ip = randomNode.ip;
+    this.port = randomNode.port;
+
+    // And we have to invalidate the current walk to avoid accidental pruning
+    this.walk.clear();
   }
   async crawl() {
-    const connectionString = this.getConnectionString();
+    const connectionString = `${this.ip}:${this.port}`;
     console.log(`Connecting to ${connectionString}`);
     const client = caller(connectionString, PROTO_PATH, "Node");
 
     try {
-      const DUMMY_REQUEST_OBJECT = { id: 99 };
       const successorNode = await client.getSuccessor_remotehelper(
         DUMMY_REQUEST_OBJECT
       );
-      // If we have an entry for the current node we're connecting to, update the successor
-      // If not, this is likley the initial gRPC call, so just skip. We'll get this after our first complete walk
-      if (this.state[connectionString]) {
-        this.state[connectionString].successor = successorNode;
-      }
-
-      // If we touch a node we've already touched, we've walked a complete cycle around the overlay network
-      // We can now flush dangling nodes not encountered during the walk
-      if (this.ring.has(connectionString)) {
-        for (let storedConnectionString of Object.keys(this.state)) {
-          if (!this.ring.has(storedConnectionString)) {
-            delete this.state[storedConnectionString];
-          }
-        }
-        // Clear because we are starting a new walk around the overlay network
-        this.ring.clear();
-      } else {
-        // Add the node to the walk
-        this.ring.add(connectionString);
-      }
-
-      // Now add or update our state
-      const successorConnectionString = ChordCrawler.buildConnectionString(
-        successorNode.ip,
-        successorNode.port
-      );
-      this.state[successorConnectionString] = {
-        ...this.state[successorConnectionString],
-        ...successorNode
-      };
-
-      // And point to te successor node, which we'll crawl to them next
+      this.pruneUponCycle(connectionString);
+      this.updateSuccessor(connectionString, successorNode);
+      this.updateNode(successorNode);
       this.ip = successorNode.ip;
       this.port = successorNode.port;
     } catch (err) {
       console.log("Error is : ", err);
-
-      // If we have trouble reaching a node, just shuffle to any other node and walk from there
-      // Our pruning logic will clean up the overlay network
-      const otherNodes = Object.values(this.state).filter(
-        node =>
-          (node.ip !== this.ip || node.port !== this.port) &&
-          this.ip &&
-          this.port
-      );
-
-      const randomNode =
-        otherNodes[Math.floor(Math.random() * otherNodes.length)];
-
-      this.ip = randomNode.ip;
-      this.port = randomNode.port;
+      this.shuffleCurrentNode();
     }
   }
 }
