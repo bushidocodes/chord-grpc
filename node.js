@@ -1572,10 +1572,8 @@ async function main() {
     update_finger_table,
     notify
   });
-  server.bind(
-    `${_self.ip}:${_self.port}`,
-    grpc.ServerCredentials.createInsecure()
-  );
+  // Bind to all addresses because of DNS
+  server.bind(`0.0.0.0:${_self.port}`, grpc.ServerCredentials.createInsecure());
   server.start();
   if (DEBUGGING_LOCAL) {
     console.log(`Serving on ${_self.ip}:${_self.port}`);

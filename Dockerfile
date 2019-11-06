@@ -6,5 +6,3 @@ COPY package*.json ./
 RUN npm ci --quiet
 
 COPY . .
-
-EXPOSE 8440
