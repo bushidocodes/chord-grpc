@@ -1,3 +1,19 @@
+let network;
+let oldData;
+
+// The dataviz library assigns the edges UIDs that we want to ignore when comparing with lodash
+function isEqual(oldData, newData) {
+  const oldDataWithoutEdgeIds = {
+    nodes: oldData.nodes,
+    edges: oldData.edges.map(({ from, to }) => ({ from, to }))
+  };
+  const newDataWithoutEdgeIds = {
+    nodes: newData.nodes,
+    edges: newData.edges.map(({ from, to }) => ({ from, to }))
+  };
+  return _.isEqual(oldDataWithoutEdgeIds, newDataWithoutEdgeIds);
+}
+
 async function loadData() {
   const response = await fetch("./data");
   const myJson = await response.json();
@@ -44,10 +60,16 @@ async function loadData() {
       solver: "repulsion"
     }
   };
-  var network = new vis.Network(container, data, options);
-  setTimeout(() => {
-    network.redraw();
-  }, 100);
+  if (!network) {
+    network = new vis.Network(container, data, options);
+    oldData = data;
+  }
+
+  if (!isEqual(data, oldData)) {
+    console.log("Redraw");
+    network.setData(data);
+    oldData = data;
+  }
 }
 
 document.addEventListener("DOMContentLoaded", function() {
