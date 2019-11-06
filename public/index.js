@@ -3,17 +3,22 @@ async function loadData() {
   const myJson = await response.json();
 
   const nodes = Object.values(myJson).map(({ id, ip, port }) => ({
-    id,
+    id: `${ip}:${port}`,
     label: `${id} on ${ip}:${port}`
   }));
 
   const edges = Object.values(myJson)
     .filter(
-      elem => !isNaN(elem.id) && elem.successor && !isNaN(elem.successor.id)
+      elem =>
+        elem.ip &&
+        elem.port &&
+        elem.successor &&
+        elem.successor.ip &&
+        elem.successor.port
     )
-    .map(({ id, successor }) => ({
-      from: id,
-      to: successor.id
+    .map(({ ip, port, successor }) => ({
+      from: `${ip}:${port}`,
+      to: `${successor.ip}:${successor.port}`
     }));
   // create a network
   var container = document.getElementById("mynetwork");

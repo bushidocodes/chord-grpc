@@ -1,34 +1,17 @@
-const grpc = require("grpc");
-const protoLoader = require("@grpc/proto-loader");
 const minimist = require("minimist");
 const path = require("path");
 const caller = require("grpc-caller");
 const PROTO_PATH = path.resolve(__dirname, "./protos/chord.proto");
 
-const packageDefinition = protoLoader.loadSync(
-  `${__dirname}/protos/chord.proto`,
-  {
-    keepCase: true,
-    longs: String,
-    enums: String,
-    defaults: true,
-    oneofs: true
-  }
-);
+const HOST = "127.0.0.1";
+const DUMMY_REQUEST_OBJECT = { id: 99 };
 
 const target = {
-  ip: `localhost`,
+  ip: HOST,
   port: 1337
 };
 
-const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 let client;
-
-// Used by Crawl to accumulate data about the Chord ring
-const bigBucketOfData = {};
-const ring = new Set([]);
-let lastNode;
-const NULL_USER = { id: null };
 
 async function lookup({ _, ...rest }) {
   if (!rest.id) {
@@ -100,72 +83,99 @@ async function insert({ _, ...rest }) {
   }
 }
 
-//Requests basic information about the target node
-function summary() {
+// Requests basic information about the target node
+async function summary() {
   console.log("Client requesting summary:");
-  client.summary({ id: 1 }, (err, node) => {
-    if (err) {
-      console.log(err);
-      console.log(node);
-    } else {
-      //console.log(node);
-      console.log(
-        `The node returned id: ${node.id}, ip: ${node.ip}, port: ${node.port}`
-      );
-    }
-  });
+  try {
+    const node = await client.summary({ id: 1 });
+    console.log(
+      `The node returned id: ${node.id}, ip: ${node.ip}, port: ${node.port}`
+    );
+  } catch (err) {
+    console.error(err);
+  }
 }
 
-//Requests basic information about the target node
-async function crawl() {
-  client = new chord.Node(
-    `${lastNode.ip}:${lastNode.port}`,
-    grpc.credentials.createInsecure()
-  );
-  // The argument is total garbage
-  client.getSuccessor_remotehelper({ id: 99 }, (err, node) => {
-    if (err) {
-      console.log(err);
-      let nodeToDelete = lastNode.id;
-      // Remove the node from the bucket and select a random node
-      for (elem in Object.keys(bigBucketOfData)) {
-        if (
-          elem &&
-          bigBucketOfData[elem] &&
-          bigBucketOfData[elem].successor &&
-          bigBucketOfData[elem].successor.id &&
-          bigBucketOfData[elem].successor.id !== lastNode.id
-        ) {
-          lastNode = bigBucketOfData[elem].successor;
-          break;
+class ChordCrawler {
+  constructor(ip, port, stepInMS) {
+    this.ip = ip;
+    this.port = port;
+    this.state = {};
+    this.walk = new Set([]);
+    setInterval(async () => {
+      await this.crawl();
+    }, stepInMS);
+  }
+  pruneUponCycle(connectionString) {
+    // If we touch a node we've already touched, we've walked a complete cycle
+    if (this.walk.has(connectionString)) {
+      // We can now flush dangling nodes not encountered during the walk
+      for (let storedConnectionString of Object.keys(this.state)) {
+        if (!this.walk.has(storedConnectionString)) {
+          delete this.state[storedConnectionString];
         }
       }
-      delete bigBucketOfData[nodeToDelete];
+      // Clear to start a new walk
+      this.walk.clear();
     } else {
-      if (bigBucketOfData[lastNode.id]) {
-        bigBucketOfData[lastNode.id].successor = node;
-      }
-
-      // If we've walked the logical ring and we didn't touch a node, delete it
-      if (ring.has(node.id)) {
-        for (elem of Object.keys(bigBucketOfData)) {
-          console.log(bigBucketOfData[elem]);
-          if (!ring.has(bigBucketOfData[elem].id)) {
-            delete bigBucketOfData[elem];
-          }
-        }
-        ring.clear();
-      }
-      ring.add(node.id);
-      bigBucketOfData[node.id] = { ...bigBucketOfData[node.id], ...node };
-      lastNode = node;
+      // Not yet a cycle, so add node to the walk
+      this.walk.add(connectionString);
     }
-  });
+  }
+  updateSuccessor(connectionStringOfSourceNode, successorNode) {
+    if (this.state[connectionStringOfSourceNode]) {
+      this.state[connectionStringOfSourceNode].successor = successorNode;
+    }
+  }
+  updateNode(node) {
+    const connectionString = `${node.ip}:${node.port}`;
+    this.state[connectionString] = {
+      ...this.state[connectionString],
+      ...node
+    };
+  }
+  shuffleCurrentNode() {
+    // If we have trouble reaching a node, just shuffle to any other node and walk from there
+    const otherNodes = Object.values(this.state).filter(
+      node =>
+        (node.ip !== this.ip || node.port !== this.port) && this.ip && this.port
+    );
+
+    const randomNode =
+      otherNodes[Math.floor(Math.random() * otherNodes.length)];
+
+    this.ip = randomNode.ip;
+    this.port = randomNode.port;
+
+    // And we have to invalidate the current walk to avoid accidental pruning
+    this.walk.clear();
+  }
+  async crawl() {
+    const connectionString = `${this.ip}:${this.port}`;
+    console.log(`Connecting to ${connectionString}`);
+    const client = caller(connectionString, PROTO_PATH, "Node");
+
+    try {
+      const successorNode = await client.getSuccessor_remotehelper(
+        DUMMY_REQUEST_OBJECT
+      );
+      this.pruneUponCycle(connectionString);
+      this.updateSuccessor(connectionString, successorNode);
+      this.updateNode(successorNode);
+      this.ip = successorNode.ip;
+      this.port = successorNode.port;
+    } catch (err) {
+      console.log("Error is : ", err);
+      this.shuffleCurrentNode();
+    }
+  }
 }
 
 function main() {
   if (process.argv.length >= 3) {
     const args = minimist(process.argv.slice(3));
+
+    console.log(args);
 
     if (args.ip) {
       target.ip = args.ip;
@@ -199,15 +209,12 @@ function main() {
         summary();
         break;
       case "crawl":
-        lastNode = { id: target.id, ip: target.ip, port: target.port };
-        setInterval(async () => {
-          await crawl();
-        }, 3000);
+        let crawler = new ChordCrawler(target.ip, target.port, 3000);
         const express = require("express");
         const app = express();
         const port = args.webPort || 3000;
         app.use(express.static("public"));
-        app.get("/data", (req, res) => res.json(bigBucketOfData));
+        app.get("/data", (req, res) => res.json(crawler.state));
         app.listen(port, () =>
           console.log(`Example app listening on port ${port}!`)
         );

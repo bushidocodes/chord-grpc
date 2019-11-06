@@ -1,0 +1,49 @@
+version: "3"
+services:
+  node0:
+    build: .
+    command: npm run server -- --ip node0 --port 8440 --id 0 --targetIp node0 --targetPort 8440 --targetId 0
+    expose:
+      - "8440"
+  node1:
+    build: .
+    command: npm run server -- --ip node1 --port 8440 --id 6 --targetIp node0 --targetPort 8440 --targetId 0
+    expose:
+      - "8440"
+    depends_on:
+      - node0
+  node2:
+    build: .
+    command: npm run server -- --ip node2 --port 8440 --id 1 --targetIp node0 --targetPort 8440 --targetId 0
+    expose:
+      - "8440"
+    depends_on:
+      - node0
+  node3:
+    build: .
+    command: npm run server -- --ip node3 --port 8440 --id 2 --targetIp node0 --targetPort 8440 --targetId 0
+    expose:
+      - "8440"
+    depends_on:
+      - node0
+  node4:
+    build: .
+    command: npm run server -- --ip node4 --port 8440 --id 3 --targetIp node0 --targetPort 8440 --targetId 0
+    expose:
+      - "8440"
+    depends_on:
+      - node0
+  node5:
+    build: .
+    command: npm run server -- --ip node5 --port 8440 --id 7 --targetIp node0 --targetPort 8440 --targetId 0
+    expose:
+      - "8440"
+    depends_on:
+      - node0
+  client:
+    build: .
+    command: npm run client -- crawl --ip node0 --port 8440 --webPort 1337
+    ports:
+      - "1337:1337"
+    depends_on:
+      - node0
