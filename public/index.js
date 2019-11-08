@@ -66,7 +66,6 @@ async function loadData() {
   }
 
   if (!isEqual(data, oldData)) {
-    console.log("Redraw");
     network.setData(data);
     oldData = data;
   }
