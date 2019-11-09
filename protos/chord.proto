@@ -13,20 +13,20 @@ service Node {
   rpc fetch (UserRequest) returns (User) {}
   // Once a client knows the node to connect to, we can insert the user at that node.
   rpc insert (UserEdit) returns (google.protobuf.Empty) {}
-  rpc insertUser_remoteHelper (UserEdit) returns (google.protobuf.Empty) {}
+  rpc insertUserRemoteHelper (UserEdit) returns (google.protobuf.Empty) {}
   rpc lookup (UserRequest) returns (User) {}
-  rpc lookupUser_remoteHelper (UserRequest) returns (User) {}
+  rpc lookupUserRemoteHelper (UserRequest) returns (User) {}
   rpc remove(UserRequest) returns (google.protobuf.Empty){}
-  rpc removeUser_remoteHelper(UserRequest) returns (google.protobuf.Empty){}
+  rpc removeUserRemoteHelper(UserRequest) returns (google.protobuf.Empty){}
 
   // Chord Library Level RPC Calls
-  rpc find_successor_remotehelper (RemoteId) returns (NodeAddress) {}
-  rpc getSuccessor_remotehelper (NodeAddress) returns (NodeAddress) {}
+  rpc findSuccessorRemoteHelper (RemoteId) returns (NodeAddress) {}
+  rpc getSuccessorRemoteHelper (NodeAddress) returns (NodeAddress) {}
   rpc getPredecessor (NodeAddress) returns (NodeAddress) {}
   rpc setPredecessor (NodeAddress) returns (google.protobuf.Empty) {}
-  rpc closest_preceding_finger_remotehelper (RemoteId) returns (NodeAddress) {}
+  rpc closestPrecedingFingerRemoteHelper (RemoteId) returns (NodeAddress) {}
   rpc notify (NodeAddress) returns (google.protobuf.Empty) {}
-  rpc update_finger_table (FingerTableEntry) returns (NodeAddress) {}
+  rpc updateFingerTable (FingerTableEntry) returns (NodeAddress) {}
 }
 
 message NodeId {

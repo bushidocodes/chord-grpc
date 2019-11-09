@@ -156,7 +156,7 @@ class ChordCrawler {
     const client = caller(connectionString, PROTO_PATH, "Node");
 
     try {
-      const successorNode = await client.getSuccessor_remotehelper(
+      const successorNode = await client.getSuccessorRemoteHelper(
         DUMMY_REQUEST_OBJECT
       );
       this.pruneUponCycle(connectionString);
