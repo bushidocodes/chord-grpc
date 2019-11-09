@@ -1,6 +1,24 @@
 html,
 body,
-#mynetwork {
-  width: 100%;
+#grid {
+  width: auto;
   height: 100%;
+}
+
+#grid {
+  display: grid;
+  grid-template-columns: auto 200px;
+}
+
+#mynetwork {
+  box-sizing: border-box;
+  width: 100%;
+  border: solid;
+  padding: 5px;
+}
+
+#nodeContent {
+  box-sizing: border-box;
+  border: solid;
+  padding: 5px;
 }

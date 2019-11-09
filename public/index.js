@@ -1,17 +1,16 @@
 let network;
-let oldData;
+const nodeSet = new vis.DataSet();
+const edgeSet = new vis.DataSet();
 
-// The dataviz library assigns the edges UIDs that we want to ignore when comparing with lodash
-function isEqual(oldData, newData) {
-  const oldDataWithoutEdgeIds = {
-    nodes: oldData.nodes,
-    edges: oldData.edges.map(({ from, to }) => ({ from, to }))
-  };
-  const newDataWithoutEdgeIds = {
-    nodes: newData.nodes,
-    edges: newData.edges.map(({ from, to }) => ({ from, to }))
-  };
-  return _.isEqual(oldDataWithoutEdgeIds, newDataWithoutEdgeIds);
+function hashCode(str) {
+  let hash = 0;
+  if (str.length === 0) return hash;
+  for (let i = 0; i < str.length; i++) {
+    let chr = str.charCodeAt(i);
+    hash = (hash << 5) - hash + chr;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash;
 }
 
 async function loadData() {
@@ -20,7 +19,8 @@ async function loadData() {
 
   const nodes = Object.values(myJson).map(({ id, ip, port }) => ({
     id: `${ip}:${port}`,
-    label: `${id} on ${ip}:${port}`
+    label: `${id} on ${ip}:${port}`,
+    data: { id, ip, port }
   }));
 
   const edges = Object.values(myJson)
@@ -32,20 +32,37 @@ async function loadData() {
         elem.successor.ip &&
         elem.successor.port
     )
-    .map(({ ip, port, successor }) => ({
-      from: `${ip}:${port}`,
-      to: `${successor.ip}:${successor.port}`
-    }));
+    .map(({ ip, port, successor }) => {
+      let hash = hashCode(`${ip}:${port}-${successor.ip}:${successor.port}`);
+      return {
+        from: `${ip}:${port}`,
+        to: `${successor.ip}:${successor.port}`,
+        id: hash
+      };
+    });
+
+  const updatedNodes = nodeSet.update(nodes);
+  const allNodes = nodeSet.getIds();
+  const nodesToRemove = _.difference(allNodes, updatedNodes);
+  nodesToRemove.forEach(val => nodeSet.remove(val));
+
+  const updatedEdges = edgeSet.update(edges);
+  edgeSet.forEach((val, idx, arr) => {
+    if (!updatedEdges.includes(idx)) {
+      edgeSet.remove(idx);
+    }
+  });
+
   // create a network
   var container = document.getElementById("mynetwork");
   var data = {
-    nodes: nodes,
-    edges: edges
+    nodes: nodeSet,
+    edges: edgeSet
   };
   var options = {
     autoResize: true,
     layout: {
-      randomSeed: 0
+      randomSeed: 30
     },
     nodes: {
       shape: "box",
@@ -62,12 +79,18 @@ async function loadData() {
   };
   if (!network) {
     network = new vis.Network(container, data, options);
-    oldData = data;
-  }
-
-  if (!isEqual(data, oldData)) {
-    network.setData(data);
-    oldData = data;
+    network.on("click", function(params) {
+      if (params.nodes.length > 0) {
+        var nodeContent = document.getElementById("nodeContent");
+        var data = nodeSet.get(params.nodes[0]).data; // get the data from selected node
+        const entries = Object.entries(data);
+        let domString = "";
+        entries.forEach(([key, value]) => {
+          domString = domString.concat(`${key}: ${value}<br>`);
+        });
+        nodeContent.innerHTML = domString;
+      }
+    });
   }
 }
 
