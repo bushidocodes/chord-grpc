@@ -141,6 +141,11 @@ class ChordCrawler {
         (node.ip !== this.ip || node.port !== this.port) && this.ip && this.port
     );
 
+    // Just return if we don't have any possible alternatives
+    if (otherNodes.length == 0) {
+      return;
+    }
+
     const randomNode =
       otherNodes[Math.floor(Math.random() * otherNodes.length)];
 

@@ -7,7 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "cleanData": "node cleanData.js",
     "server": "node node.js",
-    "client": "node client.js"
+    "client": "node client.js",
+    "devServer": "nodemon node.js",
+    "devClient": "nodemon client.js"
   },
   "author": "",
   "license": "ISC",
@@ -21,6 +23,7 @@
     "grpc-caller": "^0.13.0",
     "lodash": "^4.6.1",
     "minimist": "^1.2.0",
+    "nodemon": "^1.19.4",
     "xml2js": "^0.4.22"
   },
   "devDependencies": {

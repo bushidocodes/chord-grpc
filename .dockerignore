@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+Dockerfile
+.dockerignore
+.git
+.gitignore
+driver.sh
+data
+docs
+cleanData.js
+.vscode
+docs
