@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "cleanData": "node cleanData.js",
     "server": "node node.js",
-    "client": "nodemon client.js",
+    "client": "node client.js",
     "devServer": "nodemon node.js",
     "devClient": "nodemon client.js"
   },
