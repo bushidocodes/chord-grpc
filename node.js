@@ -148,9 +148,9 @@ async function insert(message, callback) {
 
   if (successor.id == _self.id) {
     console.log("In insert: insert user to local node");
-    insertUser(userEdit);
+    const err = insertUser(userEdit);
     console.log("insert finishing");
-    callback(null, {});
+    callback(err, {});
   } else {
     // create client
     try {
@@ -161,8 +161,9 @@ async function insert(message, callback) {
         PROTO_PATH,
         "Node"
       );
-      await successorClient.insertUserRemoteHelper(userEdit);
-      callback(null, {});
+      const err = await successorClient.insertUserRemoteHelper(userEdit);
+      console.log("insert finishing");
+      callback(err, {});
     } catch (err) {
       console.error("insert call to insertUser failed with ", err);
       callback(err, null);
@@ -171,9 +172,9 @@ async function insert(message, callback) {
 }
 
 async function insertUserRemoteHelper(message, callback) {
-  insertUser(message.request);
-  console.log("insertUserRemoteHelper finishing");
-  callback(null, {});
+  console.log("insertUserRemoteHelper starting");
+  const err = insertUser(message.request);
+  callback(err, {});
 }
 
 function insertUser(userEdit) {
@@ -181,16 +182,13 @@ function insertUser(userEdit) {
   const user = userEdit.user;
   const edit = userEdit.edit;
   if (userMap[user.id] && !edit) {
-    const message = `Err: ${user.id} already exits and overwrite = false`;
-    console.log(message);
+    console.log(`Err: ${user.id} already exits and overwrite = false`);
+    return { code: 6 };
   } else {
     userMap[user.id] = user;
-    const message = `Inserted User ${user.id}:`;
-    console.log(message);
-    //console.log(userMap);
+    console.log(`Inserted User ${user.id}:`);
+    return null;
   }
-  console.log("insertUser finishing");
-  return null;
 }
 
 /**
