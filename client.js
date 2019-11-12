@@ -79,12 +79,17 @@ async function insert({ _, ...rest }) {
     accountId: rest.accoutId || 0
   };
   console.log(user);
-  await client.insert({ user, edit: rest.edit });
-  if (rest.edit) {
-    console.log("User editted successfully.");
-  } else {
-    console.log("User inserted successfully.");
-  }
+  await client.insert({ user, edit: rest.edit }, (err, _) => {
+    if (err) {
+      console.log("User could not be added", err);
+    } else {
+      if (rest.edit) {
+        console.log("User editted successfully.");
+      } else {
+        console.log("User inserted successfully.");
+      }
+    }
+  });
 }
 
 // Requests basic information about the target node
