@@ -8,7 +8,7 @@ const grpc = require("grpc");
 const caller = require("grpc-caller");
 const protoLoader = require("@grpc/proto-loader");
 const minimist = require("minimist");
-const { isInModuloRange, sha1 } = require("./utils.js");
+const { isInModuloRange, computeIntegerHash, sha1 } = require("./utils.js");
 // import * as dataAPI from "dataAPI";
 
 const PROTO_PATH = path.resolve(__dirname, "./protos/chord.proto");
@@ -285,6 +285,13 @@ async function findSuccessor(id, nodeQuerying, nodeQueried) {
 
   if (DEBUGGING_LOCAL) {
     console.log("vvvvv     vvvvv     findSuccessor     vvvvv     vvvvv");
+    console.log(
+      "Node querying {",
+      nodeQuerying.id,
+      "}; node queried {",
+      nodeQueried.id,
+      "}."
+    );
   }
 
   if (nodeQuerying.id == nodeQueried.id) {
@@ -680,7 +687,7 @@ async function join(knownNode) {
     });
   }
   // if (n')
-  if (knownNode && confirmExist(knownNode)) {
+  if (knownNode.id !== null && confirmExist(knownNode)) {
     // (n');
     await initFingerTable(knownNode);
     // updateOthers();
@@ -1420,34 +1427,56 @@ async function migrateKeys() {}
  * Starts an RPC server that receives requests for the Greeter service at the
  * sample server port
  *
- * Takes the following optional flags
- * --id         - This node's id
- * --ip         - This node's IP Address'
- * --port       - This node's Port
+ * Takes the following mandatory flags
+ * --ip         - This node's IP Address
+ * --port       - This node's TCP Port
  *
  * --targetId   - The ID of a node in the cluster
  * --targetIp   - The IP of a node in the cluster
- * --targetPort - The Port of a node in the cluster
+ * --targetPort - The TCP Port of a node in the cluster
  *
+ * And takes the following optional flags
+ * --id         - This node's id
  */
 async function main() {
   // enable debugging output
   const DEBUGGING_LOCAL = true;
 
   const args = minimist(process.argv.slice(2));
-  _self.id = args.id ? args.id : 0;
-  _self.ip = args.ip ? args.ip : `0.0.0.0`;
+  // compute identity parameters from arguments
+  _self.id = args.id ? args.id : null;
+  _self.ip = args.ip ? args.ip : "localhost";
   _self.port = args.port ? args.port : 1337;
-
-  if (
-    args.targetIp !== null &&
-    args.targetPort !== null &&
-    args.targetId !== null
-  ) {
-    await join({ id: args.targetId, ip: args.targetIp, port: args.targetPort });
-  } else {
-    await join(null);
+  if (!_self.id) {
+    // recompute identity parameters from hash function
+    try {
+      _self.id = await computeIntegerHash(
+        _self.ip + _self.port,
+        HASH_BIT_LENGTH
+      );
+      console.log(
+        "ID = { (from args)",
+        args.id,
+        " | (from hash)",
+        _self.id,
+        "}"
+      );
+    } catch (err) {
+      console.error(
+        `Error computing node ID from hash.`,
+        `Input was ${_self.ip + _self.port} but hash output was ${_self.id}.`,
+        "Thus, terminating...\n",
+        err
+      );
+      return -13;
+    }
   }
+  // attempt to join new node
+  await join({
+    id: args.targetId ? args.targetId : null,
+    ip: args.targetIp ? args.targetIp : "localhost",
+    port: args.targetPort ? args.targetPort : 1337
+  });
 
   // periodically run stabilization functions
   setInterval(async () => {
