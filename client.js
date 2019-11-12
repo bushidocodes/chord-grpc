@@ -21,7 +21,7 @@ async function lookup({ _, ...rest }) {
 
   await client.lookup({ id: rest.id }, (err, user) => {
     if (err) {
-      console.log("User not found");
+      console.log(`User with userId ${rest.id} not found`);
       console.log(err);
     } else {
       console.log("User found: ", user);
