@@ -109,9 +109,9 @@ async function remove(message, callback) {
 
 async function removeUserRemoteHelper(message, callback) {
   console.log("removeUserRemoteHelper beginning: ", message);
-  removeUser(message.request.id);
+  const err = removeUser(message.request.id);
   console.log("removeUserRemoteHelper finishing");
-  callback(null, {});
+  callback(err, {});
 }
 
 function removeUser(id) {
