@@ -97,8 +97,9 @@ async function remove(message, callback) {
         PROTO_PATH,
         "Node"
       );
-      await successorClient.removeUserRemoteHelper({ id: userId });
-      callback(null, {});
+      await successorClient.removeUserRemoteHelper({ id: userId }, (err, _) => {
+        callback(err, {});
+      });
     } catch (err) {
       console.error("remove call to removeUser failed with ", err);
       callback(err, null);
@@ -161,9 +162,10 @@ async function insert(message, callback) {
         PROTO_PATH,
         "Node"
       );
-      const err = await successorClient.insertUserRemoteHelper(userEdit);
-      console.log("insert finishing");
-      callback(err, {});
+      await successorClient.insertUserRemoteHelper(userEdit, (err, _) => {
+        console.log("insert finishing");
+        callback(err, {});
+      });
     } catch (err) {
       console.error("insert call to insertUser failed with ", err);
       callback(err, null);
