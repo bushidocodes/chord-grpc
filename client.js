@@ -21,8 +21,8 @@ async function lookup({ _, ...rest }) {
 
   await client.lookup({ id: rest.id }, (err, user) => {
     if (err) {
-      console.log(`User with userId ${rest.id} not found`);
-      console.log(err);
+      console.error(`User with userId ${rest.id} not found`);
+      console.error(err);
     } else {
       console.log("User found: ", user);
     }
@@ -38,8 +38,8 @@ async function remove({ _, ...rest }) {
 
   await client.remove({ id: rest.id }, (err, _) => {
     if (err) {
-      console.log("User not deleted");
-      console.log(err);
+      console.error("User not deleted");
+      console.error(err);
     } else {
       console.log("User deleted");
     }
@@ -81,7 +81,8 @@ async function insert({ _, ...rest }) {
   console.log(user);
   await client.insert({ user, edit: rest.edit }, (err, _) => {
     if (err) {
-      console.log("User could not be added", err);
+      console.error("User could not be added");
+      console.error(err);
     } else {
       if (rest.edit) {
         console.log("User editted successfully.");
@@ -179,7 +180,7 @@ class ChordCrawler {
       this.ip = successorNode.ip;
       this.port = successorNode.port;
     } catch (err) {
-      console.log("Error is : ", err);
+      console.error("Error is : ", err);
       this.shuffleCurrentNode();
     }
   }

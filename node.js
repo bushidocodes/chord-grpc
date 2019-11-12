@@ -233,7 +233,7 @@ async function lookup(message, callback) {
         (err, user) => {
           if (err) {
             callback(err, null);
-            console.log(err);
+            console.error(err);
           } else {
             console.log("lookup: user from remote: ", user);
             callback(err, user);
