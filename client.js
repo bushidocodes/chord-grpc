@@ -15,31 +15,35 @@ let client;
 
 async function lookup({ _, ...rest }) {
   if (!rest.id) {
-    console.log("fetch required an ID");
+    console.log("lookup requires an ID");
     process.exit();
   }
-  console.log("Beginning client-side lookup: ", rest.id);
-  const lookedUpUser = await client.lookup({ id: rest.id });
-  console.log(lookedUpUser);
-  if (!lookedUpUser) {
-    console.log("Finished client-side lookup, found nothing");
-  } else {
-    console.log("Finished client-side lookup: ", lookedUpUser);
-  }
+
+  await client.lookup({ id: rest.id }, (err, user) => {
+    if (err) {
+      console.log("User not found");
+      console.log(err);
+    } else {
+      console.log("User found: ", user);
+    }
+  });
 }
 
-function remove({ _, ...rest }) {
+async function remove({ _, ...rest }) {
   if (!rest.id) {
-    console.log("remove required an ID");
+    console.log("remove requires an ID");
     process.exit();
   }
   console.log("Beginning client-side remove: ", rest.id);
-  try {
-    client.remove({ id: rest.id });
-    console.log("Remove successful, finishing");
-  } catch (err) {
-    conosle.log("Remove failed, err: ", err);
-  }
+
+  await client.remove({ id: rest.id }, (err, _) => {
+    if (err) {
+      console.log("User not deleted");
+      console.log(err);
+    } else {
+      console.log("User deleted");
+    }
+  });
 }
 
 // I was originally thinking that the user service would assign the id, but this doesn't really seem possible...
