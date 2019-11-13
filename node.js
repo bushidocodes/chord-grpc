@@ -85,9 +85,8 @@ async function remove(message, callback) {
 
   if (successor.id == _self.id) {
     console.log("In remove: remove user from local node");
-    removeUser(userId);
-    console.log("remove finishing");
-    callback(null, {});
+    const err = removeUser(userId);
+    callback(err, {});
   } else {
     // create client
     try {
@@ -98,8 +97,9 @@ async function remove(message, callback) {
         PROTO_PATH,
         "Node"
       );
-      await successorClient.removeUserRemoteHelper({ id: userId });
-      callback(null, {});
+      await successorClient.removeUserRemoteHelper({ id: userId }, (err, _) => {
+        callback(err, {});
+      });
     } catch (err) {
       console.error("remove call to removeUser failed with ", err);
       callback(err, null);
@@ -109,18 +109,19 @@ async function remove(message, callback) {
 
 async function removeUserRemoteHelper(message, callback) {
   console.log("removeUserRemoteHelper beginning: ", message);
-  removeUser(message.request.id);
+  const err = removeUser(message.request.id);
   console.log("removeUserRemoteHelper finishing");
-  callback(null, {});
+  callback(err, {});
 }
 
 function removeUser(id) {
-  console.log("removeUser beginning: ", id);
   if (userMap[id]) {
     delete userMap[id];
-    console.log("removeUser finishing");
+    console.log("removeUser: user removed");
+    return null;
   } else {
-    console.log("in removeUser, user DNE");
+    console.log("removeUser, user DNE");
+    return { code: 5 };
   }
 }
 
@@ -148,9 +149,9 @@ async function insert(message, callback) {
 
   if (successor.id == _self.id) {
     console.log("In insert: insert user to local node");
-    insertUser(userEdit);
+    const err = insertUser(userEdit);
     console.log("insert finishing");
-    callback(null, {});
+    callback(err, {});
   } else {
     // create client
     try {
@@ -161,8 +162,10 @@ async function insert(message, callback) {
         PROTO_PATH,
         "Node"
       );
-      await successorClient.insertUserRemoteHelper(userEdit);
-      callback(null, {});
+      await successorClient.insertUserRemoteHelper(userEdit, (err, _) => {
+        console.log("insert finishing");
+        callback(err, {});
+      });
     } catch (err) {
       console.error("insert call to insertUser failed with ", err);
       callback(err, null);
@@ -171,9 +174,9 @@ async function insert(message, callback) {
 }
 
 async function insertUserRemoteHelper(message, callback) {
-  insertUser(message.request);
-  console.log("insertUserRemoteHelper finishing");
-  callback(null, {});
+  console.log("insertUserRemoteHelper starting");
+  const err = insertUser(message.request);
+  callback(err, {});
 }
 
 function insertUser(userEdit) {
@@ -181,16 +184,13 @@ function insertUser(userEdit) {
   const user = userEdit.user;
   const edit = userEdit.edit;
   if (userMap[user.id] && !edit) {
-    const message = `Err: ${user.id} already exits and overwrite = false`;
-    console.log(message);
+    console.log(`Err: ${user.id} already exits and overwrite = false`);
+    return { code: 6 };
   } else {
     userMap[user.id] = user;
-    const message = `Inserted User ${user.id}:`;
-    console.log(message);
-    //console.log(userMap);
+    console.log(`Inserted User ${user.id}:`);
+    return null;
   }
-  console.log("insertUser finishing");
-  return null;
 }
 
 /**
@@ -201,13 +201,10 @@ function insertUser(userEdit) {
 //called by client/webapp
 async function lookup(message, callback) {
   console.log("In lookup");
-  console.log(message);
   const userId = message.request.id;
   // TODO: Use hasing to get the key
   const lookupKey = userId;
   let successor = NULL_NODE;
-
-  console.log(userId);
 
   try {
     successor = await findSuccessor(lookupKey, _self, _self);
@@ -215,13 +212,13 @@ async function lookup(message, callback) {
     successor = NULL_NODE;
     console.error("insert call to findSuccessor failed with ", err);
   }
+
   // once i have successor, either i call my self addUser or I use a client
   if (successor.id == _self.id) {
     console.log("In lookup: lookup user to local node");
-    const foundUser = await lookupUser(userId);
-    console.log("finished Server-side lookup, returning: ", foundUser);
-    //callback(null, lookupUser(message.request.id));
-    callback(null, foundUser);
+    const { err, user } = lookupUser(userId);
+    console.log("finished Server-side lookup, returning: ", err, user);
+    callback(err, user);
   } else {
     // create client
     try {
@@ -231,11 +228,21 @@ async function lookup(message, callback) {
         PROTO_PATH,
         "Node"
       );
-      const user = await successorClient.lookupUserRemoteHelper({
-        id: userId
-      });
-      callback(null, user);
+      await successorClient.lookupUserRemoteHelper(
+        { id: userId },
+        (err, user) => {
+          if (err) {
+            callback(err, null);
+            console.error(err);
+          } else {
+            console.log("lookup: user from remote: ", user);
+            callback(err, user);
+          }
+        }
+      );
     } catch (err) {
+      // I'm not sure if the try/catch is necessary
+      // the idea is in case the client does not work, not the user is not found
       console.error("lookup call to lookupUser failed with ", err);
       callback(err, null);
     }
@@ -244,9 +251,9 @@ async function lookup(message, callback) {
 
 async function lookupUserRemoteHelper(message, callback) {
   console.log("beginning lookupUserRemoteHelper: ", message.request.id);
-  let temp = lookupUser(message.request.id);
-  console.log("finishing lookupUserRemoteHelper: ", temp);
-  callback(null, temp);
+  const { err, user } = lookupUser(message.request.id);
+  console.log("finishing lookupUserRemoteHelper: ", user);
+  callback(err, user);
 }
 
 function lookupUser(userId) {
@@ -255,12 +262,12 @@ function lookupUser(userId) {
     const user = userMap[userId];
     const message = `User found ${user.id}`;
     console.log(message);
-    return user;
+    return { err: null, user };
   } else {
     //we don't have user
     const message = `User with user ID ${userId} not found`;
     console.log(message);
-    return NULL_USER;
+    return { err: { code: 5 }, user: null };
   }
 }
 

@@ -9,6 +9,13 @@ npm run devServer -- --ip localhost --port 8443 --id 2 --targetIp localhost --ta
 npm run devServer -- --ip localhost --port 8445 --id 3 --targetIp localhost --targetPort 8440 --targetId 0
 npm run devServer -- --ip localhost --port 8444 --id 7 --targetIp localhost --targetPort 8440 --targetId 0
 
+<!-- Alvaro: npm run devClient worked for me, but it does not ends so I can't run the following command -->
+
+node client insert --ip localhost --port 8440 --id 2
+node client insert --ip localhost --port 8440 --id 5 --displayName "Alvaro is cool" --reputation 99 --aboutMe "I'm so cool I need no description"
+node client lookup --ip localhost --port 8440 --id 2
+node client remove --ip localhost --port 8440 --id 2
+
 # Manual with Docker
 
 I can't get the containers to communicate with each other. No idea about what IP should be used
