@@ -24,6 +24,8 @@ const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 const userMap = {};
 const HASH_BIT_LENGTH = 3;
 const CHECK_NODE_TIMEOUT_ms = 1000;
+const DEFAULT_HOST_NAME = "localhost";
+const DEFAULT_HOST_PORT = 1337;
 const NULL_NODE = { id: null, ip: null, port: null };
 const NULL_USER = { id: null };
 let fingerTable = [
@@ -94,7 +96,7 @@ async function remove(message, callback) {
       console.log("In remove: remove user from remote node");
       console.log(userId);
       const successorClient = caller(
-        `localhost:${successor.port}`,
+        `${successor.ip}:${successor.port}`,
         PROTO_PATH,
         "Node"
       );
@@ -157,7 +159,7 @@ async function insert(message, callback) {
       console.log("In insert: insert user to remote node");
       console.log(user, lookupKey);
       const successorClient = caller(
-        `localhost:${successor.port}`,
+        `${successor.ip}:${successor.port}`,
         PROTO_PATH,
         "Node"
       );
@@ -227,7 +229,7 @@ async function lookup(message, callback) {
     try {
       console.log("In lookup: lookup user to remote node");
       const successorClient = caller(
-        `localhost:${successor.port}`,
+        `${successor.ip}:${successor.port}`,
         PROTO_PATH,
         "Node"
       );
@@ -677,6 +679,7 @@ async function setPredecessor(message, callback) {
 async function join(knownNode) {
   // enable debugging output
   const DEBUGGING_LOCAL = false;
+
   // remove dummy template initializer from table
   fingerTable.pop();
   // initialize table with reasonable values
@@ -686,8 +689,9 @@ async function join(knownNode) {
       successor: _self
     });
   }
+
   // if (n')
-  if (knownNode.id !== null && confirmExist(knownNode)) {
+  if (knownNode.id && confirmExist(knownNode)) {
     // (n');
     await initFingerTable(knownNode);
     // updateOthers();
@@ -1442,13 +1446,26 @@ async function main() {
   // enable debugging output
   const DEBUGGING_LOCAL = true;
 
+  // syntactic sugar for arguments
   const args = minimist(process.argv.slice(2));
+
   // compute identity parameters from arguments
   _self.id = args.id ? args.id : null;
-  _self.ip = args.ip ? args.ip : "localhost";
-  _self.port = args.port ? args.port : 1337;
+  _self.ip = args.ip ? args.ip : DEFAULT_HOST_NAME;
+  _self.port = args.port ? args.port : DEFAULT_HOST_PORT;
+  // protect against bad ID inputs
+  if (_self.id && _self.id > 2 ** HASH_BIT_LENGTH - 1) {
+    console.error(
+      "Error. Bad ID {",
+      _self.id,
+      "} > 2^m-1 {",
+      2 ** HASH_BIT_LENGTH - 1,
+      "}. Thus, terminating...\n"
+    );
+    return -13;
+  }
+  // recompute identity parameters from hash function
   if (!_self.id) {
-    // recompute identity parameters from hash function
     try {
       _self.id = await computeIntegerHash(
         _self.ip + _self.port,
@@ -1463,20 +1480,65 @@ async function main() {
       );
     } catch (err) {
       console.error(
-        `Error computing node ID from hash.`,
-        `Input was ${_self.ip + _self.port} but hash output was ${_self.id}.`,
+        "Error computing node ID from hash.",
+        "Input was ",
+        _self.ip + _self.port,
+        "but hash output was ",
+        _self.id,
+        ".",
         "Thus, terminating...\n",
         err
       );
       return -13;
     }
   }
+
+  // sanitize known ID parameters
+  let knownNodeId = args.targetId ? args.targetId : null;
+  let knownNodeIp = args.targetIp ? args.targetIp : DEFAULT_HOST_NAME;
+  let knownNodePort = args.targetPort ? args.targetPort : DEFAULT_HOST_PORT;
+  // protect against bad Known ID inputs
+  if (knownNodeId && knownNodeId > 2 ** HASH_BIT_LENGTH - 1) {
+    console.error(
+      "Error. Bad known ID {",
+      args.targetId,
+      "} > 2^m-1 {",
+      2 ** HASH_BIT_LENGTH - 1,
+      "}. Thus, terminating...\n"
+    );
+    return -13;
+  }
+  // recompute known identity parameters from hash function
+  if (!knownNodeId) {
+    try {
+      knownNodeId = await computeIntegerHash(
+        knownNodeIp + knownNodePort,
+        HASH_BIT_LENGTH
+      );
+      console.log(
+        "Known ID = { (from args)",
+        args.targetId,
+        " | (from hash)",
+        knownNodeId,
+        "}"
+      );
+    } catch (err) {
+      console.error(
+        "Error computing node ID from hash.",
+        "Input was ",
+        knownNodeIp + knownNodePort,
+        "but hash output was ",
+        knownNodeId,
+        ".",
+        "Thus, terminating...\n",
+        err
+      );
+      return -13;
+    }
+  }
+
   // attempt to join new node
-  await join({
-    id: args.targetId ? args.targetId : null,
-    ip: args.targetIp ? args.targetIp : "localhost",
-    port: args.targetPort ? args.targetPort : 1337
-  });
+  await join({ id: knownNodeId, ip: knownNodeIp, port: knownNodePort });
 
   // periodically run stabilization functions
   setInterval(async () => {
