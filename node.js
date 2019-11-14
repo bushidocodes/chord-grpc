@@ -228,21 +228,9 @@ async function lookup(message, callback) {
         PROTO_PATH,
         "Node"
       );
-      await successorClient.lookupUserRemoteHelper(
-        { id: userId },
-        (err, user) => {
-          if (err) {
-            callback(err, null);
-            console.error(err);
-          } else {
-            console.log("lookup: user from remote: ", user);
-            callback(err, user);
-          }
-        }
-      );
+      const user = await successorClient.lookupUserRemoteHelper({ id: userId });
+      callback(null, user);
     } catch (err) {
-      // I'm not sure if the try/catch is necessary
-      // the idea is in case the client does not work, not the user is not found
       console.error("lookup call to lookupUser failed with ", err);
       callback(err, null);
     }
