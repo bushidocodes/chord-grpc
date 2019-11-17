@@ -29,6 +29,13 @@ docker run -p 1337:1337 -it --init bushidocodes/chordweb crawl --host host.docke
 
 # Automatic with Docker
 
-docker-compose down
-docker-compose up --build
+docker-compose up --scale node_secondary=5 --build -d
+
+When running, you can auto-scale the nodes up as down using the following:
+docker-compose up --scale node_secondary=10 -d
+
+And if on Linux:
 google-chrome -incognito --password-store=basic --new-window http://localhost:1337 &
+
+When complete, cleanup with
+docker-compose down
