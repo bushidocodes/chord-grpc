@@ -35,7 +35,7 @@ message NodeId {
 
 message NodeAddress {
   uint32 id = 1;
-  string ip = 2;
+  string host = 2;
   uint32 port = 3;
 }
 
