@@ -26,7 +26,7 @@ const HASH_BIT_LENGTH = 3;
 const CHECK_NODE_TIMEOUT_ms = 1000;
 const DEFAULT_HOST_NAME = "localhost";
 const DEFAULT_HOST_PORT = 1337;
-const NULL_NODE = { id: null, ip: null, port: null };
+const NULL_NODE = { id: null, host: null, port: null };
 const NULL_USER = { id: null };
 let fingerTable = [
   {
@@ -95,7 +95,7 @@ async function remove(message, callback) {
       console.log("In remove: remove user from remote node");
       console.log(userId);
       const successorClient = caller(
-        `${successor.ip}:${successor.port}`,
+        `${successor.host}:${successor.port}`,
         PROTO_PATH,
         "Node"
       );
@@ -160,7 +160,7 @@ async function insert(message, callback) {
       console.log("In insert: insert user to remote node");
       console.log(user, lookupKey);
       const successorClient = caller(
-        `${successor.ip}:${successor.port}`,
+        `${successor.host}:${successor.port}`,
         PROTO_PATH,
         "Node"
       );
@@ -226,7 +226,7 @@ async function lookup(message, callback) {
     try {
       console.log("In lookup: lookup user to remote node");
       const successorClient = caller(
-        `${successor.ip}:${successor.port}`,
+        `${successor.host}:${successor.port}`,
         PROTO_PATH,
         "Node"
       );
@@ -322,7 +322,7 @@ async function findSuccessor(id, nodeQuerying, nodeQueried) {
   } else {
     // create client for remote call
     const nodeQueriedClient = caller(
-      `${nodeQueried.ip}:${nodeQueried.port}`,
+      `${nodeQueried.host}:${nodeQueried.port}`,
       PROTO_PATH,
       "Node"
     );
@@ -505,7 +505,7 @@ async function getSuccessor(nodeQuerying, nodeQueried) {
     // use remote value
     // create client for remote call
     const nodeQueriedClient = caller(
-      `${nodeQueried.ip}:${nodeQueried.port}`,
+      `${nodeQueried.host}:${nodeQueried.port}`,
       PROTO_PATH,
       "Node"
     );
@@ -516,7 +516,7 @@ async function getSuccessor(nodeQuerying, nodeQueried) {
       );
     } catch (err) {
       // TBD 20191103.hk: why does "nSuccessor = NULL_NODE;" not do the same as explicit?!?!
-      nSuccessor = { id: null, ip: null, port: null };
+      nSuccessor = { id: null, host: null, port: null };
       console.trace("Remote error in getSuccessor() ", err);
     }
   }
@@ -579,7 +579,7 @@ async function closestPrecedingFinger(id, nodeQuerying, nodeQueried) {
     // use remote value
     // create client for remote call
     const nodeQueriedClient = caller(
-      `${nodeQueried.ip}:${nodeQueried.port}`,
+      `${nodeQueried.host}:${nodeQueried.port}`,
       PROTO_PATH,
       "Node"
     );
@@ -668,7 +668,7 @@ async function setPredecessor(message, callback) {
  * Modification consists of an additional step of initializing the successor table
  *   as described in the IEEE paper.
  *
- * @param knownNode: knownNode structure; e.g., {id, ip, port}
+ * @param knownNode: knownNode structure; e.g., {id, host, port}
  *   Pass a null known node to force the node to be the first in a new chord.
  */
 async function join(knownNode) {
@@ -725,7 +725,7 @@ async function join(knownNode) {
 
 /**
  * Determine whether a node exists by pinging it.
- * @param knownNode: knownNode structure; e.g., {id, ip, port}
+ * @param knownNode: knownNode structure; e.g., {id, host, port}
  * @returns {boolean}
  */
 function confirmExist(knownNode) {
@@ -769,7 +769,7 @@ async function initFingerTable(nPrime) {
 
   // client for newly-determined successor
   let successorClient = caller(
-    `${fingerTable[0].successor.ip}:${fingerTable[0].successor.port}`,
+    `${fingerTable[0].successor.host}:${fingerTable[0].successor.port}`,
     PROTO_PATH,
     "Node"
   );
@@ -884,7 +884,7 @@ async function updateOthers() {
 
     // p.updateFingerTable(n, i);
     if (_self.id !== pNode.id) {
-      pNodeClient = caller(`${pNode.ip}:${pNode.port}`, PROTO_PATH, "Node");
+      pNodeClient = caller(`${pNode.host}:${pNode.port}`, PROTO_PATH, "Node");
       try {
         await pNodeClient.updateFingerTable({ node: _self, index: i });
       } catch (err) {
@@ -936,7 +936,7 @@ async function updateFingerTable(message, callback) {
     fingerTable[fingerIndex].successor = sNode;
     // p = predecessor;
     const pClient = caller(
-      `${predecessor.ip}:${predecessor.port}`,
+      `${predecessor.host}:${predecessor.port}`,
       PROTO_PATH,
       "Node"
     );
@@ -1042,7 +1042,7 @@ async function updateSuccessorTable() {
   }
   if (successorTable.length < 1) {
     // this node is isolated
-    successorTable.push({ id: _self.id, ip: _self.ip, port: _self.port });
+    successorTable.push({ id: _self.id, host: _self.host, port: _self.port });
   }
   // try to bulk up the table
   let successorSuccessor = NULL_NODE;
@@ -1067,7 +1067,7 @@ async function updateSuccessorTable() {
           `updateSuccessorTable call to getSuccessor failed with `,
           err
         );
-        successorSuccessor = { id: null, ip: null, port: null };
+        successorSuccessor = { id: null, host: null, port: null };
       }
       if (DEBUGGING_LOCAL) {
         console.log(
@@ -1102,7 +1102,7 @@ async function updateSuccessorTable() {
   // prune from the bottom
   let i = successorTable.length - 1;
   successorSeemsOK = false;
-  successorSuccessor = { id: null, ip: null, port: null };
+  successorSuccessor = { id: null, host: null, port: null };
   while (
     (!successorSeemsOK || successorTable.length > HASH_BIT_LENGTH) &&
     i > 0
@@ -1152,7 +1152,7 @@ async function stabilize() {
   let x;
   try {
     successorClient = caller(
-      `${fingerTable[0].successor.ip}:${fingerTable[0].successor.port}`,
+      `${fingerTable[0].successor.host}:${fingerTable[0].successor.port}`,
       PROTO_PATH,
       "Node"
     );
@@ -1205,7 +1205,7 @@ async function stabilize() {
   // successor.notify(n);
   if (_self.id !== fingerTable[0].successor.id) {
     successorClient = caller(
-      `${fingerTable[0].successor.ip}:${fingerTable[0].successor.port}`,
+      `${fingerTable[0].successor.host}:${fingerTable[0].successor.port}`,
       PROTO_PATH,
       "Node"
     );
@@ -1342,7 +1342,7 @@ async function fixFingers() {
 async function checkPredecessor() {
   if (predecessor.id !== null && predecessor.id !== _self.id) {
     const predecessorClient = caller(
-      `${predecessor.ip}:${predecessor.port}`,
+      `${predecessor.host}:${predecessor.port}`,
       PROTO_PATH,
       "Node"
     );
@@ -1354,7 +1354,7 @@ async function checkPredecessor() {
         `checkPredecessor call to getPredecessor failed with `,
         err
       );
-      predecessor = { id: null, ip: null, port: null };
+      predecessor = { id: null, host: null, port: null };
       return false;
     }
   }
@@ -1427,11 +1427,11 @@ async function migrateKeys() {}
  * sample server port
  *
  * Takes the following mandatory flags
- * --ip         - This node's IP Address
+ * --host       - This node's host name
  * --port       - This node's TCP Port
  *
  * --targetId   - The ID of a node in the cluster
- * --targetIp   - The IP of a node in the cluster
+ * --targetHost   - The host name of a node in the cluster
  * --targetPort - The TCP Port of a node in the cluster
  *
  * And takes the following optional flags
@@ -1446,7 +1446,7 @@ async function main() {
 
   // compute identity parameters from arguments
   _self.id = args.id ? args.id : null;
-  _self.ip = args.ip ? args.ip : DEFAULT_HOST_NAME;
+  _self.host = args.host ? args.host : DEFAULT_HOST_NAME;
   _self.port = args.port ? args.port : DEFAULT_HOST_PORT;
   // protect against bad ID inputs
   if (_self.id && _self.id > 2 ** HASH_BIT_LENGTH - 1) {
@@ -1463,7 +1463,7 @@ async function main() {
   if (!_self.id) {
     try {
       _self.id = await computeIntegerHash(
-        _self.ip + _self.port,
+        _self.host + _self.port,
         HASH_BIT_LENGTH
       );
       console.log(
@@ -1477,7 +1477,7 @@ async function main() {
       console.error(
         "Error computing node ID from hash.",
         "Input was ",
-        _self.ip + _self.port,
+        _self.host + _self.port,
         "but hash output was ",
         _self.id,
         ".",
@@ -1490,7 +1490,7 @@ async function main() {
 
   // sanitize known ID parameters
   let knownNodeId = args.targetId ? args.targetId : null;
-  let knownNodeIp = args.targetIp ? args.targetIp : DEFAULT_HOST_NAME;
+  let knownNodeHost = args.targetHost ? args.targetHost : DEFAULT_HOST_NAME;
   let knownNodePort = args.targetPort ? args.targetPort : DEFAULT_HOST_PORT;
   // protect against bad Known ID inputs
   if (knownNodeId && knownNodeId > 2 ** HASH_BIT_LENGTH - 1) {
@@ -1507,7 +1507,7 @@ async function main() {
   if (!knownNodeId) {
     try {
       knownNodeId = await computeIntegerHash(
-        knownNodeIp + knownNodePort,
+        knownNodeHost + knownNodePort,
         HASH_BIT_LENGTH
       );
       console.log(
@@ -1519,9 +1519,9 @@ async function main() {
       );
     } catch (err) {
       console.error(
-        "Error computing node ID from hash.",
+        "Error computing the ID of the known node from hash.",
         "Input was ",
-        knownNodeIp + knownNodePort,
+        knownNodeHost + knownNodePort,
         "but hash output was ",
         knownNodeId,
         ".",
@@ -1533,7 +1533,7 @@ async function main() {
   }
 
   // attempt to join new node
-  await join({ id: knownNodeId, ip: knownNodeIp, port: knownNodePort });
+  await join({ id: knownNodeId, host: knownNodeHost, port: knownNodePort });
 
   // periodically run stabilization functions
   setInterval(async () => {
@@ -1569,7 +1569,7 @@ async function main() {
   server.bind(`0.0.0.0:${_self.port}`, grpc.ServerCredentials.createInsecure());
   server.start();
   if (DEBUGGING_LOCAL) {
-    console.log(`Serving on ${_self.ip}:${_self.port}`);
+    console.log(`Serving on ${_self.host}:${_self.port}`);
   }
 }
 
