@@ -26,3 +26,9 @@ docker build -t bushidocodes/chordweb -f ./ClientDockerfile .
 docker run -p 8440:1337 -it --init bushidocodes/chord --knownHost host.docker.internal --knownPort 8440
 docker run -p 8441:1337 -it --init bushidocodes/chord --knownHost host.docker.internal --knownPort 8440
 docker run -p 1337:1337 -it --init bushidocodes/chordweb crawl --host host.docker.internal --port 8440 --webPort 1337
+
+# Automatic with Docker
+
+docker-compose down
+docker-compose up --build
+google-chrome -incognito --password-store=basic --new-window http://localhost:1337 &
