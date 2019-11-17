@@ -6,14 +6,14 @@ services:
       dockerfile: NodeDockerfile
     # image: chordnode
     # container_name: chordnode
-    command: npm run devServer -- --ip node0 --id 0 --targetIp node0 --targetPort 1337 --targetId 0
+    command: npm run devServer -- --host node9 --knownHost node0 --knownPort 1337
   node1:
     build:
       context: .
       dockerfile: NodeDockerfile
     # image: chordnode
     # container_name: chordnode
-    command: npm run devServer -- --ip node1 --id 6 --targetIp node0 --targetPort 1337 --targetId 0
+    command: npm run devServer -- --host node2 --knownHost node0 --knownPort 1337
     depends_on:
       - node0
   node2:
@@ -22,7 +22,7 @@ services:
       dockerfile: NodeDockerfile
     # image: chordnode
     # container_name: chordnode
-    command: npm run devServer -- --ip node2 --id 1 --targetIp node0 --targetPort 1337 --targetId 0
+    command: npm run devServer -- --host node0 --knownHost node0 --knownPort 1337
     depends_on:
       - node0
   node3:
@@ -31,7 +31,7 @@ services:
       dockerfile: NodeDockerfile
     # image: chordnode
     # container_name: chordnode
-    command: npm run devServer -- --ip node3 --id 2 --targetIp node0 --targetPort 1337 --targetId 0
+    command: npm run devServer -- --host node6 --knownHost node0 --knownPort 1337
     depends_on:
       - node0
   node4:
@@ -40,7 +40,7 @@ services:
       dockerfile: NodeDockerfile
     # image: chordnode
     # container_name: chordnode
-    command: npm run devServer -- --ip node4 --id 3 --targetIp node0 --targetPort 1337 --targetId 0
+    command: npm run devServer -- --host node4 --knownHost node0 --knownPort 1337
     depends_on:
       - node0
   node5:
@@ -49,7 +49,16 @@ services:
       dockerfile: NodeDockerfile
     # image: chordnode
     # container_name: chordnode
-    command: npm run devServer -- --ip node5 --id 7 --targetIp node0 --targetPort 1337 --targetId 0
+    command: npm run devServer -- --host node3 --knownHost node0 --knownPort 1337
+    depends_on:
+      - node0
+  node6:
+    build:
+      context: .
+      dockerfile: NodeDockerfile
+    # image: chordnode
+    # container_name: chordnode
+    command: npm run devServer -- --host node7 --knownHost node0 --knownPort 1337
     depends_on:
       - node0
   client:
@@ -65,4 +74,4 @@ services:
     # volumes:
     #   - .:/home/node/app
     #   - /home/node/app/node_modules/
-    command: npm run devClient -- crawl --ip node0 --port 1337 --webPort 1337
+    command: npm run devClient -- crawl --host node0 --port 1337 --webPort 1337

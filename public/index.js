@@ -1,3 +1,5 @@
+const CRAWLER_INTERVAL_MS = 1000;
+
 let network;
 const nodeSet = new vis.DataSet();
 const edgeSet = new vis.DataSet();
@@ -17,26 +19,28 @@ async function loadData() {
   const response = await fetch("./data");
   const myJson = await response.json();
 
-  const nodes = Object.values(myJson).map(({ id, ip, port }) => ({
-    id: `${ip}:${port}`,
-    label: `${id} on ${ip}:${port}`,
-    data: { id, ip, port }
+  const nodes = Object.values(myJson).map(({ id, host, port }) => ({
+    id: `${host}:${port}`,
+    label: `${id} on ${host}:${port}`,
+    data: { id, host, port }
   }));
 
   const edges = Object.values(myJson)
     .filter(
       elem =>
-        elem.ip &&
+        elem.host &&
         elem.port &&
         elem.successor &&
-        elem.successor.ip &&
+        elem.successor.host &&
         elem.successor.port
     )
-    .map(({ ip, port, successor }) => {
-      let hash = hashCode(`${ip}:${port}-${successor.ip}:${successor.port}`);
+    .map(({ host, port, successor }) => {
+      let hash = hashCode(
+        `${host}:${port}-${successor.host}:${successor.port}`
+      );
       return {
-        from: `${ip}:${port}`,
-        to: `${successor.ip}:${successor.port}`,
+        from: `${host}:${port}`,
+        to: `${successor.host}:${successor.port}`,
         id: hash
       };
     });
@@ -98,5 +102,5 @@ document.addEventListener("DOMContentLoaded", function() {
   loadData();
   setInterval(() => {
     loadData();
-  }, 3000);
+  }, CRAWLER_INTERVAL_MS);
 });

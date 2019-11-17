@@ -1430,9 +1430,9 @@ async function migrateKeys() {}
  * --host       - This node's host name
  * --port       - This node's TCP Port
  *
- * --targetId   - The ID of a node in the cluster
- * --targetHost   - The host name of a node in the cluster
- * --targetPort - The TCP Port of a node in the cluster
+ * --knownId   - The ID of a node in the cluster
+ * --knownHost   - The host name of a node in the cluster
+ * --knownPort - The TCP Port of a node in the cluster
  *
  * And takes the following optional flags
  * --id         - This node's id
@@ -1443,6 +1443,29 @@ async function main() {
 
   // syntactic sugar for arguments
   const args = minimist(process.argv.slice(2));
+
+  // kludge to deconflict node IDs from hashed values
+  if (args.hashOnly) {
+    try {
+      _self.id = await computeIntegerHash(args.hashOnly, HASH_BIT_LENGTH);
+      console.log(
+        "ID {",
+        _self.id,
+        "} computed from hash of {",
+        args.hashOnly,
+        "}"
+      );
+    } catch (err) {
+      console.error(
+        "Error computing hash of ",
+        args.hashOnly,
+        ". Thus, terminating...\n",
+        err
+      );
+      return -13;
+    }
+    return 0;
+  }
 
   // compute identity parameters from arguments
   _self.id = args.id ? args.id : null;
@@ -1489,14 +1512,14 @@ async function main() {
   }
 
   // sanitize known ID parameters
-  let knownNodeId = args.targetId ? args.targetId : null;
-  let knownNodeHost = args.targetHost ? args.targetHost : DEFAULT_HOST_NAME;
-  let knownNodePort = args.targetPort ? args.targetPort : DEFAULT_HOST_PORT;
+  let knownNodeId = args.knownId ? args.knownId : null;
+  let knownNodeHost = args.knownHost ? args.knownHost : DEFAULT_HOST_NAME;
+  let knownNodePort = args.knownPort ? args.knownPort : DEFAULT_HOST_PORT;
   // protect against bad Known ID inputs
   if (knownNodeId && knownNodeId > 2 ** HASH_BIT_LENGTH - 1) {
     console.error(
       "Error. Bad known ID {",
-      args.targetId,
+      args.knownId,
       "} > 2^m-1 {",
       2 ** HASH_BIT_LENGTH - 1,
       "}. Thus, terminating...\n"
@@ -1512,7 +1535,7 @@ async function main() {
       );
       console.log(
         "Known ID = { (from args)",
-        args.targetId,
+        args.knownId,
         " | (from hash)",
         knownNodeId,
         "}"
