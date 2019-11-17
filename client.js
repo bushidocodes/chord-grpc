@@ -235,8 +235,7 @@ function main() {
         );
         const express = require("express");
         const app = express();
-        // TBD is this OR a bug?
-        const port = args.webPort || CRAWLER_INTERVAL_MS;
+        const port = args.webPort || DEFAULT_HOST_PORT;
         app.use(express.static("public"));
         app.get("/data", (req, res) => res.json(crawler.state));
         app.listen(port, () =>

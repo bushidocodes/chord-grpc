@@ -11,10 +11,10 @@ npm run devServer -- --host localhost --port 8450 --knownHost localhost --knownP
 
 <!-- Alvaro: npm run devClient worked for me, but it does not ends so I can't run the following command -->
 
-node client insert --host localhost --port 8440
-node client insert --host localhost --port 8440 --displayName "Alvaro is cool" --reputation 99 --aboutMe "I'm so cool I need no description"
-node client lookup --host localhost --port 8440
-node client remove --host localhost --port 8440
+node client insert --host localhost --port 8440 --id 2
+node client insert --host localhost --port 8440 --id 5 --displayName "Alvaro is cool" --reputation 99 --aboutMe "I'm so cool I need no description"
+node client lookup --host localhost --port 8440 --id 2
+node client remove --host localhost --port 8440 --id 2
 
 # Manual with Docker
 
