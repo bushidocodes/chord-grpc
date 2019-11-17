@@ -3,7 +3,7 @@ const path = require("path");
 const caller = require("grpc-caller");
 const PROTO_PATH = path.resolve(__dirname, "./protos/chord.proto");
 
-const CRAWLER_INTERVAL_MS = 1000;
+const CRAWLER_INTERVAL_MS = 500;
 const DEFAULT_HOST_NAME = "localhost";
 const DEFAULT_HOST_PORT = 1337;
 const DUMMY_REQUEST_OBJECT = { id: 99 };
@@ -114,6 +114,7 @@ class ChordCrawler {
     this.port = port;
     this.state = {};
     this.walk = new Set([]);
+    this.canAdvance = true; // Gate in case crawl execution is slower than quantum
     setInterval(async () => {
       await this.crawl();
     }, stepInMS);
@@ -170,22 +171,27 @@ class ChordCrawler {
     this.walk.clear();
   }
   async crawl() {
-    const connectionString = `${this.host}:${this.port}`;
-    console.log(`Connecting to ${connectionString}`);
-    const client = caller(connectionString, PROTO_PATH, "Node");
+    if (this.canAdvance) {
+      this.canAdvance = false;
+      const connectionString = `${this.host}:${this.port}`;
+      console.log(`Connecting to ${connectionString}`);
+      const client = caller(connectionString, PROTO_PATH, "Node");
 
-    try {
-      const successorNode = await client.getSuccessorRemoteHelper(
-        DUMMY_REQUEST_OBJECT
-      );
-      this.pruneUponCycle(connectionString);
-      this.updateSuccessor(connectionString, successorNode);
-      this.updateNode(successorNode);
-      this.host = successorNode.host;
-      this.port = successorNode.port;
-    } catch (err) {
-      console.error("Error is : ", err);
-      this.shuffleCurrentNode();
+      try {
+        const successorNode = await client.getSuccessorRemoteHelper(
+          DUMMY_REQUEST_OBJECT
+        );
+        this.pruneUponCycle(connectionString);
+        this.updateSuccessor(connectionString, successorNode);
+        this.updateNode(successorNode);
+        this.host = successorNode.host;
+        this.port = successorNode.port;
+      } catch (err) {
+        console.error("Error is : ", err);
+        this.shuffleCurrentNode();
+      } finally {
+        this.canAdvance = true;
+      }
     }
   }
 }
