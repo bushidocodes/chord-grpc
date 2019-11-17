@@ -3,6 +3,7 @@
  *
  */
 
+const os = require("os");
 const path = require("path");
 const grpc = require("grpc");
 const caller = require("grpc-caller");
@@ -22,7 +23,7 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 
 const userMap = {};
-const HASH_BIT_LENGTH = 3;
+const HASH_BIT_LENGTH = 32;
 const CHECK_NODE_TIMEOUT_ms = 1000;
 const DEFAULT_HOST_NAME = "localhost";
 const DEFAULT_HOST_PORT = 1337;
@@ -1469,7 +1470,7 @@ async function main() {
 
   // compute identity parameters from arguments
   _self.id = args.id ? args.id : null;
-  _self.host = args.host ? args.host : DEFAULT_HOST_NAME;
+  _self.host = args.host ? args.host : os.hostname();
   _self.port = args.port ? args.port : DEFAULT_HOST_PORT;
   // protect against bad ID inputs
   if (_self.id && _self.id > 2 ** HASH_BIT_LENGTH - 1) {
@@ -1561,7 +1562,7 @@ async function main() {
   // periodically run stabilization functions
   setInterval(async () => {
     await stabilize();
-  }, 3000);
+  }, 1000);
   setInterval(async () => {
     await fixFingers();
   }, 3000);
