@@ -11,37 +11,18 @@ In the future, the project will implement a "Stack Exchange Computer Science Use
 
 ## To Run
 
-We assume that you have Node.js installed. You can confirm this with `node -v`
+We assume that you have Node.js, Docker, and Docker-Compose installed. You can confirm this with `node -v`, `docker -v`, and `docker-compose -v`
 
 ```
 git clone git@github.com:bushidocodes/chord-grpc.git
 cd chord-grpc
 npm install
-```
-
-Then run start the first node:
-
-```sh
-npm run devServer -- --host localhost --port 8440 --knownHost localhost --knownPort 8440
-```
-
-Then start the client:
-
-```sh
-npm run devClient -- crawl --host localhost --port 8440 --webPort 1337
+docker-compose up --scale node_secondary=5 --build
 ```
 
 Then open localhost:1337 in a browser
 
 Then run the following commands one at a time in separate tabs:
-
-```sh
-npm run devServer -- --host localhost --port 8441 --knownHost localhost --knownPort 8440
-npm run devServer -- --host localhost --port 8444 --knownHost localhost --knownPort 8440
-npm run devServer -- --host localhost --port 8446 --knownHost localhost --knownPort 8440
-npm run devServer -- --host localhost --port 8448 --knownHost localhost --knownPort 8440
-npm run devServer -- --host localhost --port 8450 --knownHost localhost --knownPort 8440
-```
 
 ## License
 

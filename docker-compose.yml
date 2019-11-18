@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: NodeDockerfile
+    ports:
+      - "8440:1337"
     command: "npm run devServer -- --host node_primary --knownHost node_primary --knownPort 1337"
   node_secondary:
     build:
@@ -12,10 +14,10 @@ services:
     command: "npm run devServer -- --knownHost node_primary --knownPort 1337"
     depends_on:
       - node_primary
-  client:
+  web:
     build:
       context: .
-      dockerfile: ClientDockerfile
+      dockerfile: WebDockerfile
     ports:
       - "1337:1337"
     depends_on:
@@ -23,4 +25,4 @@ services:
     # volumes:
     #   - .:/home/node/app
     #   - /home/node/app/node_modules/
-    command: npm run devClient -- crawl --host node_primary --port 1337 --webPort 1337
+    command: npm run devWeb -- --host node_primary --port 1337 --webPort 1337

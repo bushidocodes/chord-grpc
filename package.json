@@ -7,9 +7,10 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "cleanData": "node cleanData.js",
     "server": "node node.js",
-    "client": "node client.js",
+    "client": "node ./client/client.js",
+    "web": "node ./web/web.js",
     "devServer": "nodemon node.js",
-    "devClient": "nodemon client.js"
+    "devWeb": "nodemon ./web/web.js"
   },
   "author": "",
   "license": "ISC",
