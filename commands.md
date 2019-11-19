@@ -1,18 +1,18 @@
 # Manual without Docker
 
-npm run devServer -- --port 8440 --knownPort 8440
-npm run devWeb -- --port 8440 --webPort 1337
+npm run devServer -- --host localhost --port 8440 --knownHost localhost --knownPort 8440
+npm run devWeb -- --host localhost --port 8440 --webPort 1337
 
-npm run devServer -- --port 8441 --knownPort 8440
-npm run devServer -- --port 8444 --knownPort 8440
-npm run devServer -- --port 8446 --knownPort 8440
-npm run devServer -- --port 8448 --knownPort 8440
-npm run devServer -- --port 8450 --knownPort 8440
+npm run devServer -- --host localhost --port 8441 --knownHost localhost --knownPort 8440
+npm run devServer -- --host localhost --port 8444 --knownHost localhost --knownPort 8440
+npm run devServer -- --host localhost --port 8446 --knownHost localhost --knownPort 8440
+npm run devServer -- --host localhost --port 8448 --knownHost localhost --knownPort 8440
+npm run devServer -- --host localhost --port 8450 --knownHost localhost --knownPort 8440
 
-npm run client -- insert --id 2
-npm run client -- insert --id 5 --displayName "Alvaro is cool" --reputation 99 --aboutMe "I'm so cool I need no description"
-npm run client -- lookup --id 2
-npm run client -- remove --id 2
+npm run client -- insert --host localhost --port 8440 --id 2
+npm run client -- insert --host localhost --port 8440 --id 5 --displayName "Alvaro is cool" --reputation 99 --aboutMe "I'm so cool I need no description"
+npm run client -- lookup --host localhost --port 8440 --id 2
+npm run client -- remove --host localhost --port 8440 --id 2
 
 # Manual with Docker
 
@@ -26,6 +26,8 @@ docker run -p 8441:1337 -it --init bushidocodes/chord --knownHost host.docker.in
 docker run -p 1337:1337 -it --init bushidocodes/chordweb crawl --host host.docker.internal --port 8440 --webPort 1337
 
 # Automatic with Docker
+
+docker-compose up --scale node_secondary=5 --build -d
 
 When running, you can auto-scale the nodes up as down using the following:
 docker-compose up --scale node_secondary=10 -d
