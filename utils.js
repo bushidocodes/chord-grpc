@@ -98,9 +98,9 @@ async function computeIntegerHash(stringForHashing, hashBitLength) {
     );
   }
   let hashOutput = await sha1(stringForHashing);
-  if (DEBUGGING_LOCAL) {
+  if (DEBUGGING_LOCAL)
     console.log(`Full hash of "${stringForHashing}" is ${hashOutput}.`);
-  }
+
   /* JavaScript only does bitwise operations on 32-bit numbers
      so keep only the top 32 bits of the hashed value.
   */
@@ -108,19 +108,17 @@ async function computeIntegerHash(stringForHashing, hashBitLength) {
     0,
     MAX_JS_INT_BIT_LENGTH / BIT_PER_HEX_CHARACTER
   );
-  if (DEBUGGING_LOCAL) {
-    console.log(`Truncated string value is ${hashOutput}.`);
-  }
+  if (DEBUGGING_LOCAL) console.log(`Truncated string value is ${hashOutput}.`);
+
   // convert from hexadecimal to decimal
   integerHash = parseInt("0x" + hashOutput);
-  if (DEBUGGING_LOCAL) {
-    console.log(`Integer value is ${integerHash}.`);
-  }
+  if (DEBUGGING_LOCAL) console.log(`Integer value is ${integerHash}.`);
+
   // truncate the hash to the desired number of bits by picking the high-order bits
   integerHash = integerHash >>> (MAX_BIT_LENGTH - hashBitLength);
-  if (DEBUGGING_LOCAL) {
+  if (DEBUGGING_LOCAL)
     console.log(`Truncated integer value is ${integerHash}.`);
-  }
+
   return integerHash;
 }
 
