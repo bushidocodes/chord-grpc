@@ -1,9 +1,5 @@
 const caller = require("grpc-caller");
-const fs = require("fs");
 const path = require("path");
-const util = require("util");
-
-const readFile = util.promisify(fs.readFile);
 const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
 
 class Client {
@@ -89,16 +85,6 @@ class Client {
             console.log("User insertion error:", err);
         }
       }
-    }
-  }
-
-  async bulkInsert({ path, interval }) {
-    console.log(path, interval);
-    try {
-      const file = await readFile(path);
-      console.log(file);
-    } catch (err) {
-      console.error(err);
     }
   }
 
