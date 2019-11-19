@@ -22,10 +22,6 @@ function main() {
         args["edit"] = false;
         client.insert(args);
         break;
-      case "bulkInsert":
-        args["edit"] = false;
-        client.bulkInsert(args);
-        break;
       case "edit":
         args["edit"] = true;
         client.insert(args);
