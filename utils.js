@@ -122,7 +122,102 @@ async function computeIntegerHash(stringForHashing, hashBitLength) {
   return integerHash;
 }
 
+function handleGRPCErrors(scope, call, host, port, err) {
+  switch (err.code) {
+    case 0:
+      console.log(
+        `${scope}: call to ${call} on ${host}:${port} returned OK. Should not have thrown`
+      );
+      break;
+    case 1:
+      console.log(`${scope}: call to ${call} on ${host}:${port} was cancelled`);
+      break;
+    case 2:
+      console.error(
+        `${scope}: call to ${call} on ${host}:${port} returned unknown error`
+      );
+      break;
+    case 3:
+      console.error(
+        `${scope}: call to ${call} on ${host}:${port} rejected due to invalid arguments`
+      );
+      break;
+    case 4:
+      console.error(
+        `${scope}: call to ${call} on ${host}:${port} exceeded deadline`
+      );
+      break;
+    case 5:
+      console.error(
+        `${scope}: call to ${call} on ${host}:${port} requested an entity that was not found`
+      );
+      break;
+    case 6:
+      console.error(
+        `${scope}: call to ${call} on ${host}:${port} attempted to created an entity that already exists`
+      );
+      break;
+    case 7:
+      console.error(
+        `${scope}: call to ${call} on ${host}:${port} rejected because permission was denied`
+      );
+      break;
+    case 8:
+      console.error(
+        `${scope}: call to ${call} on ${host}:${port} failed because a resource is exhausted`,
+        err
+      );
+      break;
+    case 9:
+      console.error(
+        `${scope}: call to ${call} on ${host}:${port} failed due to pailed precondition `,
+        err
+      );
+      break;
+    case 10:
+      console.error(
+        `${scope}: call to ${call} on ${host}:${port} was aborted `,
+        err
+      );
+      break;
+    case 11:
+      console.error(
+        `${scope}: call to ${call} on ${host}:${port} rejected because out of range`,
+        err
+      );
+      break;
+    case 12:
+      console.error(
+        `${scope}: call to ${call} on ${host}:${port}, which is unimplemented `,
+        err
+      );
+      break;
+    case 13:
+      console.error(
+        `${scope}: call to ${call} on ${host}:${port} caused Internal Error `
+      );
+      console.trace(err);
+      break;
+    case 14:
+      console.log(`${scope}: Unable to connect to ${host}:${port}`);
+      break;
+    case 15:
+      console.log(
+        `${scope}: call to ${call} on ${host}:${port} failed due to unrecoverable data loss or corruption`
+      );
+      break;
+    case 16:
+      console.error(
+        `${scope}: call to ${call} on ${host}:${port} rejected because authentication credentials were missing`
+      );
+      break;
+    default:
+      console.trace(`${scope}:`, err);
+  }
+}
+
 module.exports = {
+  handleGRPCErrors,
   isInModuloRange,
   computeIntegerHash,
   sha1

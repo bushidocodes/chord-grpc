@@ -4,7 +4,11 @@ const grpc = require("grpc");
 const caller = require("grpc-caller");
 const protoLoader = require("@grpc/proto-loader");
 const minimist = require("minimist");
-const { isInModuloRange, computeIntegerHash } = require("./utils.js");
+const {
+  isInModuloRange,
+  computeIntegerHash,
+  handleGRPCErrors
+} = require("./utils.js");
 
 const CHECK_NODE_TIMEOUT_ms = 1000;
 const DEBUGGING_LOCAL = false;
@@ -45,6 +49,12 @@ function summary(_, callback) {
 
 const iAmMyOwnSuccessor = () => _self.id == successor.id;
 const iAmMyOwnPredecessor = () => _self.id == predecessor.id;
+const nodesAreNotIdentical = (
+  sourceHost,
+  sourcePort,
+  destinationHost,
+  destinationPort
+) => !(sourceHost == destinationHost && sourcePort == destinationPort);
 
 /**
  * Fetch a user
@@ -94,7 +104,13 @@ async function remove(message, callback) {
         callback(err, {});
       });
     } catch (err) {
-      console.error("remove: removeUserRemoteHelper failed with ", err);
+      handleGRPCErrors(
+        "remove",
+        "removeUserRemoteHelper",
+        successor.host,
+        successor.port,
+        err
+      );
       callback(err, null);
     }
   }
@@ -154,7 +170,13 @@ async function insert(message, callback) {
         callback(err, {});
       });
     } catch (err) {
-      console.error("insert call to insertUser failed with ", err);
+      handleGRPCErrors(
+        "insert",
+        "insertUser",
+        successor.host,
+        successor.port,
+        err
+      );
       callback(err, null);
     }
   }
@@ -214,7 +236,13 @@ async function lookup(message, callback) {
       const user = await successorClient.lookupUserRemoteHelper({ id: userId });
       callback(null, user);
     } catch (err) {
-      console.error("lookup: call to lookupUser failed with ", err);
+      handleGRPCErrors(
+        "lookup",
+        "lookupUserRemotehelper",
+        successor.host,
+        successor.port,
+        err
+      );
       callback(err, null);
     }
   }
@@ -292,8 +320,11 @@ async function findSuccessor(id, nodeQuerying, nodeQueried) {
       });
     } catch (err) {
       nPrimeSuccessor = NULL_NODE;
-      console.error(
-        "findSuccessor: call to findSuccessorRemoteHelper failed with",
+      handleGRPCErrors(
+        "findSuccessor",
+        "findSuccessorRemoteHelper",
+        nodeQueried.host,
+        nodeQueried.port,
         err
       );
     }
@@ -430,7 +461,13 @@ async function getSuccessor(nodeQuerying, nodeQueried) {
     } catch (err) {
       // TBD 20191103.hk: why does "nSuccessor = NULL_NODE;" not do the same as explicit?!?!
       nSuccessor = { id: null, host: null, port: null };
-      console.trace("getSuccessor: Remote error", err);
+      handleGRPCErrors(
+        "getSuccessor",
+        "getSuccessorRemoteHelper",
+        nodeQueried.host,
+        nodeQueried.port,
+        err
+      );
     }
   }
 
@@ -498,8 +535,11 @@ async function closestPrecedingFinger(id, nodeQuerying, nodeQueried) {
       });
     } catch (err) {
       nPreceding = NULL_NODE;
-      console.error(
-        "closestPrecedingFinger: closestPrecedingFingerRemoteHelper failed with ",
+      handleGRPCErrors(
+        "closestPrecedingFinger",
+        "closestPrecedingFingerRemoteHelper",
+        nodeQueried.host,
+        nodeQueried.port,
         err
       );
     }
@@ -654,12 +694,24 @@ async function initFingerTable(nPrime) {
     );
   } catch (err) {
     predecessor = NULL_NODE;
-    console.error("initFingerTable: getPredecessor failed with", err);
+    handleGRPCErrors(
+      "initFingerTable",
+      "getPredecessor",
+      fingerTable[0].successor.host,
+      fingerTable[0].successor.port,
+      err
+    );
   }
   try {
     await successorClient.setPredecessor(_self);
   } catch (err) {
-    console.error("initFingerTable: setPredecessor() failed with ", err);
+    handleGRPCErrors(
+      "initFingerTable",
+      "setPredecessor",
+      fingerTable[0].successor.host,
+      fingerTable[0].successor.port,
+      err
+    );
   }
 
   if (DEBUGGING_LOCAL)
@@ -726,7 +778,13 @@ async function updateOthers() {
       try {
         await pNodeClient.updateFingerTable({ node: _self, index: i });
       } catch (err) {
-        console.error("updateOthers: client.updateFingerTable error ", err);
+        handleGRPCErrors(
+          "updateOthers",
+          "updateFingerTable",
+          pNode.host,
+          pNode.port,
+          err
+        );
       }
     }
   }
@@ -769,8 +827,11 @@ async function updateFingerTable(message, callback) {
     try {
       await pClient.updateFingerTable({ node: sNode, index: fingerIndex });
     } catch (err) {
-      console.error(
-        `updateFingerTable: Error updating the finger table of {${sNode.id}}.\n\n`,
+      handleGRPCErrors(
+        "updateFingerTable",
+        "updateFingerTable",
+        predecessor.host,
+        predecessor.port,
         err
       );
     }
@@ -939,13 +1000,16 @@ async function updateSuccessorTable() {
  */
 async function stabilize() {
   let successorClient, x;
+  if (!fingerTable[0].successor) {
+    process.exit("stabilize: fingerTable[0].successor was undefined");
+  }
   try {
     successorClient = caller(
       `${fingerTable[0].successor.host}:${fingerTable[0].successor.port}`,
       PROTO_PATH,
       "Node"
     );
-  } catch {
+  } catch (err) {
     console.error(`stabilize: call to caller failed with `, err);
     return false;
   }
@@ -959,8 +1023,12 @@ async function stabilize() {
       x = await successorClient.getPredecessor(fingerTable[0].successor);
     } catch (err) {
       x = _self;
-      console.log(
-        `stabilize: Warning! "successor.predecessor" (i.e., {${fingerTable[0].successor.id}}.predecessor), failed in stabilize({${_self.id}}).`
+      handleGRPCErrors(
+        "stabilize",
+        "getPredecessor",
+        fingerTable[0].successor.host,
+        fingerTable[0].successor.port,
+        err
       );
     }
   }
@@ -991,7 +1059,13 @@ async function stabilize() {
     try {
       await successorClient.notify(_self);
     } catch (err) {
-      console.error(`stabilize: successorClient.notify failed with `, err);
+      handleGRPCErrors(
+        "stabilize",
+        "successorClient",
+        fingerTable[0].successor.host,
+        fingerTable[0].successor.port,
+        err
+      );
     }
   }
 
@@ -1071,14 +1145,14 @@ async function fixFingers() {
       fingerTable[randomId].successor = nSuccessor;
     }
   } catch (err) {
-    console.error(`fixFingers call to findSuccessor failed with `, err);
+    console.error(`fixFingers: findSuccessor failed with `, err);
   }
   if (DEBUGGING_LOCAL) {
     console.log(
-      `\n>>>>>     Fix {${_self.id}}.fingerTable[${randomId}], with start = ${fingerTable[randomId].start}.`
+      `fixFingers: Fix {${_self.id}}.fingerTable[${randomId}], with start = ${fingerTable[randomId].start}.`
     );
     console.log(
-      `fingerTable[${randomId}] =${fingerTable[i].successor}     <<<<<\n`
+      `fixFingers: fingerTable[${randomId}] =${fingerTable[i].successor}`
     );
   }
 }
@@ -1098,8 +1172,11 @@ async function checkPredecessor() {
       // just ask anything
       const _ = await predecessorClient.getPredecessor(_self.id);
     } catch (err) {
-      console.error(
-        `checkPredecessor call to getPredecessor failed with `,
+      handleGRPCErrors(
+        "checkPredecessor",
+        "getPredecessor",
+        predecessor.host,
+        predecessor.port,
         err
       );
       predecessor = { id: null, host: null, port: null };
@@ -1127,14 +1204,7 @@ async function checkSuccessor() {
     try {
       // just ask anything
       nSuccessor = await getSuccessor(_self, fingerTable[0].successor);
-      if (nSuccessor.id == null) {
-        successorSeemsOK = false;
-      } else {
-        console.log(
-          `{${fingerTable[0].successor.id}}.successor =${nSuccessor.id}`
-        );
-        successorSeemsOK = true;
-      }
+      successorSeemsOK = nSuccessor.id != null;
     } catch (err) {
       successorSeemsOK = false;
       console.log(
@@ -1150,6 +1220,17 @@ async function checkSuccessor() {
  * Placeholder for data migration within the join() call.
  */
 async function migrateKeys() {}
+
+async function endpointIsResponsive(host, port) {
+  const client = caller(`${host}:${port}`, PROTO_PATH, "Node");
+  try {
+    const _ = await client.summary(_self.id);
+    return true;
+  } catch (err) {
+    handleGRPCErrors("endpointIsResponsive", "summary", host, port, err);
+    return false;
+  }
+}
 
 /**
  * Starts an RPC server that receives requests for the Greeter service at the
@@ -1189,6 +1270,20 @@ async function main() {
   let knownNodeId = args.knownId ? args.knownId : null;
   let knownNodeHost = args.knownHost ? args.knownHost : os.hostname();
   let knownNodePort = args.knownPort ? args.knownPort : DEFAULT_HOST_PORT;
+
+  // bail immediately if knownHost is not up
+  if (
+    nodesAreNotIdentical(_self.host, _self.port, knownNodeHost, knownNodePort)
+  ) {
+    if (!(await endpointIsResponsive(knownNodeHost, knownNodePort))) {
+      console.error(
+        `${knownNodeHost}:${knownNodePort} is not responsive. Exiting`
+      );
+      process.exit();
+    } else {
+      console.log(`${knownNodeHost}:${knownNodePort} responded`);
+    }
+  }
 
   // protect against bad ID inputs
   if (_self.id && _self.id > 2 ** HASH_BIT_LENGTH - 1) {
