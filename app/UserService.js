@@ -94,7 +94,7 @@ class UserService extends ChordNode {
   // gRPC Handler to allow other nodes to remove users from our local state
   async removeUserRemoteHelper(message, callback) {
     if (DEBUGGING_LOCAL) console.log("removeUserRemoteHelper: ", message);
-    const err = removeUser(message.request.id);
+    const err = this.removeUser(message.request.id);
     callback(err, {});
   }
 
@@ -231,9 +231,11 @@ class UserService extends ChordNode {
   }
 
   async lookupUserRemoteHelper(message, callback) {
-    console.log("beginning lookupUserRemoteHelper: ", message.request.id);
-    const { err, user } = lookupUser(message.request.id);
-    console.log("finishing lookupUserRemoteHelper: ", user);
+    if (DEBUGGING_LOCAL)
+      console.log("beginning lookupUserRemoteHelper: ", message.request.id);
+    const { err, user } = this.lookupUser(message.request.id);
+    if (DEBUGGING_LOCAL)
+      console.log("finishing lookupUserRemoteHelper: ", user);
     callback(err, user);
   }
   async lookup(message, callback) {
