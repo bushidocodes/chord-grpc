@@ -76,7 +76,7 @@ class ChordNode {
    */
   summary(_, callback) {
     console.log("Summary: fingerTable: \n", this.fingerTable);
-    console.log("Summary: Predecessor: ", predecessor);
+    console.log("Summary: Predecessor: ", this.predecessor);
     callback(null, this.encapsulateSelf());
   }
   /**
@@ -373,7 +373,7 @@ class ChordNode {
    * @returns predecessor node
    */
   async getPredecessor(_, callback) {
-    callback(null, predecessor);
+    callback(null, this.predecessor);
   }
   /**
    * RPC to replace the value of the node's predecessor.
@@ -386,14 +386,17 @@ class ChordNode {
       console.log("setPredecessor: Self = ", this.encapsulateSelf());
       console.log(
         "setPredecessor: Self's original predecessor = ",
-        predecessor
+        this.predecessor
       );
     }
 
-    predecessor = message.request; //message.request is node
+    this.predecessor = message.request; //message.request is node
 
     if (DEBUGGING_LOCAL)
-      console.log("setPredecessor: Self's new predecessor = ", predecessor);
+      console.log(
+        "setPredecessor: Self's new predecessor = ",
+        this.predecessor
+      );
 
     callback(null, {});
   }
@@ -437,7 +440,7 @@ class ChordNode {
         this.fingerTable
       );
       console.log(
-        `The {${this.id}}.predecessor leaving join() is ${predecessor}`
+        `The {${this.id}}.predecessor leaving join() is ${this.predecessor}`
       );
       console.log("          join     <<<<<\n");
     }
@@ -507,7 +510,7 @@ class ChordNode {
     }
 
     if (DEBUGGING_LOCAL)
-      console.log("initFingerTable: predecessor  ", predecessor);
+      console.log("initFingerTable: predecessor  ", this.predecessor);
 
     for (let i = 0; i < HASH_BIT_LENGTH - 1; i++) {
       if (
@@ -611,15 +614,15 @@ class ChordNode {
       )
     ) {
       this.fingerTable[fingerIndex].successor = sNode;
-      const pClient = connect(predecessor);
+      const pClient = connect(this.predecessor);
       try {
         await pClient.updateFingerTable({ node: sNode, index: fingerIndex });
       } catch (err) {
         handleGRPCErrors(
           "updateFingerTable",
           "updateFingerTable",
-          predecessor.host,
-          predecessor.port,
+          this.predecessor.host,
+          this.predecessor.port,
           err
         );
       }
@@ -839,7 +842,7 @@ class ChordNode {
 
     if (DEBUGGING_LOCAL) {
       console.log(
-        `stabilize: {${this.id}}.predecessor leaving stabilize() is ${predecessor}`
+        `stabilize: {${this.id}}.predecessor leaving stabilize() is ${this.predecessor}`
       );
       console.log(
         "stabilize: {",
@@ -905,7 +908,7 @@ class ChordNode {
       }
       if (predecessorSeemsOK) {
         // then kick by setting the successor to the same as the predecessor
-        this.fingerTable[0].successor = predecessor;
+        this.fingerTable[0].successor = this.predecessor;
         this.successorTable[0] = this.fingerTable[0].successor;
       }
     } else {
@@ -925,10 +928,10 @@ class ChordNode {
   async notify(message, callback) {
     const nPrime = message.request;
     if (
-      predecessor.id == null ||
-      isInModuloRange(nPrime.id, predecessor.id, false, this.id, false)
+      this.predecessor.id == null ||
+      isInModuloRange(nPrime.id, this.predecessor.id, false, this.id, false)
     ) {
-      predecessor = nPrime;
+      this.predecessor = nPrime;
     }
     callback(null, {});
   }
@@ -963,9 +966,9 @@ class ChordNode {
    */
   async checkPredecessor() {
     if (this.predecessor.id !== null && !this.iAmMyOwnPredecessor()) {
-      const predecessor = connect(this.predecessor);
+      const predecessorClient = connect(this.predecessor);
       try {
-        const _ = await predecessor.getPredecessor(this.id);
+        const _ = await predecessorClient.getPredecessor(this.id);
       } catch (err) {
         handleGRPCErrors(
           "checkPredecessor",
