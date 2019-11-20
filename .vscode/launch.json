@@ -7,11 +7,22 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Launch via NPM",
+      "name": "Launch Primary",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run-script", "debug"],
+      "runtimeArgs": ["run-script", "debugPrimary"],
       "port": 9229,
-      "skipFiles": ["<node_internals>/**"]
+      "skipFiles": ["<node_internals>/**"],
+      "restart": true
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Secondary",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run-script", "debugSecondary"],
+      "port": 9230,
+      "skipFiles": ["<node_internals>/**"],
+      "restart": true
     }
   ]
 }
