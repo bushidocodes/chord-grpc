@@ -24,6 +24,7 @@ async function loadData() {
     label: `${id} on ${host}:${port}`,
     data: { id, host, port }
   }));
+  document.getElementById("nodeCount").innerText = `${nodes.length}`;
 
   const edges = Object.values(myJson)
     .filter(
