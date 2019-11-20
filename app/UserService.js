@@ -1,10 +1,69 @@
-const { connect, DEBUGGING_LOCAL, NULL_NODE } = require("./utils.js");
+const os = require("os");
+const path = require("path");
+const grpc = require("grpc");
+const protoLoader = require("@grpc/proto-loader");
+
 const { ChordNode } = require("./ChordNode.js");
+const {
+  connect,
+  DEBUGGING_LOCAL,
+  handleGRPCErrors,
+  NULL_NODE
+} = require("./utils.js");
+
+const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true
+});
+const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 
 class UserService extends ChordNode {
-  constructor({ id, host, port, knownId, knownHost, knownPort }) {
+  constructor({
+    id,
+    host = os.hostname(),
+    port = 1337,
+    knownId,
+    knownHost = host,
+    knownPort = port
+  }) {
     super({ id, host, port, knownId, knownHost, knownPort });
     this.userMap = {};
+  }
+
+  // Starts the gRPC Server
+  serve() {
+    const server = new grpc.Server();
+    server.addService(chord.Node.service, {
+      summary: this.summary.bind(this),
+      fetch: this.fetch.bind(this),
+      remove: this.remove.bind(this),
+      removeUserRemoteHelper: this.removeUserRemoteHelper.bind(this),
+      insert: this.insert.bind(this),
+      insertUserRemoteHelper: this.insertUserRemoteHelper.bind(this),
+      lookup: this.lookup.bind(this),
+      lookupUserRemoteHelper: this.lookupUserRemoteHelper.bind(this),
+      findSuccessorRemoteHelper: this.findSuccessorRemoteHelper.bind(this),
+      getSuccessorRemoteHelper: this.getSuccessorRemoteHelper.bind(this),
+      getPredecessor: this.getPredecessor.bind(this),
+      setPredecessor: this.setPredecessor.bind(this),
+      closestPrecedingFingerRemoteHelper: this.closestPrecedingFingerRemoteHelper.bind(
+        this
+      ),
+      updateFingerTable: this.updateFingerTable.bind(this),
+      notify: this.notify.bind(this)
+    });
+
+    // We assume that binding to 0.0.0.0 indeed makes us accessible at this.host
+    console.log(`Serving on ${this.host}:${this.port}`);
+    server.bind(
+      `0.0.0.0:${this.port}`,
+      grpc.ServerCredentials.createInsecure()
+    );
+    server.start();
   }
 
   // gRPC handler that returns a user locally from this node

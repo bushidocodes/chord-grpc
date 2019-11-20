@@ -1,27 +1,18 @@
 const process = require("process");
-const path = require("path");
-const grpc = require("grpc");
-const caller = require("grpc-caller");
-const protoLoader = require("@grpc/proto-loader");
 const minimist = require("minimist");
 const { UserService } = require("./UserService");
 const {
+  connect,
   computeIntegerHash,
   handleGRPCErrors,
   HASH_BIT_LENGTH
 } = require("./utils.js");
-const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
-const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
-  keepCase: true,
-  longs: String,
-  enums: String,
-  defaults: true,
-  oneofs: true
-});
-const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 
 async function endpointIsResponsive(host, port) {
-  const client = caller(`${host}:${port}`, PROTO_PATH, "Node");
+  const client = connect(
+    host,
+    port
+  );
   try {
     const _ = await client.summary(this.id);
     return true;
@@ -47,9 +38,6 @@ async function hashDryRun(sourceValue) {
 
 let node;
 
-const nodesAreNotIdentical = ({ host, port, knownHost, knownPort }) =>
-  !(host == knownHost && port == knownPort);
-
 /**
  * Starts an RPC server that receives requests for the Greeter service at the
  * sample server port
@@ -57,12 +45,12 @@ const nodesAreNotIdentical = ({ host, port, knownHost, knownPort }) =>
  * Takes the following mandatory flags
  * --host       - This node's host name
  * --port       - This node's TCP Port
- * --knownId   - The ID of a node in the cluster
- * --knownHost   - The host name of a node in the cluster
- * --knownPort - The TCP Port of a node in the cluster
  *
  * And takes the following optional flags
  * --id         - This node's id
+ * --knownId   - The ID of a node in the cluster
+ * --knownHost   - The host name of a node in the cluster
+ * --knownPort - The TCP Port of a node in the cluster
  */
 async function main() {
   const args = minimist(process.argv.slice(2));
@@ -74,13 +62,17 @@ async function main() {
 
   // bail immediately if knownHost can't be reached
   if (
-    nodesAreNotIdentical(args.host, args.port, args.knownHost, args.knownPort)
+    args.host &&
+    args.port &&
+    args.knownHost &&
+    args.knownPort &&
+    !(host == knownHost && port == knownPort)
   ) {
-    if (!(await endpointIsResponsive(args.knownHost, args.knownPort))) {
+    if (!(await endpointIsResponsive(knownHost, knownPort))) {
       console.error(
         `${args.knownHost}:${args.knownPort} is not responsive. Exiting`
       );
-      process.exit();
+      process.exit(-9);
     } else {
       console.log(`${args.knownHost}:${args.knownPort} responded`);
     }
@@ -105,33 +97,9 @@ async function main() {
   }
 
   try {
-    node = new UserService(args);
-    const server = new grpc.Server();
-    server.addService(chord.Node.service, {
-      summary: node.summary.bind(node),
-      fetch: node.fetch.bind(node),
-      remove: node.remove.bind(node),
-      removeUserRemoteHelper: node.removeUserRemoteHelper.bind(node),
-      insert: node.insert.bind(node),
-      insertUserRemoteHelper: node.insertUserRemoteHelper.bind(node),
-      lookup: node.lookup.bind(node),
-      lookupUserRemoteHelper: node.lookupUserRemoteHelper.bind(node),
-      findSuccessorRemoteHelper: node.findSuccessorRemoteHelper.bind(node),
-      getSuccessorRemoteHelper: node.getSuccessorRemoteHelper.bind(node),
-      getPredecessor: node.getPredecessor.bind(node),
-      setPredecessor: node.setPredecessor.bind(node),
-      closestPrecedingFingerRemoteHelper: node.closestPrecedingFingerRemoteHelper.bind(
-        node
-      ),
-      updateFingerTable: node.updateFingerTable.bind(node),
-      notify: node.notify.bind(node)
-    });
-    console.log(`Serving on ${args.host}:${args.port}`);
-    server.bind(
-      `0.0.0.0:${args.port}`,
-      grpc.ServerCredentials.createInsecure()
-    );
-    server.start();
+    userServiceNode = new UserService({ ...args });
+    await userServiceNode.serve();
+    await userServiceNode.joinCluster();
   } catch (err) {
     console.error(err);
     process.exit();

@@ -1,8 +1,8 @@
-const os = require("os");
+const process = require("process");
 const {
   connect,
   isInModuloRange,
-  computeIntegerHash,
+  computeHostPortHash,
   handleGRPCErrors,
   DEBUGGING_LOCAL,
   HASH_BIT_LENGTH,
@@ -11,12 +11,27 @@ const {
 
 class ChordNode {
   constructor({ id, host, port, knownId, knownHost, knownPort }) {
-    this.host = host || os.hostname();
-    this.port = port || 8440;
-    this.id = id || null;
-    this.knownId = knownId || null;
-    this.knownHost = knownHost || os.hostname();
-    this.knownPort = knownPort || 8440;
+    if (!host || !port) {
+      console.error(
+        "ChordNode constructor did not receive host or port as expected"
+      );
+      process.exit(-9);
+    }
+    this.host = host;
+    this.port = port;
+    if (!knownHost || !knownPort) {
+      console.log(
+        "ChordNode constructor did not receive knownHost or knownPort as expected, so setting to host and port"
+      );
+      this.knownHost = host;
+      this.knownPort = port;
+    } else {
+      this.knownHost = knownHost;
+      this.knownPort = knownPort;
+    }
+    this.id = id;
+    this.knownId = knownId;
+
     this.fingerTable = [
       {
         start: null,
@@ -25,32 +40,6 @@ class ChordNode {
     ];
     this.successorTable = [NULL_NODE];
     this.predecessor = NULL_NODE;
-
-    // A constructor is not allowed to be async, so I trigger this right after
-    setImmediate(async () => {
-      if (!this.id) {
-        this.id = await computeIntegerHash(
-          this.host + this.port,
-          HASH_BIT_LENGTH
-        );
-      }
-      if (!this.knownId) {
-        this.knownId = await computeIntegerHash(
-          knownHost + knownPort,
-          HASH_BIT_LENGTH
-        );
-      }
-      this.join({
-        id: this.knownId,
-        host: this.knownHost,
-        port: this.knownPort
-      });
-    });
-
-    // There might be some "critical section" type issues we need to use a gate to protect in these functions
-    setInterval(this.stabilize.bind(this), 1000);
-    setInterval(this.fixFingers.bind(this), 3000);
-    setInterval(this.checkPredecessor.bind(this), 1000);
   }
 
   iAmMyOwnSuccessor() {
@@ -400,16 +389,23 @@ class ChordNode {
 
     callback(null, {});
   }
-  /**
-   * Modified implementation of pseudocode's "heavyweight" version of the join() method
-   *   as described in Figure 6 of the SIGCOMM paper.
-   * Modification consists of an additional step of initializing the successor table
-   *   as described in the IEEE paper.
-   *
-   * @param knownNode: knownNode structure; e.g., {id, host, port}
-   *   Pass a null known node to force the node to be the first in a new chord.
-   */
-  async join(knownNode) {
+
+  async joinCluster() {
+    // General the Ids from the host connection strings if not manually provided
+    if (!this.id) this.id = await computeHostPortHash(this.host, this.port);
+    if (!this.knownId)
+      this.knownId = await computeHostPortHash(this.knownHost, this.knownPort);
+
+    // Exit the process immediately if there is an unexpected hashing collision
+    if (
+      (this.host !== this.knownHost || this.port !== this.knownPort) &&
+      this.id === this.knownHost
+    ) {
+      console.log(
+        `${this.host}:${this.port} and ${this.knownHost}${this.knownPort} unexpectedly produced the same hash. Exiting!`
+      );
+      process.exit(-9);
+    }
     // remove dummy template initializer from table
     this.fingerTable.pop();
     // initialize table with reasonable values
@@ -420,8 +416,12 @@ class ChordNode {
       });
     }
 
-    if (knownNode.id && this.confirmExist(knownNode)) {
-      await this.initFingerTable(knownNode);
+    if (this.knownId && !(this.id == this.knownId)) {
+      await this.initFingerTable({
+        id: this.knownId,
+        host: this.knownHost,
+        port: this.knownPort
+      });
       await this.updateOthers();
     } else {
       // this is the first node
@@ -433,16 +433,23 @@ class ChordNode {
     // initialize successor table
     this.successorTable[0] = this.fingerTable[0].successor;
 
+    // And now that we've joined a cluster, we need maintain our state
+    // There might be some "critical section" type issues
+    // we need to use a gate to protect in these functions
+    setInterval(this.stabilize.bind(this), 1000);
+    setInterval(this.fixFingers.bind(this), 3000);
+    setInterval(this.checkPredecessor.bind(this), 1000);
+
     if (DEBUGGING_LOCAL) {
-      console.log(">>>>>     join          ");
+      console.log(">>>>>     joinCluster          ");
       console.log(
-        `The fingerTable[] leaving {${this.id}}.join(${knownNode.id}) is:\n`,
+        `The fingerTable[] leaving {${this.id}}.joinCluster(${knownNode.id}) is:\n`,
         this.fingerTable
       );
       console.log(
-        `The {${this.id}}.predecessor leaving join() is ${this.predecessor}`
+        `The {${this.id}}.predecessor leaving joinCluster() is ${this.predecessor}`
       );
-      console.log("          join     <<<<<\n");
+      console.log("          joinCluster     <<<<<\n");
     }
   }
   /**
@@ -803,6 +810,7 @@ class ChordNode {
   async stabilize() {
     let successorClient, x;
     try {
+      if (!this.fingerTable[0].successor) process.exit(-9);
       successorClient = connect(this.fingerTable[0].successor);
     } catch (err) {
       console.error(`stabilize: call to caller failed with `, err);
@@ -1016,7 +1024,7 @@ class ChordNode {
     return successorSeemsOK;
   }
   /**
-   * Placeholder for data migration within the join() call.
+   * Placeholder for data migration within the joinCluster() call.
    */
   async migrateKeys() {}
 }

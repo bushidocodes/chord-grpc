@@ -1,4 +1,5 @@
 const path = require("path");
+const process = require("process");
 const { Worker } = require("worker_threads");
 const caller = require("grpc-caller");
 const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
@@ -84,23 +85,19 @@ const MAX_BIT_LENGTH = 32;
  * then truncates to the user-specified size from the high-order bits.
  *
  * @param {string} stringForHashing
- * @param {number} hashBitLength
  */
-async function computeIntegerHash(stringForHashing, hashBitLength) {
+async function computeIntegerHash(stringForHashing) {
   // enable debugging output
   const DEBUGGING_LOCAL = false;
 
   const MAX_JS_INT_BIT_LENGTH = 32;
   const BIT_PER_HEX_CHARACTER = 4;
-  // sanitize length input
-  if (hashBitLength > MAX_BIT_LENGTH) {
-    hashBitLength = MAX_BIT_LENGTH;
-    console.log(
-      `Warning. Requested ${hashBitLength} bits `,
-      `but only ${MAX_BIT_LENGTH} bits available due to numerical simplification.`,
-      `Thus, using only ${hashBitLength} bits.`,
-      `In computeHash().`
+  if (HASH_BIT_LENGTH > MAX_BIT_LENGTH) {
+    console.error(
+      `Warning. Requested ${HASH_BIT_LENGTH} bits `,
+      `but only ${MAX_BIT_LENGTH} bits available due to numerical simplification.`
     );
+    process.exit(-9);
   }
   let hashOutput = await sha1(stringForHashing);
   if (DEBUGGING_LOCAL)
@@ -120,11 +117,15 @@ async function computeIntegerHash(stringForHashing, hashBitLength) {
   if (DEBUGGING_LOCAL) console.log(`Integer value is ${integerHash}.`);
 
   // truncate the hash to the desired number of bits by picking the high-order bits
-  integerHash = integerHash >>> (MAX_BIT_LENGTH - hashBitLength);
+  integerHash = integerHash >>> (MAX_BIT_LENGTH - HASH_BIT_LENGTH);
   if (DEBUGGING_LOCAL)
     console.log(`Truncated integer value is ${integerHash}.`);
 
   return integerHash;
+}
+
+async function computeHostPortHash(host, port) {
+  return computeIntegerHash(`${host}:${port}`);
 }
 
 function handleGRPCErrors(scope, call, host, port, err) {
@@ -229,6 +230,7 @@ module.exports = {
   connect,
   handleGRPCErrors,
   isInModuloRange,
+  computeHostPortHash,
   computeIntegerHash,
   sha1,
   DEBUGGING_LOCAL,
