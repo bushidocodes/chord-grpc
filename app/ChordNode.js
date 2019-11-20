@@ -994,7 +994,6 @@ class ChordNode {
   }
   /**
    * Checks whether the successor is still responding.
-   * @returns {boolean} true if successor was still reasonable; false otherwise.
    */
   async checkSuccessor() {
     if (DEBUGGING_LOCAL)
