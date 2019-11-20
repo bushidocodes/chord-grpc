@@ -66,9 +66,9 @@ async function main() {
     args.port &&
     args.knownHost &&
     args.knownPort &&
-    !(host == knownHost && port == knownPort)
+    !(args.host == args.knownHost && args.port == args.knownPort)
   ) {
-    if (!(await endpointIsResponsive(knownHost, knownPort))) {
+    if (!(await endpointIsResponsive(args.knownHost, args.knownPort))) {
       console.error(
         `${args.knownHost}:${args.knownPort} is not responsive. Exiting`
       );
