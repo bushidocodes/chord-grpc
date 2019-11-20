@@ -1,5 +1,11 @@
 const path = require("path");
 const { Worker } = require("worker_threads");
+const caller = require("grpc-caller");
+const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
+
+const HASH_BIT_LENGTH = 8;
+const NULL_NODE = { id: null, host: null, port: null };
+const DEBUGGING_LOCAL = false;
 
 /**
  * Accounts for the modulo arithmetic to determine whether the input value is within the bounds.
@@ -79,7 +85,6 @@ const MAX_BIT_LENGTH = 32;
  *
  * @param {string} stringForHashing
  * @param {number} hashBitLength
- * @returns {number}
  */
 async function computeIntegerHash(stringForHashing, hashBitLength) {
   // enable debugging output
@@ -216,9 +221,17 @@ function handleGRPCErrors(scope, call, host, port, err) {
   }
 }
 
+function connect({ host, port }) {
+  return caller(`${host}:${port}`, PROTO_PATH, "Node");
+}
+
 module.exports = {
+  connect,
   handleGRPCErrors,
   isInModuloRange,
   computeIntegerHash,
-  sha1
+  sha1,
+  DEBUGGING_LOCAL,
+  HASH_BIT_LENGTH,
+  NULL_NODE
 };

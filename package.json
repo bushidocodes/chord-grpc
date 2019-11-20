@@ -5,12 +5,12 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "cleanData": "node cleanData.js",
-    "server": "node node.js",
-    "debug": "node --nolazy --inspect-brk=9229 node.js --host localhost --port 8440 --knownHost localhost --knownPort 8440",
+    "cleanData": "node ./data/cleanData.js",
+    "server": "node ./app/node.js",
+    "debug": "node --nolazy --inspect-brk=9229 ./app/node.js --host localhost --port 8440 --knownHost localhost --knownPort 8440",
     "client": "node ./client/client.js",
     "web": "node ./web/web.js",
-    "devServer": "nodemon node.js",
+    "devServer": "nodemon ./app/node.js",
     "devWeb": "nodemon ./web/web.js"
   },
   "author": "",

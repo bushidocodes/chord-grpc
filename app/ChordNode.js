@@ -1,53 +1,22 @@
 const os = require("os");
-const process = require("process");
-const path = require("path");
-const grpc = require("grpc");
-const caller = require("grpc-caller");
-const protoLoader = require("@grpc/proto-loader");
-const minimist = require("minimist");
 const {
+  connect,
   isInModuloRange,
   computeIntegerHash,
-  handleGRPCErrors
+  handleGRPCErrors,
+  DEBUGGING_LOCAL,
+  HASH_BIT_LENGTH,
+  NULL_NODE
 } = require("./utils.js");
-
-const CHECK_NODE_TIMEOUT_ms = 1000;
-const DEBUGGING_LOCAL = false;
-const DEFAULT_HOST_PORT = 8440;
-const HASH_BIT_LENGTH = 8;
-const PROTO_PATH = path.resolve(__dirname, "./protos/chord.proto");
-
-const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
-  keepCase: true,
-  longs: String,
-  enums: String,
-  defaults: true,
-  oneofs: true
-});
-const chord = grpc.loadPackageDefinition(packageDefinition).chord;
-const NULL_NODE = { id: null, host: null, port: null };
-
-/**
- * Print Summary of state of node
- * @param userRequestObject
- * @param callback gRPC callback
- */
-
-const nodesAreNotIdentical = (
-  sourceHost,
-  sourcePort,
-  destinationHost,
-  destinationPort
-) => !(sourceHost == destinationHost && sourcePort == destinationPort);
 
 class ChordNode {
   constructor({ id, host, port, knownId, knownHost, knownPort }) {
     this.host = host || os.hostname();
-    this.port = port || DEFAULT_HOST_PORT;
+    this.port = port || 8440;
     this.id = id || null;
     this.knownId = knownId || null;
     this.knownHost = knownHost || os.hostname();
-    this.knownPort = knownPort || DEFAULT_HOST_PORT;
+    this.knownPort = knownPort || 8440;
     this.fingerTable = [
       {
         start: null,
@@ -57,6 +26,7 @@ class ChordNode {
     this.successorTable = [NULL_NODE];
     this.predecessor = NULL_NODE;
 
+    // A constructor is not allowed to be async, so I trigger this right after
     setImmediate(async () => {
       if (!this.id) {
         this.id = await computeIntegerHash(
@@ -64,7 +34,6 @@ class ChordNode {
           HASH_BIT_LENGTH
         );
       }
-      // recompute known identity parameters from hash function
       if (!this.knownId) {
         this.knownId = await computeIntegerHash(
           knownHost + knownPort,
@@ -78,9 +47,10 @@ class ChordNode {
       });
     });
 
-    setInterval(() => this.stabilize(), 1000);
-    setInterval(() => this.fixFingers(), 3000);
-    setInterval(() => this.checkPredecessor(), CHECK_NODE_TIMEOUT_ms);
+    // There might be some "critical section" type issues we need to use a gate to protect in these functions
+    setInterval(this.stabilize.bind(this), 1000);
+    setInterval(this.fixFingers.bind(this), 3000);
+    setInterval(this.checkPredecessor.bind(this), 1000);
   }
 
   iAmMyOwnSuccessor() {
@@ -145,11 +115,7 @@ class ChordNode {
         console.log("findSuccessor: n'.successor is ", nPrimeSuccessor.id);
       }
     } else {
-      const nodeQueriedClient = caller(
-        `${nodeQueried.host}:${nodeQueried.port}`,
-        PROTO_PATH,
-        "Node"
-      );
+      const nodeQueriedClient = connect(nodeQueried);
       try {
         nPrimeSuccessor = await nodeQueriedClient.findSuccessorRemoteHelper({
           id: id,
@@ -288,11 +254,7 @@ class ChordNode {
       nSuccessor = this.fingerTable[0].successor;
     } else {
       // use remote value
-      const nodeQueriedClient = caller(
-        `${nodeQueried.host}:${nodeQueried.port}`,
-        PROTO_PATH,
-        "Node"
-      );
+      const nodeQueriedClient = connect(nodeQueried);
       try {
         nSuccessor = await nodeQueriedClient.getSuccessorRemoteHelper(
           nodeQueried
@@ -359,12 +321,7 @@ class ChordNode {
       nPreceding = nodeQueried;
       return nPreceding;
     } else {
-      // use remote value
-      const nodeQueriedClient = caller(
-        `${nodeQueried.host}:${nodeQueried.port}`,
-        PROTO_PATH,
-        "Node"
-      );
+      const nodeQueriedClient = connect(nodeQueried);
       try {
         nPreceding = await nodeQueriedClient.closestPrecedingFingerRemoteHelper(
           {
@@ -522,11 +479,7 @@ class ChordNode {
         nPrimeSuccessor
       );
 
-    let successorClient = caller(
-      `${this.fingerTable[0].successor.host}:${this.fingerTable[0].successor.port}`,
-      PROTO_PATH,
-      "Node"
-    );
+    let successorClient = connect(this.fingerTable[0].successor);
     try {
       this.predecessor = await successorClient.getPredecessor(
         this.fingerTable[0].successor
@@ -611,7 +564,7 @@ class ChordNode {
       if (DEBUGGING_LOCAL) console.log("updateOthers: pNode = ", pNode);
 
       if (this.id !== pNode.id) {
-        pNodeClient = caller(`${pNode.host}:${pNode.port}`, PROTO_PATH, "Node");
+        pNodeClient = connect(pNode);
         try {
           await pNodeClient.updateFingerTable({
             node: this.encapsulateSelf(),
@@ -658,11 +611,7 @@ class ChordNode {
       )
     ) {
       this.fingerTable[fingerIndex].successor = sNode;
-      const pClient = caller(
-        `${predecessor.host}:${predecessor.port}`,
-        PROTO_PATH,
-        "Node"
-      );
+      const pClient = connect(predecessor);
       try {
         await pClient.updateFingerTable({ node: sNode, index: fingerIndex });
       } catch (err) {
@@ -850,15 +799,8 @@ class ChordNode {
    */
   async stabilize() {
     let successorClient, x;
-    if (!this.fingerTable[0].successor) {
-      process.exit("stabilize: fingerTable[0].successor was undefined");
-    }
     try {
-      successorClient = caller(
-        `${this.fingerTable[0].successor.host}:${this.fingerTable[0].successor.port}`,
-        PROTO_PATH,
-        "Node"
-      );
+      successorClient = connect(this.fingerTable[0].successor);
     } catch (err) {
       console.error(`stabilize: call to caller failed with `, err);
       return false;
@@ -912,11 +854,7 @@ class ChordNode {
     }
 
     if (this.id !== this.fingerTable[0].successor.id) {
-      successorClient = caller(
-        `${this.fingerTable[0].successor.host}:${this.fingerTable[0].successor.port}`,
-        PROTO_PATH,
-        "Node"
-      );
+      successorClient = connect(this.fingerTable[0].successor);
       try {
         await successorClient.notify({
           id: this.id,
@@ -1025,11 +963,7 @@ class ChordNode {
    */
   async checkPredecessor() {
     if (this.predecessor.id !== null && !this.iAmMyOwnPredecessor()) {
-      const predecessor = caller(
-        `${this.predecessor.host}:${this.predecessor.port}`,
-        PROTO_PATH,
-        "Node"
-      );
+      const predecessor = connect(this.predecessor);
       try {
         const _ = await predecessor.getPredecessor(this.id);
       } catch (err) {
@@ -1084,353 +1018,6 @@ class ChordNode {
   async migrateKeys() {}
 }
 
-class UserService extends ChordNode {
-  constructor({ id, host, port, knownId, knownHost, knownPort }) {
-    super({ id, host, port, knownId, knownHost, knownPort });
-    // Extend with state
-    this.userMap = {};
-  }
-
-  // gRPC handler that returns a user locally from this node
-  fetch(message, callback) {
-    const {
-      request: { id }
-    } = message;
-    console.log(`Requested User ${id}`);
-    if (!this.userMap[id]) {
-      callback({ code: 5 }, null); // NOT_FOUND error
-    } else {
-      callback(null, this.userMap[id]);
-    }
-  }
-
-  // Removes a User from local state
-  removeUser(id) {
-    if (this.userMap[id]) {
-      delete this.userMap[id];
-      console.log("removeUser: user removed");
-      return null;
-    } else {
-      console.log("removeUser, user DNE");
-      return { code: 5 };
-    }
-  }
-
-  // gRPC Handler to allow other nodes to remove users from our local state
-  async removeUserRemoteHelper(message, callback) {
-    if (DEBUGGING_LOCAL) console.log("removeUserRemoteHelper: ", message);
-    const err = removeUser(message.request.id);
-    callback(err, {});
-  }
-
-  // Removes a User regardless of location in cluster
-  async remove(message, callback) {
-    const userId = message.request.id;
-    let successor = NULL_NODE;
-    console.log("remove: Attempting to remove user ", userId);
-
-    try {
-      successor = await this.findSuccessor(userId, this.encapsulateSelf());
-    } catch (err) {
-      successor = NULL_NODE;
-      console.error("remove: findSuccessor failed with ", err);
-    }
-
-    if (this.iAmMyOwnSuccessor()) {
-      if (DEBUGGING_LOCAL) console.log("remove: remove user from local node");
-      const err = this.removeUser(userId);
-      callback(err, {});
-    } else {
-      try {
-        if (DEBUGGING_LOCAL)
-          console.log("remove: remove user from remote node");
-        const successorClient = caller(
-          `${successor.host}:${successor.port}`,
-          PROTO_PATH,
-          "Node"
-        );
-        await successorClient.removeUserRemoteHelper(
-          { id: userId },
-          (err, _) => {
-            callback(err, {});
-          }
-        );
-      } catch (err) {
-        handleGRPCErrors(
-          "remove",
-          "removeUserRemoteHelper",
-          successor.host,
-          successor.port,
-          err
-        );
-        callback(err, null);
-      }
-    }
-  }
-
-  // Insert User in local state
-  insertUser(userEdit) {
-    if (DEBUGGING_LOCAL) console.log("insertUser: ", userEdit);
-    const user = userEdit.user;
-    const edit = userEdit.edit;
-    if (this.userMap[user.id] && !edit) {
-      console.log(`insertUser: ${user.id} already exits`);
-      return { code: 6 };
-    } else {
-      this.userMap[user.id] = user;
-      if (edit) {
-        console.log(`insertUser: Edited User ${user.id}`);
-      } else {
-        console.log(`insertUser: Inserted User ${user.id}`);
-      }
-      return null;
-    }
-  }
-
-  // gRPC Handler to allow other nodes to insert users into our local state
-  async insertUserRemoteHelper(message, callback) {
-    if (DEBUGGING_LOCAL) console.log("insertUserRemoteHelper: ", message);
-    const err = this.insertUser(message.request);
-    callback(err, {});
-  }
-
-  // Inserts a User regardless of location in cluster
-  async insert(message, callback) {
-    const userEdit = message.request;
-    const user = userEdit.user;
-    const lookupKey = user.id;
-    let successor = NULL_NODE;
-
-    console.log(`insert: Attempting to insert user`, user.id);
-    if (DEBUGGING_LOCAL) console.log(user);
-    try {
-      successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
-    } catch (err) {
-      successor = NULL_NODE;
-      console.error("insert: findSuccessor failed with ", err);
-    }
-
-    if (this.iAmMyOwnSuccessor()) {
-      if (DEBUGGING_LOCAL) console.log("insert: insert user to local node");
-      const err = this.insertUser(userEdit);
-      callback(err, {});
-    } else {
-      try {
-        console.log("insert: insert user to remote node", lookupKey);
-        const successorClient = caller(
-          `${successor.host}:${successor.port}`,
-          PROTO_PATH,
-          "Node"
-        );
-        await successorClient.insertUserRemoteHelper(userEdit, (err, _) => {
-          console.log("insert finishing");
-          callback(err, {});
-        });
-      } catch (err) {
-        handleGRPCErrors(
-          "insert",
-          "insertUser",
-          successor.host,
-          successor.port,
-          err
-        );
-        callback(err, null);
-      }
-    }
-  }
-
-  // gRPC handler that returns a user locally from this node
-  fetch(message, callback) {
-    const {
-      request: { id }
-    } = message;
-    console.log(`Requested User ${id}`);
-    if (!this.userMap[id]) {
-      callback({ code: 5 }, null); // NOT_FOUND error
-    } else {
-      callback(null, this.userMap[id]);
-    }
-  }
-
-  lookupUser(userId) {
-    if (this.userMap[userId]) {
-      const user = this.userMap[userId];
-      if (DEBUGGING_LOCAL) console.log(`User found ${user.id}`);
-      return { err: null, user };
-    } else {
-      if (DEBUGGING_LOCAL) console.log(`User with user ID ${userId} not found`);
-      return { err: { code: 5 }, user: null };
-    }
-  }
-
-  async lookupUserRemoteHelper(message, callback) {
-    console.log("beginning lookupUserRemoteHelper: ", message.request.id);
-    const { err, user } = lookupUser(message.request.id);
-    console.log("finishing lookupUserRemoteHelper: ", user);
-    callback(err, user);
-  }
-  async lookup(message, callback) {
-    const userId = message.request.id;
-    console.log(`lookup: Looking up user ${userId}`);
-    const lookupKey = userId;
-    let successor = NULL_NODE;
-
-    try {
-      successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
-    } catch (err) {
-      successor = NULL_NODE;
-      console.error("lookup: findSuccessor failed with ", err);
-    }
-
-    if (this.iAmMyOwnSuccessor()) {
-      if (DEBUGGING_LOCAL) console.log("lookup: lookup user to local node");
-      const { err, user } = this.lookupUser(userId);
-      if (DEBUGGING_LOCAL)
-        console.log(
-          "lookup: finished Server-side lookup, returning: ",
-          err,
-          user
-        );
-      callback(err, user);
-    } else {
-      try {
-        console.log("In lookup: lookup user to remote node");
-        const successorClient = caller(
-          `${successor.host}:${successor.port}`,
-          PROTO_PATH,
-          "Node"
-        );
-        const user = await successorClient.lookupUserRemoteHelper({
-          id: userId
-        });
-        callback(null, user);
-      } catch (err) {
-        handleGRPCErrors(
-          "lookup",
-          "lookupUserRemotehelper",
-          successor.host,
-          successor.port,
-          err
-        );
-        callback(err, null);
-      }
-    }
-  }
-}
-
-async function endpointIsResponsive(host, port) {
-  const client = caller(`${host}:${port}`, PROTO_PATH, "Node");
-  try {
-    const _ = await client.summary(this.id);
-    return true;
-  } catch (err) {
-    handleGRPCErrors("endpointIsResponsive", "summary", host, port, err);
-    return false;
-  }
-}
-
-async function hashDryRun(sourceValue) {
-  try {
-    const integerHash = await computeIntegerHash(sourceValue, HASH_BIT_LENGTH);
-    console.log(`ID {${integerHash}} computed from hash of {${sourceValue}}`);
-  } catch (err) {
-    console.error(
-      `Error computing hash of ${sourceValue}. Thus, terminating...\n`,
-      err
-    );
-    return -13;
-  }
-  return 0;
-}
-
-let node;
-
-/**
- * Starts an RPC server that receives requests for the Greeter service at the
- * sample server port
- *
- * Takes the following mandatory flags
- * --host       - This node's host name
- * --port       - This node's TCP Port
- * --knownId   - The ID of a node in the cluster
- * --knownHost   - The host name of a node in the cluster
- * --knownPort - The TCP Port of a node in the cluster
- *
- * And takes the following optional flags
- * --id         - This node's id
- */
-async function main() {
-  const args = minimist(process.argv.slice(2));
-
-  if (args.hashOnly) {
-    const rc = await hashDryRun(args.hashOnly);
-    process.exit(rc);
-  }
-
-  // bail immediately if knownHost can't be reached
-  if (
-    nodesAreNotIdentical(args.host, args.port, args.knownHost, args.knownPort)
-  ) {
-    if (!(await endpointIsResponsive(args.knownHost, args.knownPort))) {
-      console.error(
-        `${args.knownHost}:${args.knownPort} is not responsive. Exiting`
-      );
-      process.exit();
-    } else {
-      console.log(`${args.knownHost}:${args.knownPort} responded`);
-    }
-  }
-
-  // protect against bad ID inputs
-  if (args.id && args.id > 2 ** HASH_BIT_LENGTH - 1) {
-    console.error(
-      `Error. Bad ID {${args.id}} > 2^m-1 {${2 ** HASH_BIT_LENGTH -
-        1}}. Terminating...\n`
-    );
-    return -13;
-  }
-
-  // protect against bad Known ID inputs
-  if (args.knownId && args.knownId > 2 ** HASH_BIT_LENGTH - 1) {
-    console.error(
-      `Error. Bad known ID {${args.knownId}} > 2^m-1 {${2 ** HASH_BIT_LENGTH -
-        1}}. Thus, terminating...\n`
-    );
-    return -13;
-  }
-
-  try {
-    node = new UserService(args);
-    const server = new grpc.Server();
-    server.addService(chord.Node.service, {
-      summary: node.summary.bind(node),
-      fetch: node.fetch.bind(node),
-      remove: node.remove.bind(node),
-      removeUserRemoteHelper: node.removeUserRemoteHelper.bind(node),
-      insert: node.insert.bind(node),
-      insertUserRemoteHelper: node.insertUserRemoteHelper.bind(node),
-      lookup: node.lookup.bind(node),
-      lookupUserRemoteHelper: node.lookupUserRemoteHelper.bind(node),
-      findSuccessorRemoteHelper: node.findSuccessorRemoteHelper.bind(node),
-      getSuccessorRemoteHelper: node.getSuccessorRemoteHelper.bind(node),
-      getPredecessor: node.getPredecessor.bind(node),
-      setPredecessor: node.setPredecessor.bind(node),
-      closestPrecedingFingerRemoteHelper: node.closestPrecedingFingerRemoteHelper.bind(
-        node
-      ),
-      updateFingerTable: node.updateFingerTable.bind(node),
-      notify: node.notify.bind(node)
-    });
-    console.log(`Serving on ${args.host}:${args.port}`);
-    server.bind(
-      `0.0.0.0:${args.port}`,
-      grpc.ServerCredentials.createInsecure()
-    );
-    server.start();
-  } catch (err) {
-    console.error(err);
-    process.exit();
-  }
-}
-
-main();
+module.exports = {
+  ChordNode
+};

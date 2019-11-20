@@ -4,7 +4,7 @@ const parseString = require("xml2js").parseString;
 const COUNT_OF_USERS_IN_TINY_USERS = 100;
 
 // Quick and dirty script to convert the StackOverflow data from XML to JSON
-fs.readFile(`${__dirname}/data/users.xml`, (err, data) => {
+fs.readFile(`${__dirname}/users.xml`, (err, data) => {
   parseString(data, (err, rawData) => {
     const result = {};
     const tinyResult = {};
@@ -31,10 +31,7 @@ fs.readFile(`${__dirname}/data/users.xml`, (err, data) => {
         }
         result[person.id] = person;
       });
-    fs.writeFileSync(`${__dirname}/data/users.json`, JSON.stringify(result));
-    fs.writeFileSync(
-      `${__dirname}/data/tinyUsers.json`,
-      JSON.stringify(tinyResult)
-    );
+    fs.writeFileSync(`${__dirname}/users.json`, JSON.stringify(result));
+    fs.writeFileSync(`${__dirname}/tinyUsers.json`, JSON.stringify(tinyResult));
   });
 });
