@@ -38,7 +38,6 @@ class Client {
   }
 
   async insert({ _, ...rest }) {
-    console.log(rest);
     if (!rest.id) {
       console.log("id is a mandatory field!");
       console.log("node client insert --id=42424242");
@@ -51,7 +50,6 @@ class Client {
       );
       process.exit();
     }
-    console.log(rest);
     const user = {
       id: rest.id,
       reputation: rest.reputation || 0,
@@ -67,19 +65,27 @@ class Client {
       profileImageUrl: rest.profileImageUrl || 0,
       accountId: rest.accoutId || 0
     };
-    console.log(user);
-    await this.client.insert({ user, edit: rest.edit }, (err, _) => {
-      if (err) {
-        console.error("User could not be added");
-        console.error(err);
+    try {
+      const _ = await this.client.insert({ user, edit: rest.edit });
+      if (rest.edit) {
+        console.log("User edited successfully");
       } else {
-        if (rest.edit) {
-          console.log("User editted successfully.");
-        } else {
-          console.log("User inserted successfully.");
+        console.log("User inserted successfully");
+      }
+    } catch (err) {
+      if (rest.edit) {
+        console.log(err);
+        console.log("User edit error:", err);
+      } else {
+        switch (err.code) {
+          case 6:
+            console.log("User already exists!");
+            break;
+          default:
+            console.log("User insertion error:", err);
         }
       }
-    });
+    }
   }
 
   async remove({ _, ...rest }) {

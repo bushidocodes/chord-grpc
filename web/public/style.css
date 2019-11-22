@@ -5,20 +5,42 @@ body,
   height: 100%;
 }
 
+:focus {
+  outline: none;
+}
+
 #grid {
   display: grid;
-  grid-template-columns: auto 200px;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  grid-column-gap: 0px;
+  grid-row-gap: 0px;
 }
 
 #mynetwork {
+  grid-area: 1 / 1 / 6 / 5;
   box-sizing: border-box;
   width: 100%;
   border: solid;
   padding: 5px;
 }
 
+#nodeCount {
+  grid-area: 1 / 5 / 2 / 6;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: solid;
+  border-left: none;
+  padding: 5px;
+  font-size: 80px;
+}
 #nodeContent {
+  grid-area: 2 / 5 / 6 / 6;
   box-sizing: border-box;
   border: solid;
+  border-top: none;
+  border-left: none;
   padding: 5px;
 }

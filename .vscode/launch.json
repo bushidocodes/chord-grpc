@@ -7,8 +7,22 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Launch Program",
-      "program": "${workspaceFolder}/index.js"
+      "name": "Launch Primary",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run-script", "debugPrimary"],
+      "port": 9229,
+      "skipFiles": ["<node_internals>/**"],
+      "restart": true
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Secondary",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run-script", "debugSecondary"],
+      "port": 9230,
+      "skipFiles": ["<node_internals>/**"],
+      "restart": true
     }
   ]
 }

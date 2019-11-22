@@ -1,10 +1,12 @@
 const express = require("express");
 const minimist = require("minimist");
+const os = require("os");
 const path = require("path");
 const caller = require("grpc-caller");
 const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
 const PUBLIC_PATH = path.resolve(__dirname, "./public");
 
+const DEFAULT_HOST_NAME = os.hostname();
 const CRAWLER_INTERVAL_MS = 3000;
 const DUMMY_REQUEST_OBJECT = { id: 99 };
 
@@ -101,7 +103,7 @@ function main() {
   if (process.argv.length >= 2) {
     const args = minimist(process.argv.slice(2));
     let crawler = new ChordCrawler(
-      args.host,
+      args.host || DEFAULT_HOST_NAME,
       args.port,
       args.interval || CRAWLER_INTERVAL_MS
     );

@@ -1,28 +1,13 @@
 const minimist = require("minimist");
+const os = require("os");
 const { Client } = require("./common.js");
-
-const DEFAULT_HOST_NAME = "localhost";
-const DEFAULT_HOST_PORT = 1337;
-
-const target = {
-  host: DEFAULT_HOST_NAME,
-  port: DEFAULT_HOST_PORT
-};
 
 function main() {
   if (process.argv.length >= 3) {
     const args = minimist(process.argv.slice(3));
-    console.log("The command-line arguments were:\n", args);
-
-    if (args.host) {
-      target.host = args.host;
-    }
-    if (args.port) {
-      target.port = args.port;
-    }
-
-    console.log(`Connecting to ${target.host}:${target.port}`);
-    client = new Client(target.host, target.port);
+    const host = args.host || os.hostname();
+    const port = args.port || 8440;
+    client = new Client(host, port);
 
     const command = process.argv[2];
 
