@@ -42,8 +42,8 @@ class ChordNode {
     this.predecessor = NULL_NODE;
   }
 
-  iAmMyOwnSuccessor() {
-    return this.id == this.fingerTable[0].successor.id;
+  iAmTheSuccessor(successor) {
+    return this.id == successor.id;
   }
 
   iAmMyOwnPredecessor() {
