@@ -46,6 +46,10 @@ class ChordNode {
     return this.id == successor.id;
   }
 
+  iAmMyOwnSuccessor() {
+    return this.id == this.fingerTable[0].successor.id;
+  }
+
   iAmMyOwnPredecessor() {
     return this.id == this.predecessor.id;
   }
@@ -428,7 +432,12 @@ class ChordNode {
       this.predecessor = this.encapsulateSelf();
     }
 
-    await this.migrateKeys();
+    try {
+      console.log("join: calling migrateKys");
+      await this.migrateKeysAfterJoin();
+    } catch (error) {
+      console.log("Migrate keys failed with error:", error);
+    }
 
     // initialize successor table
     this.successorTable[0] = this.fingerTable[0].successor;
@@ -1025,7 +1034,7 @@ class ChordNode {
   /**
    * Placeholder for data migration within the joinCluster() call.
    */
-  async migrateKeys() {}
+  async migrateKeysAfterJoin() {}
 }
 
 module.exports = {
