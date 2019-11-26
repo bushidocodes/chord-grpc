@@ -1034,7 +1034,9 @@ class ChordNode {
   /**
    * Placeholder for data migration within the joinCluster() call.
    */
-  async migrateKeysAfterJoin() {}
+  async migrateKeysAfterJoin() {
+    throw new Error("Method migrateKeysAfterJoin has not been implemented");
+  }
 }
 
 module.exports = {
