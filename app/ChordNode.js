@@ -436,7 +436,7 @@ class ChordNode {
       if (DEBUGGING_LOCAL) console.log("join: calling migrateKys");
       await this.migrateKeysAfterJoin();
     } catch (error) {
-      console.err("Migrate keys failed with error:", error);
+      console.error("Migrate keys failed with error:", error);
     }
 
     // initialize successor table
