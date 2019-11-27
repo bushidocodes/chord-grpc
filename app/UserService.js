@@ -8,6 +8,7 @@ const {
   connect,
   DEBUGGING_LOCAL,
   handleGRPCErrors,
+  isInModuloRange,
   NULL_NODE
 } = require("./utils.js");
 
@@ -46,6 +47,9 @@ class UserService extends ChordNode {
       insertUserRemoteHelper: this.insertUserRemoteHelper.bind(this),
       lookup: this.lookup.bind(this),
       lookupUserRemoteHelper: this.lookupUserRemoteHelper.bind(this),
+      migrateUsersToNewPredecessor: this.migrateUsersToNewPredecessor.bind(
+        this
+      ),
       findSuccessorRemoteHelper: this.findSuccessorRemoteHelper.bind(this),
       getSuccessorRemoteHelper: this.getSuccessorRemoteHelper.bind(this),
       getPredecessor: this.getPredecessor.bind(this),
@@ -280,6 +284,63 @@ class UserService extends ChordNode {
         callback(err, null);
       }
     }
+  }
+
+  async migrateKeysAfterJoin() {
+    if (this.iAmMyOwnSuccessor()) return;
+
+    const successorClient = connect(this.fingerTable[0].successor);
+    try {
+      await successorClient.migrateUsersToNewPredecessor();
+    } catch (error) {
+      handleGRPCErrors(
+        "migrateKeysAfterJoin",
+        "migrateUsersToNewPredecessor",
+        this.predecessor.host,
+        this.predecessor.port,
+        error
+      );
+    }
+  }
+
+  migrateUsersToNewPredecessor(message, callback) {
+    if (this.objectIsEmpty(this.userMap)) {
+      callback(null, {});
+      return;
+    }
+
+    const usersToMigrate = Object.keys(this.userMap).filter(userId =>
+      isInModuloRange(userId, this.id, false, this.predecessor.id, true)
+    );
+
+    const predecessorClient = connect(this.predecessor);
+    usersToMigrate.forEach(userId => {
+      try {
+        predecessorClient.insertUserRemoteHelper({
+          user: this.userMap[userId],
+          edit: false
+        });
+        this.removeUser(userId);
+      } catch (error) {
+        handleGRPCErrors(
+          "migrateUsersToNewPredecessor",
+          "insertUserRemoteHelper",
+          this.predecessor.host,
+          this.predecessor.port,
+          error
+        );
+      }
+    });
+    callback(null, {});
+  }
+
+  // I tried to move this logic to utis.js but got an error
+  // Cannot destructure property `variables` of 'undefined' or 'null'
+  objectIsEmpty(object) {
+    return (
+      Object.entries(this.userMap).length === 0 &&
+      this.userMap.constructor === Object
+    );
   }
 }
 
