@@ -23,15 +23,8 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 
 class UserService extends ChordNode {
-  constructor({
-    id,
-    host = os.hostname(),
-    port = 1337,
-    knownId,
-    knownHost = host,
-    knownPort = port
-  }) {
-    super({ id, host, port, knownId, knownHost, knownPort });
+  constructor({ id, host = os.hostname(), port = 1337 }) {
+    super({ id, host, port });
     this.userMap = {};
   }
 

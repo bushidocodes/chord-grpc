@@ -11,7 +11,7 @@ const {
 } = require("./utils.js");
 
 class ChordNode {
-  constructor({ id, host, port, knownId, knownHost, knownPort }) {
+  constructor({ id, host, port }) {
     if (!host || !port) {
       console.error(
         "ChordNode constructor did not receive host or port as expected"
@@ -21,17 +21,6 @@ class ChordNode {
     this.id = id;
     this.host = host;
     this.port = port;
-    if (!knownHost || !knownPort) {
-      console.log(
-        "ChordNode constructor did not receive knownHost or knownPort as expected, so setting to host and port"
-      );
-      this.knownHost = host;
-      this.knownPort = port;
-    } else {
-      this.knownHost = knownHost;
-      this.knownPort = knownPort;
-    }
-    this.knownId = knownId;
 
     this.fingerTable = [
       {
@@ -40,7 +29,7 @@ class ChordNode {
       }
     ];
     this.successorTable = [NULL_NODE];
-    //this.predecessor = { id: null, host: null, port: null };
+    //TBD 20191127this.predecessor = { id: null, host: null, port: null };
     this.predecessor = NULL_NODE;
   }
 
@@ -400,12 +389,12 @@ class ChordNode {
     let knownNodeId = null;
     let possibleCollidingNode = NULL_NODE;
 
-    // Generate the ID from the host connection strings if not already forced by user
+    // Generate the for this node ID from the host connection strings if not already forced by user
     if (!this.id) {
       this.id = await computeHostPortHash(this.host, this.port);
     }
 
-    // initialize table with reasonable values
+    // initialize finger table with reasonable values
     this.fingerTable.pop();
     for (let i = 0; i < HASH_BIT_LENGTH; i++) {
       this.fingerTable.push({

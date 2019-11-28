@@ -5,7 +5,7 @@ const caller = require("grpc-caller");
 const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
 
 const HASH_BIT_LENGTH = 8;
-const SUCCESSOR_TABLE_MAX_LENGTH = Math.ceil(HASH_BIT_LENGTH / 4);
+const SUCCESSOR_TABLE_MAX_LENGTH = Math.max(Math.ceil(HASH_BIT_LENGTH / 4), 1);
 const NULL_NODE = { id: null, host: null, port: null };
 const DEBUGGING_LOCAL = false;
 
