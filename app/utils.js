@@ -125,7 +125,7 @@ async function computeIntegerHash(stringForHashing) {
 }
 
 async function computeHostPortHash(host, port) {
-  return computeIntegerHash(`${host}:${port}`);
+  return computeIntegerHash(`${host}:${port}`.toLowerCase());
 }
 
 function handleGRPCErrors(scope, call, host, port, err) {

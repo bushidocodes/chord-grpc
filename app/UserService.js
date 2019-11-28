@@ -50,6 +50,7 @@ class UserService extends ChordNode {
       migrateUsersToNewPredecessor: this.migrateUsersToNewPredecessor.bind(
         this
       ),
+      getNodeIdRemoteHelper: this.getNodeIdRemoteHelper.bind(this),
       findSuccessorRemoteHelper: this.findSuccessorRemoteHelper.bind(this),
       getSuccessorRemoteHelper: this.getSuccessorRemoteHelper.bind(this),
       getPredecessor: this.getPredecessor.bind(this),
