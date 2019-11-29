@@ -5,6 +5,7 @@ const caller = require("grpc-caller");
 const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
 
 const HASH_BIT_LENGTH = 8;
+const SUCCESSOR_TABLE_MAX_LENGTH = Math.max(Math.ceil(HASH_BIT_LENGTH / 4), 1);
 const NULL_NODE = { id: null, host: null, port: null };
 const DEBUGGING_LOCAL = false;
 
@@ -125,7 +126,7 @@ async function computeIntegerHash(stringForHashing) {
 }
 
 async function computeHostPortHash(host, port) {
-  return computeIntegerHash(`${host}:${port}`);
+  return computeIntegerHash(`${host}:${port}`.toLowerCase());
 }
 
 function handleGRPCErrors(scope, call, host, port, err) {
@@ -235,5 +236,6 @@ module.exports = {
   sha1,
   DEBUGGING_LOCAL,
   HASH_BIT_LENGTH,
+  SUCCESSOR_TABLE_MAX_LENGTH,
   NULL_NODE
 };
