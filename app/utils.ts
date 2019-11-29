@@ -8,6 +8,10 @@ const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
 export const HASH_BIT_LENGTH = 8;
 export const NULL_NODE = { id: null, host: null, port: null };
 export const DEBUGGING_LOCAL = false;
+export const SUCCESSOR_TABLE_MAX_LENGTH = Math.max(
+  Math.ceil(HASH_BIT_LENGTH / 4),
+  1
+);
 
 /**
  * Accounts for the modulo arithmetic to determine whether the input value is within the bounds.
@@ -124,7 +128,7 @@ export async function computeHostPortHash(
   host: string,
   port: number
 ): Promise<number> {
-  return computeIntegerHash(`${host}:${port}`);
+  return computeIntegerHash(`${host}:${port}`.toLowerCase());
 }
 
 interface GRPCError {

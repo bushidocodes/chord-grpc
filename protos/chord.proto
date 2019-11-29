@@ -21,6 +21,7 @@ service Node {
   rpc migrateUsersToNewPredecessor(google.protobuf.Empty) returns (google.protobuf.Empty){}
   
   // Chord Library Level RPC Calls
+  rpc getNodeIdRemoteHelper (NodeAddress) returns (NodeAddress) {}
   rpc findSuccessorRemoteHelper (RemoteId) returns (NodeAddress) {}
   rpc getSuccessorRemoteHelper (NodeAddress) returns (NodeAddress) {}
   rpc getPredecessor (NodeAddress) returns (NodeAddress) {}

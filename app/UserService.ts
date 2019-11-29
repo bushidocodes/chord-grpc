@@ -43,15 +43,8 @@ interface User {
 export class UserService extends ChordNode {
   userMap: { [key: string]: User };
 
-  constructor({
-    id,
-    host = os.hostname(),
-    port = 1337,
-    knownId,
-    knownHost = host,
-    knownPort = port
-  }) {
-    super({ id, host, port, knownId, knownHost, knownPort });
+  constructor({ id, host = os.hostname(), port = 1337 }) {
+    super({ id, host, port });
     this.userMap = {};
   }
 
@@ -71,6 +64,7 @@ export class UserService extends ChordNode {
       migrateUsersToNewPredecessor: this.migrateUsersToNewPredecessor.bind(
         this
       ),
+      getNodeIdRemoteHelper: this.getNodeIdRemoteHelper.bind(this),
       findSuccessorRemoteHelper: this.findSuccessorRemoteHelper.bind(this),
       getSuccessorRemoteHelper: this.getSuccessorRemoteHelper.bind(this),
       getPredecessor: this.getPredecessor.bind(this),

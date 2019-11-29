@@ -62,6 +62,33 @@ async function main() {
     process.exit(rc);
   }
 
+  // sanitize parameters corresponding to known node
+  // + if no known host or port were provided, it is assumed that they are self's
+  // + such as when starting a new chord; ie, joining itself
+  let knownNodeId = args.knownId ? args.knownId : null;
+  let knownNodeHost = args.knownHost ? args.knownHost : args.host;
+  let knownNodePort = args.knownPort ? args.knownPort : args.port;
+  // protect against bad Known ID inputs
+  if (knownNodeId && knownNodeId > 2 ** HASH_BIT_LENGTH - 1) {
+    console.error(
+      `Error. Bad known ID {${args.knownId}} > [ 2^m-1 --> {${2 **
+        HASH_BIT_LENGTH -
+        1}} ]. Thus, terminating...\n`
+    );
+    return -13;
+  }
+
+  // protect against bad ID inputs
+  if (args.id && args.id > 2 ** HASH_BIT_LENGTH - 1) {
+    console.error(
+      `Error. Bad ID {${args.id}} > 2^m-1 {${2 ** HASH_BIT_LENGTH -
+        1}}. Terminating...\n`
+    );
+    return -13;
+  }
+
+  /*
+  TBD 20191127.hk I believe this is no longer necessary with the new collsion checks in join().
   // bail immediately if knownHost can't be reached
   if (
     args.host &&
@@ -74,34 +101,23 @@ async function main() {
       console.error(
         `${args.knownHost}:${args.knownPort} is not responsive. Exiting`
       );
+      console.error("here");
       process.exit(-9);
     } else {
       console.log(`${args.knownHost}:${args.knownPort} responded`);
     }
   }
-
-  // protect against bad ID inputs
-  if (args.id && args.id > 2 ** HASH_BIT_LENGTH - 1) {
-    console.error(
-      `Error. Bad ID {${args.id}} > 2^m-1 {${2 ** HASH_BIT_LENGTH -
-        1}}. Terminating...\n`
-    );
-    return -13;
-  }
-
-  // protect against bad Known ID inputs
-  if (args.knownId && args.knownId > 2 ** HASH_BIT_LENGTH - 1) {
-    console.error(
-      `Error. Bad known ID {${args.knownId}} > 2^m-1 {${2 ** HASH_BIT_LENGTH -
-        1}}. Thus, terminating...\n`
-    );
-    return -13;
-  }
+  */
 
   try {
     let userServiceNode = new UserService({ ...args });
     await userServiceNode.serve();
-    await userServiceNode.joinCluster();
+    let knownNode = {
+      id: knownNodeId,
+      host: knownNodeHost,
+      port: knownNodePort
+    };
+    await userServiceNode.joinCluster(knownNode);
   } catch (err) {
     console.error(err);
     process.exit();
