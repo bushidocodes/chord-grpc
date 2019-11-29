@@ -1,20 +1,18 @@
-const process = require("process");
-const minimist = require("minimist");
-const { UserService } = require("./UserService");
-const {
+import process from "process";
+import minimist from "minimist";
+import { UserService } from "./UserService";
+
+import {
   connect,
   computeIntegerHash,
   handleGRPCErrors,
   HASH_BIT_LENGTH
-} = require("./utils.js");
+} from "./utils";
 
-async function endpointIsResponsive(host, port) {
-  const client = connect(
-    host,
-    port
-  );
+export async function endpointIsResponsive(host: string, port: number) {
+  const client = connect({ host, port });
   try {
-    const _ = await client.summary(this.id);
+    await client.summary(this.id);
     return true;
   } catch (err) {
     handleGRPCErrors("endpointIsResponsive", "summary", host, port, err);
@@ -24,7 +22,7 @@ async function endpointIsResponsive(host, port) {
 
 async function hashDryRun(sourceValue) {
   try {
-    const integerHash = await computeIntegerHash(sourceValue, HASH_BIT_LENGTH);
+    const integerHash = await computeIntegerHash(sourceValue);
     console.log(`ID {${integerHash}} computed from hash of {${sourceValue}}`);
   } catch (err) {
     console.error(
@@ -53,7 +51,11 @@ let node;
  * --knownPort - The TCP Port of a node in the cluster
  */
 async function main() {
-  const args = minimist(process.argv.slice(2));
+  const args = minimist(process.argv.slice(2), {
+    string: ["host", "knownHost"],
+    // @ts-ignore
+    number: ["port", "knownPort", "id", "knownId", "knownId"]
+  });
 
   if (args.hashOnly) {
     const rc = await hashDryRun(args.hashOnly);
@@ -97,7 +99,7 @@ async function main() {
   }
 
   try {
-    userServiceNode = new UserService({ ...args });
+    let userServiceNode = new UserService({ ...args });
     await userServiceNode.serve();
     await userServiceNode.joinCluster();
   } catch (err) {

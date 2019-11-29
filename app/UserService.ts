@@ -1,28 +1,48 @@
-const os = require("os");
-const path = require("path");
-const grpc = require("grpc");
-const protoLoader = require("@grpc/proto-loader");
+import os from "os";
+import path from "path";
+import grpc from "grpc";
+import { loadSync } from "@grpc/proto-loader";
 
-const { ChordNode } = require("./ChordNode.js");
-const {
+import { ChordNode } from "./ChordNode";
+import {
   connect,
   DEBUGGING_LOCAL,
   handleGRPCErrors,
   isInModuloRange,
   NULL_NODE
-} = require("./utils.js");
+} from "./utils";
 
-const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
-const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
-  keepCase: true,
-  longs: String,
-  enums: String,
-  defaults: true,
-  oneofs: true
-});
+const packageDefinition = loadSync(
+  path.resolve(__dirname, "../protos/chord.proto"),
+  {
+    keepCase: true,
+    longs: String,
+    enums: String,
+    defaults: true,
+    oneofs: true
+  }
+);
 const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 
-class UserService extends ChordNode {
+interface User {
+  id: number;
+  reputation: number;
+  creationDate: string;
+  displayName: string;
+  lastAccessData: string;
+  websiteUrl: string;
+  location: string;
+  aboutMe: string;
+  views: number;
+  upVotes: number;
+  downVotes: number;
+  profileImageUrl: string;
+  accountId: number;
+}
+
+export class UserService extends ChordNode {
+  userMap: { [key: string]: User };
+
   constructor({
     id,
     host = os.hostname(),
@@ -38,6 +58,7 @@ class UserService extends ChordNode {
   // Starts the gRPC Server
   serve() {
     const server = new grpc.Server();
+    // @ts-ignore
     server.addService(chord.Node.service, {
       summary: this.summary.bind(this),
       fetch: this.fetch.bind(this),
@@ -68,19 +89,6 @@ class UserService extends ChordNode {
       grpc.ServerCredentials.createInsecure()
     );
     server.start();
-  }
-
-  // gRPC handler that returns a user locally from this node
-  fetch(message, callback) {
-    const {
-      request: { id }
-    } = message;
-    console.log(`Requested User ${id}`);
-    if (!this.userMap[id]) {
-      callback({ code: 5 }, null); // NOT_FOUND error
-    } else {
-      callback(null, this.userMap[id]);
-    }
   }
 
   // Removes a User from local state
@@ -310,7 +318,13 @@ class UserService extends ChordNode {
     }
 
     const usersToMigrate = Object.keys(this.userMap).filter(userId =>
-      isInModuloRange(userId, this.id, false, this.predecessor.id, true)
+      isInModuloRange(
+        parseInt(userId, 10),
+        this.id,
+        false,
+        this.predecessor.id,
+        true
+      )
     );
 
     const predecessorClient = connect(this.predecessor);
@@ -343,7 +357,3 @@ class UserService extends ChordNode {
     );
   }
 }
-
-module.exports = {
-  UserService
-};

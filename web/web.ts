@@ -1,8 +1,9 @@
-const express = require("express");
-const minimist = require("minimist");
-const os = require("os");
-const path = require("path");
-const caller = require("grpc-caller");
+import express from "express";
+import minimist from "minimist";
+import os from "os";
+import path from "path";
+import caller from "grpc-caller";
+
 const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
 const PUBLIC_PATH = path.resolve(__dirname, "./public");
 
@@ -11,6 +12,13 @@ const CRAWLER_INTERVAL_MS = 3000;
 const DUMMY_REQUEST_OBJECT = { id: 99 };
 
 class ChordCrawler {
+  host: string;
+  port: number;
+  client: any;
+  state: object;
+  walk: Set<any>;
+  canAdvance: boolean;
+
   constructor(host, port, stepInMS) {
     this.host = host;
     this.port = port;
@@ -109,7 +117,7 @@ function main() {
     );
 
     const app = express();
-    const port = args.webPort || DEFAULT_HOST_PORT;
+    const port = args.webPort || 1337;
     app.use(express.static(PUBLIC_PATH));
     app.get("/data", (req, res) => res.json(crawler.state));
     app.listen(port, () =>

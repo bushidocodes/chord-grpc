@@ -1,5 +1,6 @@
-const fs = require("fs");
-const parseString = require("xml2js").parseString;
+import fs from "fs";
+
+import { parseString } from "xml2js";
 
 const COUNT_OF_USERS_IN_TINY_USERS = 100;
 

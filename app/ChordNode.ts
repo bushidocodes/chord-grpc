@@ -1,5 +1,5 @@
-const process = require("process");
-const {
+import process from "process";
+import {
   connect,
   isInModuloRange,
   computeHostPortHash,
@@ -7,9 +7,30 @@ const {
   DEBUGGING_LOCAL,
   HASH_BIT_LENGTH,
   NULL_NODE
-} = require("./utils.js");
+} from "./utils";
 
-class ChordNode {
+interface Node {
+  id: number;
+  host: string;
+  port: number;
+}
+
+interface FingerTableEntry {
+  start: number;
+  successor: Node;
+}
+
+export class ChordNode {
+  id: number;
+  host: string;
+  port: number;
+  knownId: number;
+  knownHost: string;
+  knownPort: number;
+  fingerTable: Array<FingerTableEntry>;
+  successorTable: Array<Node>;
+  predecessor: Node;
+
   constructor({ id, host, port, knownId, knownHost, knownPort }) {
     if (!host || !port) {
       console.error(
@@ -403,7 +424,7 @@ class ChordNode {
     // Exit the process immediately if there is an unexpected hashing collision
     if (
       (this.host !== this.knownHost || this.port !== this.knownPort) &&
-      this.id === this.knownHost
+      this.id === this.knownId
     ) {
       console.log(
         `${this.host}:${this.port} and ${this.knownHost}${this.knownPort} unexpectedly produced the same hash. Exiting!`
@@ -452,7 +473,7 @@ class ChordNode {
     if (DEBUGGING_LOCAL) {
       console.log(">>>>>     joinCluster          ");
       console.log(
-        `The fingerTable[] leaving {${this.id}}.joinCluster(${knownNode.id}) is:\n`,
+        `The fingerTable[] leaving {${this.id}}.joinCluster(${this.knownId}) is:\n`,
         this.fingerTable
       );
       console.log(
@@ -731,7 +752,7 @@ class ChordNode {
     let successorSuccessor = NULL_NODE;
     if (
       this.successorTable.length < HASH_BIT_LENGTH &&
-      this.id !== this.fingerTable[0].successor
+      this.id !== this.fingerTable[0].successor.id
     ) {
       if (DEBUGGING_LOCAL) {
         console.log(
@@ -974,7 +995,7 @@ class ChordNode {
         `fixFingers: Fix {${this.id}}.fingerTable[${randomId}], with start = ${this.fingerTable[randomId].start}.`
       );
       console.log(
-        `fixFingers: fingerTable[${randomId}] =${this.fingerTable[i].successor}`
+        `fixFingers: fingerTable[${randomId}] =${this.fingerTable[randomId].successor}`
       );
     }
   }
@@ -1038,7 +1059,3 @@ class ChordNode {
     throw new Error("Method migrateKeysAfterJoin has not been implemented");
   }
 }
-
-module.exports = {
-  ChordNode
-};

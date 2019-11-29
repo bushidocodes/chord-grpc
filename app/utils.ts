@@ -1,12 +1,13 @@
-const path = require("path");
-const process = require("process");
-const { Worker } = require("worker_threads");
-const caller = require("grpc-caller");
+import path from "path";
+import process from "process";
+import { Worker } from "worker_threads";
+import caller from "grpc-caller";
+
 const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
 
-const HASH_BIT_LENGTH = 8;
-const NULL_NODE = { id: null, host: null, port: null };
-const DEBUGGING_LOCAL = false;
+export const HASH_BIT_LENGTH = 8;
+export const NULL_NODE = { id: null, host: null, port: null };
+export const DEBUGGING_LOCAL = false;
 
 /**
  * Accounts for the modulo arithmetic to determine whether the input value is within the bounds.
@@ -18,20 +19,15 @@ const DEBUGGING_LOCAL = false;
  *      includeUpper == true means ..., upperBound]
  *      includeUpper == false means ..., upperBound)
  *
- * @param {number} inputValue
- * @param {number} lowerBound
- * @param {boolean} includeLower
- * @param {number} upperBound
- * @param {boolean} includeUpper
- * @returns {boolean} true if the input value is in - modulo - bounds; false otherwise
+ * returns true if the input value is in - modulo - bounds; false otherwise
  */
-function isInModuloRange(
-  inputValue,
-  lowerBound,
-  includeLower = true,
-  upperBound,
-  includeUpper = false
-) {
+export function isInModuloRange(
+  inputValue: number,
+  lowerBound: number,
+  includeLower: boolean = true,
+  upperBound: number,
+  includeUpper: boolean = false
+): boolean {
   if (includeLower && includeUpper) {
     if (lowerBound > upperBound) {
       //looping through 0
@@ -66,10 +62,8 @@ function isInModuloRange(
 /**
  * Creates a worker thread to execute crypto and returns a result.
  * To use `const result = await sha1("stuff2");`
- * @param {string} source
- * @returns {Promise} - Resolves to the SHA-1 hash of source
  */
-function sha1(source) {
+export function sha1(source: String): Promise<String> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(path.join(__dirname, "./cryptoThread.js"), {
       workerData: source
@@ -80,13 +74,14 @@ function sha1(source) {
 }
 
 const MAX_BIT_LENGTH = 32;
+
 /** Compute a hash of desired length for the input string.
  * The function uses SHA-1 to compute an intermmediate string output,
  * then truncates to the user-specified size from the high-order bits.
- *
- * @param {string} stringForHashing
  */
-async function computeIntegerHash(stringForHashing) {
+export async function computeIntegerHash(
+  stringForHashing: string
+): Promise<number> {
   // enable debugging output
   const DEBUGGING_LOCAL = false;
 
@@ -112,6 +107,7 @@ async function computeIntegerHash(stringForHashing) {
   );
   if (DEBUGGING_LOCAL) console.log(`Truncated string value is ${hashOutput}.`);
 
+  let integerHash: number;
   // convert from hexadecimal to decimal
   integerHash = parseInt("0x" + hashOutput);
   if (DEBUGGING_LOCAL) console.log(`Integer value is ${integerHash}.`);
@@ -124,11 +120,24 @@ async function computeIntegerHash(stringForHashing) {
   return integerHash;
 }
 
-async function computeHostPortHash(host, port) {
+export async function computeHostPortHash(
+  host: string,
+  port: number
+): Promise<number> {
   return computeIntegerHash(`${host}:${port}`);
 }
 
-function handleGRPCErrors(scope, call, host, port, err) {
+interface GRPCError {
+  code: number;
+}
+
+export function handleGRPCErrors(
+  scope: string,
+  call: string,
+  host: string,
+  port: number,
+  err: GRPCError
+) {
   switch (err.code) {
     case 0:
       console.log(
@@ -222,18 +231,6 @@ function handleGRPCErrors(scope, call, host, port, err) {
   }
 }
 
-function connect({ host, port }) {
+export function connect({ host, port }: { host: string; port: number }) {
   return caller(`${host}:${port}`, PROTO_PATH, "Node");
 }
-
-module.exports = {
-  connect,
-  handleGRPCErrors,
-  isInModuloRange,
-  computeHostPortHash,
-  computeIntegerHash,
-  sha1,
-  DEBUGGING_LOCAL,
-  HASH_BIT_LENGTH,
-  NULL_NODE
-};

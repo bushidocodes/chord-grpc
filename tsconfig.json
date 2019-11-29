@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "module": "commonjs",
+    "removeComments": true,
+    "preserveConstEnums": true,
+    "esModuleInterop": true
+  },
+  "include": ["**/*.js", "**/*.ts", "app/cryptoThread.js"],
+  "exclude": ["node_modules", "**/*.spec.ts"]
+}
