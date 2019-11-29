@@ -2,17 +2,17 @@
   "name": "chord-grpc",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "cleanData": "node ./data/cleanData.js",
-    "server": "node ./app/node.js",
-    "debugPrimary": "nodemon --nolazy --inspect-brk=9229 ./app/node.js --port 8440",
-    "debugSecondary": "nodemon --nolazy --inspect-brk=9230 ./app/node.js --port 8441 --knownPort 8440",
-    "client": "node ./client/client.js",
-    "web": "node ./web/web.js",
-    "devServer": "nodemon ./app/node.js",
-    "devWeb": "nodemon ./web/web.js"
+    "cleanData": "ts-node ./data/cleanData.ts",
+    "server": "ts-node ./app/node.ts",
+    "debugPrimary": "nodemon --watch '**/*.ts' --nolazy --inspect-brk=9229 --require ts-node/register ./app/node.ts --port 8440",
+    "debugSecondary": "nodemon --watch '**/*.ts' --require ts-node/register --nolazy --inspect-brk=9230 ./app/node.ts --port 8441 --knownPort 8440",
+    "client": "ts-node ./client/client.ts",
+    "web": "ts-node ./web/web.ts",
+    "devServer": "nodemon --watch '**/*.ts' --exec 'ts-node' ./app/node.ts",
+    "devWeb": "nodemon --watch '**/*.ts' --exec 'ts-node' ./web/web.ts"
   },
   "author": "",
   "license": "ISC",
@@ -32,7 +32,9 @@
   "devDependencies": {
     "husky": "^3.0.9",
     "prettier": "1.18.2",
-    "pretty-quick": "^2.0.0"
+    "pretty-quick": "^2.0.0",
+    "ts-node": "^8.5.4",
+    "typescript": "^3.7.2"
   },
   "husky": {
     "hooks": {
