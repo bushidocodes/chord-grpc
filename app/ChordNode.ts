@@ -410,6 +410,10 @@ export class ChordNode {
     let knownNodeId = null;
     let possibleCollidingNode = NULL_NODE;
 
+    // If host and port are not passed, assume they are identical to the node's host or port
+    if (!knownNode.host) knownNode.host = this.host;
+    if (!knownNode.port) knownNode.port = this.port;
+
     // Generate the for this node ID from the host connection strings if not already forced by user
     if (!this.id) {
       this.id = await computeHostPortHash(this.host, this.port);
