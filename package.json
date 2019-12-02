@@ -11,8 +11,8 @@
     "debugSecondary": "ts-node-dev --nolazy --inspect-brk=9230 --watch '**/*.ts' ./app/node.ts --port 8441 --knownPort 8440",
     "client": "ts-node ./client/client.ts",
     "web": "ts-node ./web/web.ts",
-    "devServer": "nodemon --watch '**/*.ts' --exec 'ts-node' ./app/node.ts",
-    "devWeb": "nodemon --watch '**/*.ts' --exec 'ts-node' ./web/web.ts"
+    "devServer": "ts-node-dev --watch '**/*.ts' ./app/node.ts",
+    "devWeb": "ts-node-dev --watch '**/*.ts' ./web/web.ts"
   },
   "author": "",
   "license": "ISC",
