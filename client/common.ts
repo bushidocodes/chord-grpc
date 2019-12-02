@@ -25,6 +25,16 @@ export class Client {
     }
   }
 
+  async migrateKeys() {
+    console.log("Client testing migrate keys:");
+    try {
+      await this.client.migrateKeysBeforeLeavingRemoteHelper();
+      console.log("Keys migrated successfully!");
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   async lookup({ _, ...rest }) {
     if (!rest.id) {
       console.log("lookup requires an ID");
