@@ -1,8 +1,12 @@
-const caller = require("grpc-caller");
-const path = require("path");
+import caller from "grpc-caller";
+import path from "path";
+
 const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
 
-class Client {
+export class Client {
+  host: string;
+  port: number;
+  client: any;
   constructor(host, port) {
     this.host = host;
     this.port = port;
@@ -105,7 +109,3 @@ class Client {
     });
   }
 }
-
-module.exports = {
-  Client
-};

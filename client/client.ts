@@ -1,13 +1,13 @@
-const minimist = require("minimist");
-const os = require("os");
-const { Client } = require("./common.js");
+import minimist from "minimist";
+import os from "os";
+import { Client } from "./common";
 
 function main() {
   if (process.argv.length >= 3) {
     const args = minimist(process.argv.slice(3));
     const host = args.host || os.hostname();
     const port = args.port || 8440;
-    client = new Client(host, port);
+    let client = new Client(host, port);
 
     const command = process.argv[2];
 

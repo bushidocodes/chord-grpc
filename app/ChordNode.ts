@@ -1,5 +1,5 @@
-const process = require("process");
-const {
+import process from "process";
+import {
   connect,
   isInModuloRange,
   computeHostPortHash,
@@ -8,9 +8,30 @@ const {
   HASH_BIT_LENGTH,
   SUCCESSOR_TABLE_MAX_LENGTH,
   NULL_NODE
-} = require("./utils.js");
+} from "./utils";
 
-class ChordNode {
+interface Node {
+  id: number;
+  host: string;
+  port: number;
+}
+
+interface FingerTableEntry {
+  start: number;
+  successor: Node;
+}
+
+export class ChordNode {
+  id: number;
+  host: string;
+  port: number;
+  knownId: number;
+  knownHost: string;
+  knownPort: number;
+  fingerTable: Array<FingerTableEntry>;
+  successorTable: Array<Node>;
+  predecessor: Node;
+
   constructor({ id, host, port }) {
     if (!host || !port) {
       console.error(
@@ -389,6 +410,10 @@ class ChordNode {
     let knownNodeId = null;
     let possibleCollidingNode = NULL_NODE;
 
+    // If host and port are not passed, assume they are identical to the node's host or port
+    if (!knownNode.host) knownNode.host = this.host;
+    if (!knownNode.port) knownNode.port = this.port;
+
     // Generate the for this node ID from the host connection strings if not already forced by user
     if (!this.id) {
       this.id = await computeHostPortHash(this.host, this.port);
@@ -472,7 +497,7 @@ class ChordNode {
     if (DEBUGGING_LOCAL) {
       console.log(">>>>>     joinCluster          ");
       console.log(
-        `The fingerTable[] leaving {${this.id}}.joinCluster(${knownNode.id}) is:\n`,
+        `The fingerTable[] leaving {${this.id}}.joinCluster(${this.knownId}) is:\n`,
         this.fingerTable
       );
       console.log(
@@ -817,7 +842,7 @@ class ChordNode {
     let successorSuccessor = NULL_NODE;
     if (
       this.successorTable.length < SUCCESSOR_TABLE_MAX_LENGTH &&
-      this.id !== this.fingerTable[0].successor
+      this.id !== this.fingerTable[0].successor.id
     ) {
       if (DEBUGGING_LOCAL) {
         console.log(
@@ -1120,7 +1145,3 @@ class ChordNode {
     throw new Error("Method migrateKeysAfterJoin has not been implemented");
   }
 }
-
-module.exports = {
-  ChordNode
-};

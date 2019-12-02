@@ -2,22 +2,25 @@
   "name": "chord-grpc",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "cleanData": "node ./data/cleanData.js",
-    "server": "node ./app/node.js",
-    "debugPrimary": "nodemon --nolazy --inspect-brk=9229 ./app/node.js --port 8440",
-    "debugSecondary": "nodemon --nolazy --inspect-brk=9230 ./app/node.js --port 8441 --knownPort 8440",
-    "client": "node ./client/client.js",
-    "web": "node ./web/web.js",
-    "devServer": "nodemon ./app/node.js",
-    "devWeb": "nodemon ./web/web.js"
+    "cleanData": "ts-node ./data/cleanData.ts",
+    "server": "ts-node ./app/node.ts",
+    "debugPrimary": "ts-node-dev --nolazy --inspect-brk=9229 --watch '**/*.ts' ./app/node.ts -- --port 8440",
+    "debugSecondary": "ts-node-dev --nolazy --inspect-brk=9230 --watch '**/*.ts' ./app/node.ts --port 8441 --knownPort 8440",
+    "client": "ts-node ./client/client.ts",
+    "web": "ts-node ./web/web.ts",
+    "devServer": "ts-node-dev --watch '**/*.ts' ./app/node.ts",
+    "devWeb": "ts-node-dev --watch '**/*.ts' ./web/web.ts"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@grpc/proto-loader": "^0.5.2",
+    "@types/crypto-js": "^3.1.43",
+    "@types/express": "^4.17.2",
+    "@types/minimist": "^1.2.0",
     "async": "^1.5.2",
     "crypto-js": "^3.1.9-1",
     "express": "^4.17.1",
@@ -26,13 +29,15 @@
     "grpc-caller": "^0.13.0",
     "lodash": "^4.6.1",
     "minimist": "^1.2.0",
-    "nodemon": "^1.19.4",
     "xml2js": "^0.4.22"
   },
   "devDependencies": {
     "husky": "^3.0.9",
     "prettier": "1.18.2",
-    "pretty-quick": "^2.0.0"
+    "pretty-quick": "^2.0.0",
+    "ts-node": "^8.4.1",
+    "ts-node-dev": "^1.0.0-pre.44",
+    "typescript": "^3.7.2"
   },
   "husky": {
     "hooks": {
