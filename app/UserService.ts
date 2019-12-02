@@ -323,7 +323,7 @@ export class UserService extends ChordNode {
     }
   }
 
-  migrateUsersToPredecessorOrSuccessor(migrateToPredecessor) {
+  migrateUsersToPredecessorOrSuccessor(migrateToPredecessor: boolean) {
     if (this.objectIsEmpty(this.userMap)) {
       return null;
     }
