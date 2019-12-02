@@ -516,7 +516,7 @@ export class ChordNode {
 
     try {
       if (DEBUGGING_LOCAL) console.log("join: calling migrateKys");
-      await this.migrateKeysAfterJoin();
+      await this.migrateKeysAfterJoining();
     } catch (error) {
       console.error("Migrate keys failed with error:", error);
     }
@@ -1305,7 +1305,11 @@ export class ChordNode {
   /**
    * Placeholder for data migration within the joinCluster() call.
    */
-  async migrateKeysAfterJoin() {
+  async migrateKeysAfterJoining() {
+    throw new Error("Method migrateKeysAfterJoin has not been implemented");
+  }
+
+  async migrateKeysBeforeLeaving() {
     throw new Error("Method migrateKeysAfterJoin has not been implemented");
   }
 
