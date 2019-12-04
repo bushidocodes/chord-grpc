@@ -25,9 +25,6 @@ export class ChordNode {
   id: number;
   host: string;
   port: number;
-  knownId: number;
-  knownHost: string;
-  knownPort: number;
   fingerTable: Array<FingerTableEntry>;
   successorTable: Array<Node>;
   predecessor: Node;
@@ -435,6 +432,7 @@ export class ChordNode {
     ) {
       // this is the first node in a new cluster
       this.predecessor = this.encapsulateSelf();
+      knownNode.id = this.id;
     } else if (await this.confirmExist(knownNode)) {
       // joining an existing chord so
       // + get the known node's ID
@@ -497,7 +495,7 @@ export class ChordNode {
     if (DEBUGGING_LOCAL) {
       console.log(">>>>>     joinCluster          ");
       console.log(
-        `The fingerTable[] leaving {${this.id}}.joinCluster(${this.knownId}) is:\n`,
+        `The fingerTable[] leaving {${this.id}}.joinCluster(${knownNode.id}) is:\n`,
         this.fingerTable
       );
       console.log(
