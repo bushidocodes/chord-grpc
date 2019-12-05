@@ -117,7 +117,7 @@ export class UserService extends ChordNode {
       console.error("remove: findSuccessor failed with ", err);
     }
 
-    if (this.iAmTheSuccessor(successor)) {
+    if (this.iAmTheNode(successor)) {
       if (DEBUGGING_LOCAL) console.log("remove: remove user from local node");
       const err = this.removeUser(userId);
       callback(err, {});
@@ -187,7 +187,7 @@ export class UserService extends ChordNode {
       console.error("insert: findSuccessor failed with ", err);
     }
 
-    if (this.iAmTheSuccessor(successor)) {
+    if (this.iAmTheNode(successor)) {
       if (DEBUGGING_LOCAL) console.log("insert: insert user to local node");
       const err = this.insertUser(userEdit);
       callback(err, {});
@@ -257,7 +257,7 @@ export class UserService extends ChordNode {
       console.error("lookup: findSuccessor failed with ", err);
     }
 
-    if (this.iAmTheSuccessor(successor)) {
+    if (this.iAmTheNode(successor)) {
       if (DEBUGGING_LOCAL) console.log("lookup: lookup user to local node");
       const { err, user } = this.lookupUser(userId);
       if (DEBUGGING_LOCAL)
