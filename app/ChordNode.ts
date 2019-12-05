@@ -292,6 +292,39 @@ export class ChordNode {
   }
 
   /**
+   * RPC to replace the value of the node's successor.
+   *
+   * @param {Node} message contains a node object as "message.request"
+   * @param callback
+   */
+  async setSuccessor(message, callback) {
+    if (1) {
+      //TBD 20191205.hk DEBUGGING_LOCAL
+      console.log("setSuccessor: Self = ", this.encapsulateSelf());
+      console.log(
+        "setSuccessor: original successor = ",
+        this.fingerTable[0].successor.id
+      );
+    }
+    const successorCandidate = message.request;
+    if (
+      successorCandidate.id !== null &&
+      successorCandidate.host !== null &&
+      successorCandidate.port !== null
+    ) {
+      this.fingerTable[0].successor = successorCandidate;
+    }
+    if (1)
+      //TBD 20191205.hk DEBUGGING_LOCAL
+      console.log(
+        "setSuccessor: new successor = ",
+        this.fingerTable[0].successor.id
+      );
+
+    callback(null, {});
+  }
+
+  /**
    * Directly implement the pseudocode's closestPrecedingFinger() method.
    *
    * However, it is able to discern whether to do a local lookup or an RPC.
@@ -383,7 +416,7 @@ export class ChordNode {
   /**
    * RPC to replace the value of the node's predecessor.
    *
-   * @param message is a node object
+   * @param {Node} message contains a node object as "message.request"
    * @param callback
    */
   async setPredecessor(message, callback) {
@@ -1215,9 +1248,35 @@ export class ChordNode {
       await this.migrateKeysBeforeDeparture();
     }
     // notify predecessor
-    // TBD 20191204 - must implement
+    if (successorSeemsOK) {
+      try {
+        const predecessorClient = connect(this.predecessor);
+        await predecessorClient.setSuccessor(successor);
+      } catch (err) {
+        handleGRPCErrors(
+          "setSuccessor",
+          "predecessorClient",
+          this.fingerTable[0].successor.host,
+          this.fingerTable[0].successor.port,
+          err
+        );
+      }
+    }
     // notify successor
-    // TBD 20191204 - must implement
+    if (successorSeemsOK) {
+      try {
+        const successorClient = connect(successor);
+        await successorClient.notify(this.predecessor);
+      } catch (err) {
+        handleGRPCErrors(
+          "notify",
+          "successorClient",
+          successor.host,
+          successor.port,
+          err
+        );
+      }
+    }
     // report what's up and destroy the node by exiting the process
     console.log(
       `Node {${this.id}} at "${this.host}:${this.port}" is exiting the chord.\n`
@@ -1230,27 +1289,6 @@ export class ChordNode {
       );
     }
     process.exit(0);
-  }
-
-  /**
-   * RPC wrapper for destructor() method.
-   *
-   * @param TBD {node:}
-   * @param callback grpc callback function
-   */
-  async destructorRemoteHelper(TBD, callback) {
-    let nodeDeparting = NULL_NODE;
-    try {
-      //nodeDeparting = connect(TBD);
-      //await nodeDeparting.destructor();
-    } catch (err) {
-      console.log(
-        `Node {${nodeDeparting.id}} unable to gracefully depart due to error at destructor.\n`,
-        err
-      );
-      process.exit(-13);
-    }
-    callback(null, TBD);
   }
 
   /**

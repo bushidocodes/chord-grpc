@@ -67,13 +67,15 @@ export class UserService extends ChordNode {
       getNodeIdRemoteHelper: this.getNodeIdRemoteHelper.bind(this),
       findSuccessorRemoteHelper: this.findSuccessorRemoteHelper.bind(this),
       getSuccessorRemoteHelper: this.getSuccessorRemoteHelper.bind(this),
+      setSuccessor: this.setSuccessor.bind(this),
       getPredecessor: this.getPredecessor.bind(this),
       setPredecessor: this.setPredecessor.bind(this),
       closestPrecedingFingerRemoteHelper: this.closestPrecedingFingerRemoteHelper.bind(
         this
       ),
       updateFingerTable: this.updateFingerTable.bind(this),
-      notify: this.notify.bind(this)
+      notify: this.notify.bind(this),
+      destructor: this.destructor.bind(this)
     });
 
     // We assume that binding to 0.0.0.0 indeed makes us accessible at this.host
