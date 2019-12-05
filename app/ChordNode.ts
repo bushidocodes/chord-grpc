@@ -51,8 +51,8 @@ export class ChordNode {
     this.predecessor = NULL_NODE;
   }
 
-  iAmTheSuccessor(successor) {
-    return this.id == successor.id;
+  iAmTheNode(theNode) {
+    return this.id == theNode.id;
   }
 
   iAmMyOwnSuccessor() {
@@ -81,6 +81,7 @@ export class ChordNode {
     console.log("Summary: Predecessor: ", this.predecessor);
     callback(null, this.encapsulateSelf());
   }
+
   /**
    * Directly implement the pseudocode's findSuccessor() method.
    *
@@ -96,7 +97,7 @@ export class ChordNode {
     let nPrimeSuccessor = NULL_NODE;
     if (DEBUGGING_LOCAL)
       console.log(`findSuccessor: node queried {${nodeQueried.id}}.`);
-    if (this.id != undefined && this.id == nodeQueried.id) {
+    if (this.id != undefined && this.iAmTheNode(nodeQueried)) {
       try {
         nPrime = await this.findPredecessor(id);
       } catch (err) {
@@ -208,8 +209,7 @@ export class ChordNode {
       iterationCounter >= 0
     ) {
       // loop should exit if n' and its successor are the same
-      // loop should exit if n' and the prior n' are the same
-      // loop should exit if the iterations are ridiculous
+      // loop should exit if thDe iterations are ridiculous
       // update loop protection
       iterationCounter--;
       try {
@@ -251,7 +251,7 @@ export class ChordNode {
 
     // get n.successor either locally or remotely
     let nSuccessor = NULL_NODE;
-    if (this.id == nodeQueried.id) {
+    if (this.iAmTheNode(nodeQueried)) {
       // use local value
       nSuccessor = this.fingerTable[0].successor;
     } else {
@@ -290,6 +290,7 @@ export class ChordNode {
   async getSuccessorRemoteHelper(_, callback) {
     callback(null, this.fingerTable[0].successor);
   }
+
   /**
    * Directly implement the pseudocode's closestPrecedingFinger() method.
    *
@@ -303,7 +304,7 @@ export class ChordNode {
    */
   async closestPrecedingFinger(id, nodeQueried) {
     let nPreceding = NULL_NODE;
-    if (this.id == nodeQueried.id) {
+    if (this.iAmTheNode(nodeQueried)) {
       // use local value
       for (let i = HASH_BIT_LENGTH - 1; i >= 0; i--) {
         if (
@@ -343,6 +344,7 @@ export class ChordNode {
       return nPreceding;
     }
   }
+
   /**
    * RPC equivalent of the pseudocode's closestPrecedingFinger() method.
    * It is implemented as simply a wrapper for the local closestPrecedingFinger() function.
@@ -366,6 +368,7 @@ export class ChordNode {
     }
     callback(null, nPreceding);
   }
+
   /**
    * RPC to return the node's predecessor.
    *
@@ -376,6 +379,7 @@ export class ChordNode {
   async getPredecessor(_, callback) {
     callback(null, this.predecessor);
   }
+
   /**
    * RPC to replace the value of the node's predecessor.
    *
@@ -455,7 +459,7 @@ export class ChordNode {
       } catch (err) {
         possibleCollidingNode = null;
       }
-      if (this.id == possibleCollidingNode.id) {
+      if (this.iAmTheNode(possibleCollidingNode)) {
         // node collision
         errorString = `Error joining node "${this.host}:${this.port}" with ID {${this.id}} to node "${knownNode.host}:${knownNode.port}" because of a collision with node "${possibleCollidingNode.host}:${possibleCollidingNode.port}" having ID={${possibleCollidingNode.id}}.`;
         if (DEBUGGING_LOCAL) {
@@ -661,6 +665,7 @@ export class ChordNode {
     if (DEBUGGING_LOCAL)
       console.log("initFingerTable: fingerTable[] =\n", this.fingerTable);
   }
+
   /**
    * Directly implement the pseudocode's updateOthers() method.
    */
@@ -708,6 +713,7 @@ export class ChordNode {
       }
     }
   }
+
   /**
    * RPC that directly implements the pseudocode's updateFingerTable() method.
    * @param message - consists of {sNode, fingerIndex} *
@@ -826,8 +832,8 @@ export class ChordNode {
         }
       }
     }
+    // deal with an isolated node
     if (this.successorTable.length < 1) {
-      // this node is isolated
       this.successorTable.push({
         id: this.id,
         host: this.host,
@@ -1041,6 +1047,7 @@ export class ChordNode {
     }
     return predecessorSeemsOK;
   }
+
   /**
    * Directly implements the pseudocode's notify() method.
    * @param message
@@ -1056,6 +1063,7 @@ export class ChordNode {
     }
     callback(null, {});
   }
+
   /**
    * Directly implements the pseudocode's fixFingers() method.
    */
@@ -1082,6 +1090,7 @@ export class ChordNode {
       );
     }
   }
+
   /**
    * Checks to make sure that the predecessor is still responsive
    */
@@ -1105,6 +1114,7 @@ export class ChordNode {
     }
     return true;
   }
+
   /**
    * Checks whether the successor is still responding.
    */
@@ -1129,17 +1139,133 @@ export class ChordNode {
       } catch (err) {
         successorSeemsOK = false;
         console.log(
-          `Error in isOkSuccessor({${this.id}}) call to getSuccessor`,
+          `Error in isOkSuccessor({${this.id}}) call to confirmExist({${this.fingerTable[0].successor.id}})`,
           err
         );
       }
     }
     return successorSeemsOK;
   }
+
+  /**
+   * Remove node from the chord gracefully by migrating keys to the remaining nodes.
+   */
+  async destructor() {
+    let successor = NULL_NODE;
+    let successorSeemsOK = false;
+    // pick successor from successor table
+    for (let i = 0; !successorSeemsOK && i < this.successorTable.length; i++) {
+      if (this.successorTable[i].id == null) {
+        successorSeemsOK = false;
+        successor = NULL_NODE;
+      } else if (this.iAmTheNode(this.successorTable[i])) {
+        successorSeemsOK = false;
+        successor = NULL_NODE;
+      } else {
+        try {
+          successorSeemsOK = await this.confirmExist(this.successorTable[i]);
+        } catch (err) {
+          successorSeemsOK = false;
+          console.log(
+            `Error in destructor({${this.id}}) call to confirmExist({${this.successorTable[i].id}})`,
+            err
+          );
+        }
+        successor = this.successorTable[i];
+      }
+    }
+    // alternatively pick successor from finger table
+    for (let i = 0; !successorSeemsOK && i < this.fingerTable.length; i++) {
+      if (this.fingerTable[i].successor.id == null) {
+        successorSeemsOK = false;
+        successor = NULL_NODE;
+      } else if (this.iAmMyOwnSuccessor()) {
+        successorSeemsOK = false;
+        successor = NULL_NODE;
+      } else {
+        try {
+          successorSeemsOK = await this.confirmExist(
+            this.fingerTable[i].successor
+          );
+        } catch (err) {
+          successorSeemsOK = false;
+          console.log(
+            `Error in destructor({${this.id}}) call to confirmExist({${this.fingerTable[i].successor.id}})`,
+            err
+          );
+        }
+        successor = this.fingerTable[i].successor;
+      }
+    }
+    // as a last resort, pick the predecessor
+    if (!successorSeemsOK && !this.iAmMyOwnPredecessor()) {
+      try {
+        successorSeemsOK = await this.confirmExist(this.predecessor);
+      } catch (err) {
+        successorSeemsOK = false;
+        console.log(
+          `Error in destructor({${this.id}}) call to confirmExist({${this.predecessor}})`,
+          err
+        );
+      }
+      successor = this.predecessor;
+    }
+    // migrate keys
+    if (successorSeemsOK) {
+      await this.migrateKeysBeforeDeparture();
+    }
+    // notify predecessor
+    // TBD 20191204 - must implement
+    // notify successor
+    // TBD 20191204 - must implement
+    // report what's up and destroy the node by exiting the process
+    console.log(
+      `Node {${this.id}} at "${this.host}:${this.port}" is exiting the chord.\n`
+    );
+    if (successorSeemsOK) {
+      console.log(`Its keys are migrating to node {${successor.id}}.\n`);
+    } else {
+      console.log(
+        `Its keys are not migrating because a successor couldn't be contacted.\n`
+      );
+    }
+    process.exit(0);
+  }
+
+  /**
+   * RPC wrapper for destructor() method.
+   *
+   * @param TBD {node:}
+   * @param callback grpc callback function
+   */
+  async destructorRemoteHelper(TBD, callback) {
+    let nodeDeparting = NULL_NODE;
+    try {
+      //nodeDeparting = connect(TBD);
+      //await nodeDeparting.destructor();
+    } catch (err) {
+      console.log(
+        `Node {${nodeDeparting.id}} unable to gracefully depart due to error at destructor.\n`,
+        err
+      );
+      process.exit(-13);
+    }
+    callback(null, TBD);
+  }
+
   /**
    * Placeholder for data migration within the joinCluster() call.
    */
   async migrateKeysAfterJoin() {
     throw new Error("Method migrateKeysAfterJoin has not been implemented");
+  }
+
+  /**
+   * Placeholder for data migration within the destructor() call.
+   */
+  async migrateKeysBeforeDeparture() {
+    throw new Error(
+      "Method migrateKeysBeforeDeparture has not been implemented"
+    );
   }
 }
