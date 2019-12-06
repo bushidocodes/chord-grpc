@@ -67,13 +67,15 @@ export class UserService extends ChordNode {
       getNodeIdRemoteHelper: this.getNodeIdRemoteHelper.bind(this),
       findSuccessorRemoteHelper: this.findSuccessorRemoteHelper.bind(this),
       getSuccessorRemoteHelper: this.getSuccessorRemoteHelper.bind(this),
+      setSuccessor: this.setSuccessor.bind(this),
       getPredecessor: this.getPredecessor.bind(this),
       setPredecessor: this.setPredecessor.bind(this),
       closestPrecedingFingerRemoteHelper: this.closestPrecedingFingerRemoteHelper.bind(
         this
       ),
       updateFingerTable: this.updateFingerTable.bind(this),
-      notify: this.notify.bind(this)
+      notify: this.notify.bind(this),
+      destructor: this.destructor.bind(this)
     });
 
     // We assume that binding to 0.0.0.0 indeed makes us accessible at this.host
@@ -117,7 +119,7 @@ export class UserService extends ChordNode {
       console.error("remove: findSuccessor failed with ", err);
     }
 
-    if (this.iAmTheSuccessor(successor)) {
+    if (this.iAmTheNode(successor)) {
       if (DEBUGGING_LOCAL) console.log("remove: remove user from local node");
       const err = this.removeUser(userId);
       callback(err, {});
@@ -187,7 +189,7 @@ export class UserService extends ChordNode {
       console.error("insert: findSuccessor failed with ", err);
     }
 
-    if (this.iAmTheSuccessor(successor)) {
+    if (this.iAmTheNode(successor)) {
       if (DEBUGGING_LOCAL) console.log("insert: insert user to local node");
       const err = this.insertUser(userEdit);
       callback(err, {});
@@ -257,7 +259,7 @@ export class UserService extends ChordNode {
       console.error("lookup: findSuccessor failed with ", err);
     }
 
-    if (this.iAmTheSuccessor(successor)) {
+    if (this.iAmTheNode(successor)) {
       if (DEBUGGING_LOCAL) console.log("lookup: lookup user to local node");
       const { err, user } = this.lookupUser(userId);
       if (DEBUGGING_LOCAL)

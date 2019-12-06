@@ -8,6 +8,8 @@ import {
   handleGRPCErrors,
   HASH_BIT_LENGTH
 } from "./utils";
+import { userInfo } from "os";
+import { OneofDescriptorProto } from "protobufjs/ext/descriptor";
 
 export async function endpointIsResponsive(host: string, port: number) {
   const client = connect({ host, port });
@@ -87,30 +89,8 @@ async function main() {
     return -13;
   }
 
-  /*
-  TBD 20191127.hk I believe this is no longer necessary with the new collsion checks in join().
-  // bail immediately if knownHost can't be reached
-  if (
-    args.host &&
-    args.port &&
-    args.knownHost &&
-    args.knownPort &&
-    !(args.host == args.knownHost && args.port == args.knownPort)
-  ) {
-    if (!(await endpointIsResponsive(args.knownHost, args.knownPort))) {
-      console.error(
-        `${args.knownHost}:${args.knownPort} is not responsive. Exiting`
-      );
-      console.error("here");
-      process.exit(-9);
-    } else {
-      console.log(`${args.knownHost}:${args.knownPort} responded`);
-    }
-  }
-  */
-
+  let userServiceNode = new UserService({ ...args });
   try {
-    let userServiceNode = new UserService({ ...args });
     await userServiceNode.serve();
     let knownNode = {
       id: knownNodeId,
@@ -122,6 +102,11 @@ async function main() {
     console.error(err);
     process.exit();
   }
+
+  // handle "ctrl + c" as a graceful exit - tested on Linux 20191205
+  process.on("SIGINT", async function() {
+    await userServiceNode.destructor();
+  });
 }
 
 main();
