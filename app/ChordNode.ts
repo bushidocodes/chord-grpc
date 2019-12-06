@@ -1309,7 +1309,7 @@ export class ChordNode {
     throw new Error("Method migrateKeysAfterJoin has not been implemented");
   }
 
-  async migrateKeysBeforeLeaving() {
+  async migrateKeysBeforeDeparture(): Promise<boolean> {
     throw new Error("Method migrateKeysAfterJoin has not been implemented");
   }
 
