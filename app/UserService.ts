@@ -64,9 +64,6 @@ export class UserService extends ChordNode {
       migrateUsersToPredecessorRemoteHelper: this.migrateUsersToPredecessorRemoteHelper.bind(
         this
       ),
-      migrateKeysBeforeLeavingRemoteHelper: this.migrateKeysBeforeLeavingRemoteHelper.bind(
-        this
-      ),
       getNodeIdRemoteHelper: this.getNodeIdRemoteHelper.bind(this),
       findSuccessorRemoteHelper: this.findSuccessorRemoteHelper.bind(this),
       getSuccessorRemoteHelper: this.getSuccessorRemoteHelper.bind(this),
@@ -293,16 +290,21 @@ export class UserService extends ChordNode {
     }
   }
 
-  async migrateKeysBeforeLeavingRemoteHelper(message, callback) {
-    this.migrateKeysBeforeLeaving();
-    callback(null, {});
-  }
-
-  async migrateKeysBeforeLeaving() {
-    if (this.iAmMyOwnSuccessor()) return;
-
+  async migrateKeysBeforeDeparture() {
     const migrateToPredecessor = false;
-    await this.migrateUsersToPredecessorOrSuccessor(migrateToPredecessor);
+    try {
+      await this.migrateUsersToPredecessorOrSuccessor(migrateToPredecessor);
+      return true;
+    } catch (error) {
+      handleGRPCErrors(
+        "migrateKeysAfterJoining",
+        "migrateUsersToNewPredecessor",
+        this.predecessor.host,
+        this.predecessor.port,
+        error
+      );
+      return false;
+    }
   }
 
   async migrateKeysAfterJoining() {
