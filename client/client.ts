@@ -29,9 +29,6 @@ function main() {
       case "summary":
         client.summary();
         break;
-      case "migrateKeys":
-        client.migrateKeys();
-        break;
     }
   }
 }

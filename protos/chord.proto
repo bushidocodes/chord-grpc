@@ -19,7 +19,6 @@ service Node {
   rpc remove(UserRequest) returns (google.protobuf.Empty){}
   rpc removeUserRemoteHelper(UserRequest) returns (google.protobuf.Empty){}
   rpc migrateUsersToPredecessorRemoteHelper(google.protobuf.Empty) returns (google.protobuf.Empty){}
-  rpc migrateKeysBeforeLeavingRemoteHelper(google.protobuf.Empty) returns (google.protobuf.Empty){}
   
   // Chord Library Level RPC Calls
   rpc getNodeIdRemoteHelper (NodeAddress) returns (NodeAddress) {}
