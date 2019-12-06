@@ -24,6 +24,7 @@ service Node {
   rpc getNodeIdRemoteHelper (NodeAddress) returns (NodeAddress) {}
   rpc findSuccessorRemoteHelper (RemoteId) returns (NodeAddress) {}
   rpc getSuccessorRemoteHelper (NodeAddress) returns (NodeAddress) {}
+  rpc setSuccessor (NodeAddress) returns (google.protobuf.Empty) {}
   rpc getPredecessor (NodeAddress) returns (NodeAddress) {}
   rpc setPredecessor (NodeAddress) returns (google.protobuf.Empty) {}
   rpc closestPrecedingFingerRemoteHelper (RemoteId) returns (NodeAddress) {}

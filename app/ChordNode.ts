@@ -298,8 +298,7 @@ export class ChordNode {
    * @param callback
    */
   async setSuccessor(message, callback) {
-    if (1) {
-      //TBD 20191205.hk DEBUGGING_LOCAL
+    if (DEBUGGING_LOCAL) {
       console.log("setSuccessor: Self = ", this.encapsulateSelf());
       console.log(
         "setSuccessor: original successor = ",
@@ -314,8 +313,7 @@ export class ChordNode {
     ) {
       this.fingerTable[0].successor = successorCandidate;
     }
-    if (1)
-      //TBD 20191205.hk DEBUGGING_LOCAL
+    if (DEBUGGING_LOCAL)
       console.log(
         "setSuccessor: new successor = ",
         this.fingerTable[0].successor.id
@@ -428,13 +426,14 @@ export class ChordNode {
       );
     }
 
-    this.predecessor = message.request; //message.request is node
+    this.predecessor = message.request;
 
-    if (DEBUGGING_LOCAL)
+    if (DEBUGGING_LOCAL) {
       console.log(
         "setPredecessor: Self's new predecessor = ",
         this.predecessor
       );
+    }
 
     callback(null, {});
   }
@@ -1184,6 +1183,7 @@ export class ChordNode {
    * Remove node from the chord gracefully by migrating keys to the remaining nodes.
    */
   async destructor() {
+    let migrationSeemsOK = false;
     let successor = NULL_NODE;
     let successorSeemsOK = false;
     // pick successor from successor table
@@ -1244,8 +1244,14 @@ export class ChordNode {
       successor = this.predecessor;
     }
     // migrate keys
+    let migrationError = null;
     if (successorSeemsOK) {
-      await this.migrateKeysBeforeDeparture();
+      try {
+        migrationSeemsOK = await this.migrateKeysBeforeDeparture();
+      } catch (migrationError) {
+        migrationSeemsOK = false;
+        console.error();
+      }
     }
     // notify predecessor
     if (successorSeemsOK) {
@@ -1266,10 +1272,10 @@ export class ChordNode {
     if (successorSeemsOK) {
       try {
         const successorClient = connect(successor);
-        await successorClient.notify(this.predecessor);
+        await successorClient.setPredecessor(this.predecessor);
       } catch (err) {
         handleGRPCErrors(
-          "notify",
+          "setPredecessor",
           "successorClient",
           successor.host,
           successor.port,
@@ -1279,13 +1285,18 @@ export class ChordNode {
     }
     // report what's up and destroy the node by exiting the process
     console.log(
-      `Node {${this.id}} at "${this.host}:${this.port}" is exiting the chord.\n`
+      `Node {${this.id}} at "${this.host}:${this.port}" is exiting the chord.`
     );
-    if (successorSeemsOK) {
+    if (successorSeemsOK && migrationSeemsOK) {
       console.log(`Its keys are migrating to node {${successor.id}}.\n`);
-    } else {
+    } else if (!successorSeemsOK) {
       console.log(
         `Its keys are not migrating because a successor couldn't be contacted.\n`
+      );
+    } else if (!migrationSeemsOK) {
+      console.log(
+        `Its keys are not migrating because the migration failed with error:\n`,
+        migrationError
       );
     }
     process.exit(0);
@@ -1300,10 +1311,13 @@ export class ChordNode {
 
   /**
    * Placeholder for data migration within the destructor() call.
+   *
+   * @returns {boolean} true if migration was successful.
    */
   async migrateKeysBeforeDeparture() {
     throw new Error(
       "Method migrateKeysBeforeDeparture has not been implemented"
     );
+    return false;
   }
 }
