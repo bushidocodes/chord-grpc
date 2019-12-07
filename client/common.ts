@@ -1,5 +1,6 @@
 import caller from "grpc-caller";
 import path from "path";
+import fs from "fs";
 
 const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
 
@@ -89,6 +90,24 @@ export class Client {
             console.log("User insertion error:", err);
         }
       }
+    }
+  }
+
+  async bulkInsert({ _, ...rest }) {
+    if (!rest.path) {
+      console.log("bulkInsert requires a path to a JSON file");
+      process.exit();
+    }
+    try {
+      const jsonPath = path.resolve(__dirname, "..", rest.path);
+      console.log(jsonPath);
+      fs.readFile(jsonPath, "utf8", (err, rawData) => {
+        const data = JSON.parse(rawData);
+        const users: { [x: string]: any; _: any }[] = Object.values(data);
+        users.forEach(user => this.insert(user));
+      });
+    } catch (err) {
+      console.error(err);
     }
   }
 
