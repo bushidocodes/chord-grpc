@@ -112,12 +112,12 @@ export class UserService extends ChordNode {
     const userId = message.request.id;
     let isPrimaryHash: boolean = true;
 
-    let err = await this.removeWithHash(userId, isPrimaryHash);
-    if (err) callback(err, {});
-
+    const err1 = await this.removeWithHash(userId, isPrimaryHash);
     isPrimaryHash = false;
-    err = await this.removeWithHash(userId, isPrimaryHash);
-    callback(err, {});
+    const err2 = await this.removeWithHash(userId, isPrimaryHash);
+
+    if (err1 && err2) callback(err1, {});
+    else callback(null, {});
   }
 
   async removeWithHash(userId: number, isPrimaryHash: boolean) {
@@ -205,12 +205,13 @@ export class UserService extends ChordNode {
     const userEdit = message.request;
     let isPrimaryHash: boolean = true;
 
-    let err = await this.insertWithHash(userEdit, isPrimaryHash);
-    if (err) callback(err, {});
+    const err1 = await this.insertWithHash(userEdit, isPrimaryHash);
 
     isPrimaryHash = false;
-    err = await this.insertWithHash(userEdit, isPrimaryHash);
-    callback(err, {});
+    const err2 = await this.insertWithHash(userEdit, isPrimaryHash);
+
+    if (err1 && err2) callback(err1, {});
+    else callback(null, {});
   }
 
   async insertWithHash(userEdit: any, isPrimaryHash: boolean) {
