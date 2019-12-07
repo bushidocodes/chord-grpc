@@ -1,6 +1,7 @@
 import process from "process";
 import minimist from "minimist";
 import { UserService } from "./UserService";
+import readline from "readline";
 
 import {
   connect,
@@ -104,17 +105,35 @@ async function main() {
     process.exit();
   }
 
+  if (process.platform === "win32") {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+    rl.on("SIGINT", () => {
+      console.log("INT!");
+      process.emit("SIGINT" as any);
+    });
+    rl.on("SIGTERM", () => {
+      console.log("TERM!");
+      process.emit("SIGTERM" as any);
+    });
+    process.on("SIGTERM", () => process.kill(process.pid, "SIGINT"));
+  }
+
   // handle "ctrl + c" as a graceful exit - tested on Linux 20191205
   process.on("SIGINT", async function() {
     console.log("I pressed ctrl c");
     await userServiceNode.destructor();
     console.log("Out of destructor");
+    process.exit();
   });
 
   process.on("SIGTERM", async function() {
     console.log("I pressed ctrl c");
     await userServiceNode.destructor();
     console.log("Out of destructor");
+    process.exit();
   });
 }
 
