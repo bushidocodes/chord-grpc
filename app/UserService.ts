@@ -111,10 +111,23 @@ export class UserService extends ChordNode {
   async remove(message, callback) {
     const userId = message.request.id;
     let successor = NULL_NODE;
+    let lookupKey: number = null;
+    let errorString: string = null;
     console.log("remove: Attempting to remove user ", userId);
 
+    //compute primary user ID from hash
+    if (userId && userId !== null) {
+      lookupKey = await this.computeUserIdHashPrimary(userId);
+    } else {
+      errorString = `insert: error computing hash of ${userId}.`;
+      if (DEBUGGING_LOCAL) {
+        console.log(errorString);
+      }
+      throw new RangeError(errorString);
+    }
+
     try {
-      successor = await this.findSuccessor(userId, this.encapsulateSelf());
+      successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
     } catch (err) {
       successor = NULL_NODE;
       console.error("remove: findSuccessor failed with ", err);
