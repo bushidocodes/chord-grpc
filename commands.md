@@ -1,7 +1,7 @@
 # Manual without Docker
 
-npm run devServer -- --host localhost --port 8440 --knownHost localhost --knownPort 8440
-npm run devWeb -- --host localhost --port 8440 --webPort 1337
+npm run devServer -- --port 8440
+npm run devWeb -- --port 8440 --webPort 1337
 
 npm run devServer -- --port 8441 --knownPort 8440
 npm run devServer -- --port 8444 --knownPort 8440
@@ -41,3 +41,4 @@ google-chrome -incognito --password-store=basic --new-window http://localhost:13
 
 When complete, cleanup with
 docker-compose down
+s

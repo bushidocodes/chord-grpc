@@ -516,7 +516,7 @@ export class ChordNode {
 
     try {
       if (DEBUGGING_LOCAL) console.log("join: calling migrateKys");
-      await this.migrateKeysAfterJoin();
+      await this.migrateKeysAfterJoining();
     } catch (error) {
       console.error("Migrate keys failed with error:", error);
     }
@@ -1183,6 +1183,7 @@ export class ChordNode {
    * Remove node from the chord gracefully by migrating keys to the remaining nodes.
    */
   async destructor() {
+    console.log("In destructor");
     let migrationSeemsOK = false;
     let successor = NULL_NODE;
     let successorSeemsOK = false;
@@ -1196,7 +1197,9 @@ export class ChordNode {
         successor = NULL_NODE;
       } else {
         try {
+          console.log("Trying confirmExists");
           successorSeemsOK = await this.confirmExist(this.successorTable[i]);
+          console.log("Finished confirmExists");
         } catch (err) {
           successorSeemsOK = false;
           console.log(
@@ -1207,6 +1210,7 @@ export class ChordNode {
         successor = this.successorTable[i];
       }
     }
+    console.log("successorSeemsOK", successorSeemsOK);
     // alternatively pick successor from finger table
     for (let i = 0; !successorSeemsOK && i < this.fingerTable.length; i++) {
       if (this.fingerTable[i].successor.id == null) {
@@ -1247,6 +1251,7 @@ export class ChordNode {
     let migrationError = null;
     if (successorSeemsOK) {
       try {
+        console.log("Attempting to migrate");
         migrationSeemsOK = await this.migrateKeysBeforeDeparture();
       } catch (migrationError) {
         migrationSeemsOK = false;
@@ -1305,19 +1310,11 @@ export class ChordNode {
   /**
    * Placeholder for data migration within the joinCluster() call.
    */
-  async migrateKeysAfterJoin() {
+  async migrateKeysAfterJoining() {
     throw new Error("Method migrateKeysAfterJoin has not been implemented");
   }
 
-  /**
-   * Placeholder for data migration within the destructor() call.
-   *
-   * @returns {boolean} true if migration was successful.
-   */
-  async migrateKeysBeforeDeparture() {
-    throw new Error(
-      "Method migrateKeysBeforeDeparture has not been implemented"
-    );
-    return false;
+  async migrateKeysBeforeDeparture(): Promise<boolean> {
+    throw new Error("Method migrateKeysAfterJoin has not been implemented");
   }
 }

@@ -61,7 +61,7 @@ export class UserService extends ChordNode {
       insertUserRemoteHelper: this.insertUserRemoteHelper.bind(this),
       lookup: this.lookup.bind(this),
       lookupUserRemoteHelper: this.lookupUserRemoteHelper.bind(this),
-      migrateUsersToNewPredecessor: this.migrateUsersToNewPredecessor.bind(
+      migrateUsersToPredecessorRemoteHelper: this.migrateUsersToPredecessorRemoteHelper.bind(
         this
       ),
       getNodeIdRemoteHelper: this.getNodeIdRemoteHelper.bind(this),
@@ -290,15 +290,33 @@ export class UserService extends ChordNode {
     }
   }
 
-  async migrateKeysAfterJoin() {
+  async migrateKeysBeforeDeparture() {
+    const migrateToPredecessor = false;
+    try {
+      await this.migrateUsersToPredecessorOrSuccessor(migrateToPredecessor);
+      return true;
+    } catch (error) {
+      handleGRPCErrors(
+        "migrateKeysAfterJoining",
+        "migrateUsersToNewPredecessor",
+        this.predecessor.host,
+        this.predecessor.port,
+        error
+      );
+      return false;
+    }
+  }
+
+  async migrateKeysAfterJoining() {
     if (this.iAmMyOwnSuccessor()) return;
 
     const successorClient = connect(this.fingerTable[0].successor);
     try {
-      await successorClient.migrateUsersToNewPredecessor();
+      const migrateToPredecessor = true;
+      await successorClient.migrateUsersToPredecessorRemoteHelper();
     } catch (error) {
       handleGRPCErrors(
-        "migrateKeysAfterJoin",
+        "migrateKeysAfterJoining",
         "migrateUsersToNewPredecessor",
         this.predecessor.host,
         this.predecessor.port,
@@ -307,33 +325,39 @@ export class UserService extends ChordNode {
     }
   }
 
-  migrateUsersToNewPredecessor(message, callback) {
+  migrateUsersToPredecessorOrSuccessor(migrateToPredecessor: boolean) {
     if (this.objectIsEmpty(this.userMap)) {
-      callback(null, {});
-      return;
+      return null;
     }
 
-    const usersToMigrate = Object.keys(this.userMap).filter(userId =>
-      isInModuloRange(
-        parseInt(userId, 10),
-        this.id,
-        false,
-        this.predecessor.id,
-        true
-      )
-    );
+    let usersToMigrate;
+    if (migrateToPredecessor) {
+      usersToMigrate = Object.keys(this.userMap).filter(userId =>
+        isInModuloRange(
+          parseInt(userId, 10),
+          this.id,
+          false,
+          this.predecessor.id,
+          true
+        )
+      );
+    } else {
+      usersToMigrate = Object.keys(this.userMap);
+    }
 
-    const predecessorClient = connect(this.predecessor);
+    const client = migrateToPredecessor
+      ? connect(this.predecessor)
+      : connect(this.fingerTable[0].successor);
     usersToMigrate.forEach(userId => {
       try {
-        predecessorClient.insertUserRemoteHelper({
+        client.insertUserRemoteHelper({
           user: this.userMap[userId],
           edit: false
         });
         this.removeUser(userId);
       } catch (error) {
         handleGRPCErrors(
-          "migrateUsersToNewPredecessor",
+          "migrateUsersToPredecessorOSucessor",
           "insertUserRemoteHelper",
           this.predecessor.host,
           this.predecessor.port,
@@ -341,7 +365,15 @@ export class UserService extends ChordNode {
         );
       }
     });
-    callback(null, {});
+    return null;
+  }
+
+  migrateUsersToPredecessorRemoteHelper(message, callback) {
+    const migrateToPredecessor = true;
+    callback(
+      this.migrateUsersToPredecessorOrSuccessor(migrateToPredecessor),
+      {}
+    );
   }
 
   // I tried to move this logic to utis.js but got an error
