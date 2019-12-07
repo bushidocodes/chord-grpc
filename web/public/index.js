@@ -19,10 +19,10 @@ async function loadData() {
   const response = await fetch("./data");
   const myJson = await response.json();
 
-  const nodes = Object.values(myJson).map(({ id, host, port }) => ({
+  const nodes = Object.values(myJson).map(({ id, host, port, ...rest }) => ({
     id: `${host}:${port}`,
     label: `${id} on ${host}:${port}`,
-    data: { id, host, port }
+    data: { id, host, port, ...rest }
   }));
   document.getElementById("nodeCount").innerText = `${nodes.length}`;
 
@@ -90,8 +90,21 @@ async function loadData() {
         var data = nodeSet.get(params.nodes[0]).data; // get the data from selected node
         const entries = Object.entries(data);
         let domString = "";
-        entries.forEach(([key, value]) => {
-          domString = domString.concat(`${key}: ${value}<br>`);
+        entries
+          .filter(([k, v]) => typeof v != "object")
+          .forEach(([key, value]) => {
+            domString = domString.concat(`${key}: ${value}<br>`);
+          });
+        domString = domString.concat(`<br>Successor: <br>`);
+        domString = domString.concat(
+          `${data.successor.id} @ ${data.successor.host}:${data.successor.port}<br>`
+        );
+
+        domString = domString.concat(`<br>Finger Table: <br>`);
+        Object.entries(data.fingerTable).forEach(([k, v]) => {
+          domString = domString.concat(
+            `${k} => ${v.id} @ ${v.host}:${v.port}<br>`
+          );
         });
         nodeContent.innerHTML = domString;
       }

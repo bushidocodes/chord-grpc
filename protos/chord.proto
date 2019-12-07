@@ -27,6 +27,7 @@ service Node {
   rpc setSuccessor (NodeAddress) returns (google.protobuf.Empty) {}
   rpc getPredecessor (NodeAddress) returns (NodeAddress) {}
   rpc setPredecessor (NodeAddress) returns (google.protobuf.Empty) {}
+  rpc getFingerTableEntries (NodeAddress) returns (stream FingerTableEntry) {}
   rpc closestPrecedingFingerRemoteHelper (RemoteId) returns (NodeAddress) {}
   rpc notify (NodeAddress) returns (google.protobuf.Empty) {}
   rpc updateFingerTable (FingerTableEntry) returns (NodeAddress) {}
