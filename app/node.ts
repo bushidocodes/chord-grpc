@@ -53,6 +53,7 @@ let node;
  * --knownPort - The TCP Port of a node in the cluster
  */
 async function main() {
+  console.log("This process is your pid " + process.pid);
   const args = minimist(process.argv.slice(2), {
     string: ["host", "knownHost"],
     // @ts-ignore
@@ -105,7 +106,15 @@ async function main() {
 
   // handle "ctrl + c" as a graceful exit - tested on Linux 20191205
   process.on("SIGINT", async function() {
+    console.log("I pressed ctrl c");
     await userServiceNode.destructor();
+    console.log("Out of destructor");
+  });
+
+  process.on("SIGTERM", async function() {
+    console.log("I pressed ctrl c");
+    await userServiceNode.destructor();
+    console.log("Out of destructor");
   });
 }
 
