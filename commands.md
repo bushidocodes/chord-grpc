@@ -18,6 +18,12 @@ npm run client -- lookup --port 8440 --id 5
 npm run client -- remove --port 8440 --id 2
 npm run client -- remove --port 8440 --id 5
 
+To insert a subset of StackOverflow Users
+npm run client -- bulkInsert --path ./data/tinyUsers.json
+
+To insert all StackOverflow users
+npm run client -- bulkInsert --path ./data/users.json
+
 # Manual with Docker
 
 I can't get the containers to communicate with each other. No idea about what IP or host name should be used

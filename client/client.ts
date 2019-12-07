@@ -18,6 +18,9 @@ function main() {
       case "remove":
         client.remove(args);
         break;
+      case "bulkInsert":
+        client.bulkInsert(args);
+        break;
       case "insert":
         args["edit"] = false;
         client.insert(args);
