@@ -9,7 +9,8 @@ import {
   DEBUGGING_LOCAL,
   handleGRPCErrors,
   isInModuloRange,
-  NULL_NODE
+  NULL_NODE,
+  computeIntegerHash
 } from "./utils";
 
 const packageDefinition = loadSync(
@@ -177,8 +178,20 @@ export class UserService extends ChordNode {
   async insert(message, callback) {
     const userEdit = message.request;
     const user = userEdit.user;
-    const lookupKey = user.id;
+    let lookupKey: number = null;
     let successor = NULL_NODE;
+    let errorString: string = null;
+
+    //compute primary user ID from hash
+    if (user.id && user.id !== null) {
+      lookupKey = await this.computeUserIdHashPrimary(user.id);
+    } else {
+      errorString = `insert: error computing hash of ${user.id}.`;
+      if (DEBUGGING_LOCAL) {
+        console.log(errorString);
+      }
+      throw new RangeError(errorString);
+    }
 
     console.log(`insert: Attempting to insert user`, user.id);
     if (DEBUGGING_LOCAL) console.log(user);
@@ -246,11 +259,24 @@ export class UserService extends ChordNode {
       console.log("finishing lookupUserRemoteHelper: ", user);
     callback(err, user);
   }
+
   async lookup(message, callback) {
     const userId = message.request.id;
     console.log(`lookup: Looking up user ${userId}`);
-    const lookupKey = userId;
+    let lookupKey: number = null;
+    let errorString: string = null;
     let successor = NULL_NODE;
+
+    //compute primary user ID from hash
+    if (userId && userId !== null) {
+      lookupKey = await this.computeUserIdHashPrimary(userId);
+    } else {
+      errorString = `insert: error computing hash of ${userId}.`;
+      if (DEBUGGING_LOCAL) {
+        console.log(errorString);
+      }
+      throw new RangeError(errorString);
+    }
 
     try {
       successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
@@ -383,5 +409,25 @@ export class UserService extends ChordNode {
       Object.entries(this.userMap).length === 0 &&
       this.userMap.constructor === Object
     );
+  }
+
+  async computeUserIdHashPrimary(userId: number): Promise<number> {
+    const highOrderBits = true;
+    let userIdString: string = userId.toString().toLowerCase();
+    let hashedUserId: number = await computeIntegerHash(
+      userIdString,
+      highOrderBits
+    );
+    return hashedUserId;
+  }
+
+  async computeUserIdHashSecondary(userId: number): Promise<number> {
+    const highOrderBits = false;
+    let userIdString: string = userId.toString().toLowerCase();
+    let hashedUserId: number = await computeIntegerHash(
+      userIdString,
+      highOrderBits
+    );
+    return hashedUserId;
   }
 }
