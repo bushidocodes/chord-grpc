@@ -190,17 +190,27 @@ export class UserService extends ChordNode {
   // Inserts a User regardless of location in cluster
   async insert(message, callback) {
     const userEdit = message.request;
+    let isPrimaryHash: boolean = true;
+
+    let err = await this.insertWithHash(userEdit, isPrimaryHash);
+    if (err) callback(err, {});
+
+    isPrimaryHash = false;
+    err = await this.insertWithHash(userEdit, isPrimaryHash);
+    callback(err, {});
+  }
+
+  async insertWithHash(userEdit: any, isPrimaryHash: boolean) {
     const user = userEdit.user;
     let lookupKey: number = null;
-    let lookupKey2: number = null;
     let successor = NULL_NODE;
-    let successor2 = NULL_NODE;
     let errorString: string = null;
 
     //compute primary user ID from hash
     if (user.id && user.id !== null) {
-      lookupKey = await this.computeUserIdHashPrimary(user.id);
-      lookupKey2 = await this.computeUserIdHashSecondary(user.id);
+      lookupKey = isPrimaryHash
+        ? await this.computeUserIdHashPrimary(user.id)
+        : await this.computeUserIdHashSecondary(user.id);
     } else {
       errorString = `insert: error computing hash of ${user.id}.`;
       if (DEBUGGING_LOCAL) {
@@ -213,24 +223,22 @@ export class UserService extends ChordNode {
     if (DEBUGGING_LOCAL) console.log(user);
     try {
       successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
-      successor2 = await this.findSuccessor(lookupKey2, this.encapsulateSelf());
     } catch (err) {
       successor = NULL_NODE;
-      successor2 = NULL_NODE;
       console.error("insert: findSuccessor failed with ", err);
     }
 
     if (this.iAmTheNode(successor)) {
       if (DEBUGGING_LOCAL) console.log("insert: insert user to local node");
       const err = this.insertUser(userEdit);
-      callback(err, {});
+      return err;
     } else {
       try {
         console.log("insert: insert user to remote node", lookupKey);
         const successorClient = connect(successor);
         await successorClient.insertUserRemoteHelper(userEdit, (err, _) => {
           console.log("insert finishing");
-          callback(err, {});
+          return err;
         });
       } catch (err) {
         handleGRPCErrors(
@@ -240,31 +248,7 @@ export class UserService extends ChordNode {
           successor.port,
           err
         );
-        callback(err, null);
-      }
-    }
-
-    if (this.iAmTheNode(successor2)) {
-      if (DEBUGGING_LOCAL) console.log("insert: insert user to local node");
-      const err = this.insertUser(userEdit);
-      callback(err, {});
-    } else {
-      try {
-        console.log("insert: insert user to remote node", lookupKey2);
-        const successorClient = connect(successor2);
-        await successorClient.insertUserRemoteHelper(userEdit, (err, _) => {
-          console.log("insert finishing");
-          callback(err, {});
-        });
-      } catch (err) {
-        handleGRPCErrors(
-          "insert",
-          "insertUser",
-          successor2.host,
-          successor2.port,
-          err
-        );
-        callback(err, null);
+        return err;
       }
     }
   }
@@ -305,13 +289,26 @@ export class UserService extends ChordNode {
   async lookup(message, callback) {
     const userId = message.request.id;
     console.log(`lookup: Looking up user ${userId}`);
+    let isPrimaryHash: boolean = true;
+
+    let userErrorResponse = await this.lookupWithHash(userId, isPrimaryHash);
+    if (userErrorResponse.err) {
+      isPrimaryHash = false;
+      userErrorResponse = await this.lookupWithHash(userId, isPrimaryHash);
+    }
+    callback(userErrorResponse.err, userErrorResponse.user);
+  }
+
+  async lookupWithHash(userId: number, isPrimaryHash: boolean) {
     let lookupKey: number = null;
     let errorString: string = null;
     let successor = NULL_NODE;
 
     //compute primary user ID from hash
     if (userId && userId !== null) {
-      lookupKey = await this.computeUserIdHashPrimary(userId);
+      lookupKey = isPrimaryHash
+        ? await this.computeUserIdHashPrimary(userId)
+        : await this.computeUserIdHashSecondary(userId);
     } else {
       errorString = `insert: error computing hash of ${userId}.`;
       if (DEBUGGING_LOCAL) {
@@ -327,16 +324,6 @@ export class UserService extends ChordNode {
       console.error("lookup: findSuccessor failed with ", err);
     }
 
-    if (successor == NULL_NODE) {
-      lookupKey = await this.computeUserIdHashSecondary(userId);
-      try {
-        successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
-      } catch (err) {
-        successor = NULL_NODE;
-        console.error("lookup: findSuccessor failed with ", err);
-      }
-    }
-
     if (this.iAmTheNode(successor)) {
       if (DEBUGGING_LOCAL) console.log("lookup: lookup user to local node");
       const { err, user } = this.lookupUser(userId);
@@ -346,7 +333,7 @@ export class UserService extends ChordNode {
           err,
           user
         );
-      callback(err, user);
+      return { err, user };
     } else {
       try {
         console.log("In lookup: lookup user to remote node");
@@ -354,7 +341,7 @@ export class UserService extends ChordNode {
         const user = await successorClient.lookupUserRemoteHelper({
           id: userId
         });
-        callback(null, user);
+        return { err: null, user };
       } catch (err) {
         handleGRPCErrors(
           "lookup",
@@ -363,7 +350,7 @@ export class UserService extends ChordNode {
           successor.port,
           err
         );
-        callback(err, null);
+        return { err, user: null };
       }
     }
   }
