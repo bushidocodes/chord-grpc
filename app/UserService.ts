@@ -192,12 +192,15 @@ export class UserService extends ChordNode {
     const userEdit = message.request;
     const user = userEdit.user;
     let lookupKey: number = null;
+    let lookupKey2: number = null;
     let successor = NULL_NODE;
+    let successor2 = NULL_NODE;
     let errorString: string = null;
 
     //compute primary user ID from hash
     if (user.id && user.id !== null) {
       lookupKey = await this.computeUserIdHashPrimary(user.id);
+      lookupKey2 = await this.computeUserIdHashSecondary(user.id);
     } else {
       errorString = `insert: error computing hash of ${user.id}.`;
       if (DEBUGGING_LOCAL) {
@@ -210,8 +213,10 @@ export class UserService extends ChordNode {
     if (DEBUGGING_LOCAL) console.log(user);
     try {
       successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
+      successor2 = await this.findSuccessor(lookupKey2, this.encapsulateSelf());
     } catch (err) {
       successor = NULL_NODE;
+      successor2 = NULL_NODE;
       console.error("insert: findSuccessor failed with ", err);
     }
 
@@ -233,6 +238,30 @@ export class UserService extends ChordNode {
           "insertUser",
           successor.host,
           successor.port,
+          err
+        );
+        callback(err, null);
+      }
+    }
+
+    if (this.iAmTheNode(successor2)) {
+      if (DEBUGGING_LOCAL) console.log("insert: insert user to local node");
+      const err = this.insertUser(userEdit);
+      callback(err, {});
+    } else {
+      try {
+        console.log("insert: insert user to remote node", lookupKey2);
+        const successorClient = connect(successor2);
+        await successorClient.insertUserRemoteHelper(userEdit, (err, _) => {
+          console.log("insert finishing");
+          callback(err, {});
+        });
+      } catch (err) {
+        handleGRPCErrors(
+          "insert",
+          "insertUser",
+          successor2.host,
+          successor2.port,
           err
         );
         callback(err, null);
@@ -296,6 +325,16 @@ export class UserService extends ChordNode {
     } catch (err) {
       successor = NULL_NODE;
       console.error("lookup: findSuccessor failed with ", err);
+    }
+
+    if (successor == NULL_NODE) {
+      lookupKey = await this.computeUserIdHashSecondary(userId);
+      try {
+        successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
+      } catch (err) {
+        successor = NULL_NODE;
+        console.error("lookup: findSuccessor failed with ", err);
+      }
     }
 
     if (this.iAmTheNode(successor)) {
