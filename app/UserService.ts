@@ -110,6 +110,17 @@ export class UserService extends ChordNode {
   // Removes a User regardless of location in cluster
   async remove(message, callback) {
     const userId = message.request.id;
+    let isPrimaryHash: boolean = true;
+
+    let err = await this.removeWithHash(userId, isPrimaryHash);
+    if (err) callback(err, {});
+
+    isPrimaryHash = false;
+    err = await this.removeWithHash(userId, isPrimaryHash);
+    callback(err, {});
+  }
+
+  async removeWithHash(userId: number, isPrimaryHash: boolean) {
     let successor = NULL_NODE;
     let lookupKey: number = null;
     let errorString: string = null;
@@ -117,7 +128,9 @@ export class UserService extends ChordNode {
 
     //compute primary user ID from hash
     if (userId && userId !== null) {
-      lookupKey = await this.computeUserIdHashPrimary(userId);
+      lookupKey = isPrimaryHash
+        ? await this.computeUserIdHashPrimary(userId)
+        : await this.computeUserIdHashSecondary(userId);
     } else {
       errorString = `insert: error computing hash of ${userId}.`;
       if (DEBUGGING_LOCAL) {
@@ -136,7 +149,7 @@ export class UserService extends ChordNode {
     if (this.iAmTheNode(successor)) {
       if (DEBUGGING_LOCAL) console.log("remove: remove user from local node");
       const err = this.removeUser(userId);
-      callback(err, {});
+      return err;
     } else {
       try {
         if (DEBUGGING_LOCAL)
@@ -145,7 +158,7 @@ export class UserService extends ChordNode {
         await successorClient.removeUserRemoteHelper(
           { id: userId },
           (err, _) => {
-            callback(err, {});
+            return err;
           }
         );
       } catch (err) {
@@ -156,7 +169,7 @@ export class UserService extends ChordNode {
           successor.port,
           err
         );
-        callback(err, null);
+        return err;
       }
     }
   }
