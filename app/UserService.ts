@@ -70,6 +70,7 @@ export class UserService extends ChordNode {
       setSuccessor: this.setSuccessor.bind(this),
       getPredecessor: this.getPredecessor.bind(this),
       setPredecessor: this.setPredecessor.bind(this),
+      getFingerTableEntries: this.getFingerTableEntries.bind(this),
       closestPrecedingFingerRemoteHelper: this.closestPrecedingFingerRemoteHelper.bind(
         this
       ),

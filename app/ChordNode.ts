@@ -51,19 +51,19 @@ export class ChordNode {
     this.predecessor = NULL_NODE;
   }
 
-  iAmTheNode(theNode) {
+  iAmTheNode(theNode: Node): boolean {
     return this.id == theNode.id;
   }
 
-  iAmMyOwnSuccessor() {
+  iAmMyOwnSuccessor(): boolean {
     return this.id == this.fingerTable[0].successor.id;
   }
 
-  iAmMyOwnPredecessor() {
+  iAmMyOwnPredecessor(): boolean {
     return this.id == this.predecessor.id;
   }
 
-  encapsulateSelf() {
+  encapsulateSelf(): Node {
     return {
       id: this.id,
       host: this.host,
@@ -409,6 +409,16 @@ export class ChordNode {
    */
   async getPredecessor(_, callback) {
     callback(null, this.predecessor);
+  }
+
+  async getFingerTableEntries(call) {
+    this.fingerTable.forEach(fingerTableEntry => {
+      call.write({
+        index: fingerTableEntry.start,
+        node: fingerTableEntry.successor
+      });
+    });
+    call.end();
   }
 
   /**
