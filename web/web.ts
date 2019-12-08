@@ -52,6 +52,20 @@ class ChordCrawler {
       this.state[connectionStringOfSourceNode].fingerTable = fingerTable;
     }
   }
+
+  clearUserIds(connectionStringOfSourceNode) {
+    if (!this.state[connectionStringOfSourceNode]) {
+      this.state[connectionStringOfSourceNode] = {};
+    }
+    this.state[connectionStringOfSourceNode].userIds = [];
+  }
+
+  addUserId(connectionStringOfSourceNode, userId) {
+    if (this.state[connectionStringOfSourceNode]) {
+      this.state[connectionStringOfSourceNode].userIds.push(userId);
+    }
+  }
+
   updateSuccessor(connectionStringOfSourceNode, successorNode) {
     if (this.state[connectionStringOfSourceNode]) {
       this.state[connectionStringOfSourceNode].successor = successorNode;
@@ -108,6 +122,13 @@ class ChordCrawler {
         thing.on("end", () =>
           this.updateFingerTable(connectionString, fingerTable)
         );
+
+        // Update UserIds
+        const userIdStream = await client.getUserIds(DUMMY_REQUEST_OBJECT);
+        this.clearUserIds(connectionString);
+        userIdStream.on("data", ({ id }) => {
+          this.addUserId(connectionString, id);
+        });
 
         // Update Successor
         this.updateSuccessor(connectionString, successorNode);
