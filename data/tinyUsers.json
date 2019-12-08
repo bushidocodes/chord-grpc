@@ -1305,19 +1305,5 @@
     "upVotes": 2,
     "downVotes": 0,
     "accountId": 1290278
-  },
-  "-1": {
-    "id": -1,
-    "reputation": 1,
-    "creationDate": "2012-03-06T18:06:29.800",
-    "displayName": "Community",
-    "lastAccessDate": "2012-03-06T18:06:29.800",
-    "websiteUrl": "http://meta.stackexchange.com/",
-    "location": "on the server farm",
-    "aboutMe": "<p>Hi, I'm not really a person.</p>\n\n<p>I'm a background process that helps keep this site clean!</p>\n\n<p>I do things like</p>\n\n<ul>\n<li>Randomly poke old unanswered questions every hour so they get some attention</li>\n<li>Own community questions and answers so nobody gets unnecessary reputation from them</li>\n<li>Own downvotes on spam/evil posts that get permanently deleted</li>\n<li>Own suggested edits from anonymous users</li>\n<li><a href=\"http://meta.stackexchange.com/a/92006\">Remove abandoned questions</a></li>\n</ul>\n",
-    "views": 0,
-    "upVotes": 2118,
-    "downVotes": 2742,
-    "accountId": -1
   }
 }
