@@ -84,7 +84,8 @@ const MAX_BIT_LENGTH = 32;
  * then truncates to the user-specified size from the high-order bits.
  */
 export async function computeIntegerHash(
-  stringForHashing: string
+  stringForHashing: string,
+  highOrderBits: boolean = true
 ): Promise<number> {
   // enable debugging output
   const DEBUGGING_LOCAL = false;
@@ -101,14 +102,19 @@ export async function computeIntegerHash(
   let hashOutput = await sha1(stringForHashing);
   if (DEBUGGING_LOCAL)
     console.log(`Full hash of "${stringForHashing}" is ${hashOutput}.`);
-
-  /* JavaScript only does bitwise operations on 32-bit numbers
-     so keep only the top 32 bits of the hashed value.
-  */
-  hashOutput = hashOutput.slice(
-    0,
-    MAX_JS_INT_BIT_LENGTH / BIT_PER_HEX_CHARACTER
-  );
+  // truncate because JavaScript only does bitwise operations on 32-bit numbers
+  if (!highOrderBits) {
+    // keep the low-order bits
+    hashOutput = hashOutput.slice(
+      -MAX_JS_INT_BIT_LENGTH / BIT_PER_HEX_CHARACTER
+    );
+  } else {
+    // keep the high-order bits
+    hashOutput = hashOutput.slice(
+      0,
+      MAX_JS_INT_BIT_LENGTH / BIT_PER_HEX_CHARACTER
+    );
+  }
   if (DEBUGGING_LOCAL) console.log(`Truncated string value is ${hashOutput}.`);
 
   let integerHash: number;
@@ -116,8 +122,14 @@ export async function computeIntegerHash(
   integerHash = parseInt("0x" + hashOutput);
   if (DEBUGGING_LOCAL) console.log(`Integer value is ${integerHash}.`);
 
-  // truncate the hash to the desired number of bits by picking the high-order bits
-  integerHash = integerHash >>> (MAX_BIT_LENGTH - HASH_BIT_LENGTH);
+  // truncate the hash to the desired number of bits
+  if (!highOrderBits) {
+    // by picking the low-order bits
+    integerHash = integerHash & (2 ** HASH_BIT_LENGTH - 1);
+  } else {
+    // by picking the high-order bits
+    integerHash = integerHash >>> (MAX_BIT_LENGTH - HASH_BIT_LENGTH);
+  }
   if (DEBUGGING_LOCAL)
     console.log(`Truncated integer value is ${integerHash}.`);
 
