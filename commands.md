@@ -47,4 +47,3 @@ google-chrome -incognito --password-store=basic --new-window http://localhost:13
 
 When complete, cleanup with
 docker-compose down
-s

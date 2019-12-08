@@ -119,6 +119,16 @@ async function loadData() {
               );
             });
         }
+
+        domString = domString.concat(`<br>Users:`);
+        if (data.fingerTable) {
+          domString = domString.concat(`<ul>`);
+          data.userIds.forEach(userId => {
+            domString = domString.concat(`<li>${userId}</li>`);
+          });
+          domString = domString.concat(`</ul>`);
+        }
+
         nodeContent.innerHTML = domString;
       }
     });

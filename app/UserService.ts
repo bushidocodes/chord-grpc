@@ -71,6 +71,7 @@ export class UserService extends ChordNode {
       setSuccessor: this.setSuccessor.bind(this),
       getPredecessor: this.getPredecessor.bind(this),
       setPredecessor: this.setPredecessor.bind(this),
+      getUserIds: this.getUserIds.bind(this),
       getFingerTableEntries: this.getFingerTableEntries.bind(this),
       closestPrecedingFingerRemoteHelper: this.closestPrecedingFingerRemoteHelper.bind(
         this
@@ -87,6 +88,17 @@ export class UserService extends ChordNode {
       grpc.ServerCredentials.createInsecure()
     );
     server.start();
+  }
+
+  // Streams a List of User IDs stored by the Node
+  getUserIds(call) {
+    const userIds = Object.keys(this.userMap);
+    userIds.forEach(userId => {
+      call.write({
+        id: userId
+      });
+    });
+    call.end();
   }
 
   // Removes a User from local state
