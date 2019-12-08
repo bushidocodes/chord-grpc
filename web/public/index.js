@@ -96,16 +96,29 @@ async function loadData() {
             domString = domString.concat(`${key}: ${value}<br>`);
           });
         domString = domString.concat(`<br>Successor: <br>`);
-        domString = domString.concat(
-          `${data.successor.id} @ ${data.successor.host}:${data.successor.port}<br>`
-        );
+        if (data.successor) {
+          domString = domString.concat(
+            `${data.successor.id} @ ${data.successor.host}:${data.successor.port}<br>`
+          );
+        }
 
         domString = domString.concat(`<br>Finger Table: <br>`);
-        Object.entries(data.fingerTable).forEach(([k, v]) => {
-          domString = domString.concat(
-            `${k} => ${v.id} @ ${v.host}:${v.port}<br>`
-          );
-        });
+        if (data.fingerTable) {
+          Object.entries(data.fingerTable)
+            .filter(([k, v]) => k >= data.id)
+            .forEach(([k, v]) => {
+              domString = domString.concat(
+                `${k} => ${v.id} @ ${v.host}:${v.port}<br>`
+              );
+            });
+          Object.entries(data.fingerTable)
+            .filter(([k, v]) => k < data.id)
+            .forEach(([k, v]) => {
+              domString = domString.concat(
+                `${k} => ${v.id} @ ${v.host}:${v.port}<br>`
+              );
+            });
+        }
         nodeContent.innerHTML = domString;
       }
     });
