@@ -443,7 +443,6 @@ export class UserService extends ChordNode {
       )
       .forEach(hashedKey => {
         try {
-          console.log(this.userMap[hashedKey]);
           client.insertUserRemoteHelper({
             user: this.userMap[hashedKey],
             edit: false
