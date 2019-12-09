@@ -17,12 +17,22 @@ We assume that you have Node.js, Docker, and Docker-Compose installed. You can c
 git clone git@github.com:bushidocodes/chord-grpc.git
 cd chord-grpc
 npm install
-docker-compose up --scale node_secondary=5 --build
+docker-compose up --scale node_secondary=5 -d
 ```
 
 Then open localhost:1337 in a browser
 
-Then run the following commands one at a time in separate tabs:
+Then run the following command in a separate tab to seed the sample StackOverflow data:
+```
+npm run client -- bulkInsert --path ./data/tinyUsers.json
+```
+
+You can then use the Data API as documented in `commands.md`
+
+You can also scale out the Chord cluster and see the data migrate:
+```
+docker-compose up --scale node_secondary=8 -d
+```
 
 ## License
 
