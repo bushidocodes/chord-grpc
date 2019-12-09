@@ -467,9 +467,7 @@ export class UserService extends ChordNode {
 
     const client = connect(this.fingerTable[0].successor);
 
-    // Why do we migrate all keys to the successor?
     Object.keys(this.userMap).forEach(hashedKey => {
-      console.log(this.userMap[hashedKey]);
       try {
         client.insertUserRemoteHelper({
           user: this.userMap[hashedKey],
