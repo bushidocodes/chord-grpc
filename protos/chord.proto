@@ -54,7 +54,13 @@ message UserId {
   uint32 id = 1;
 }
 
+
 message User {
+  message UserMetadata {
+    int32 primaryHash = 1;
+    int32 secondaryHash = 2;
+    bool  isPrimaryHash = 3;
+  }
   int32 id = 1;
   int32 reputation = 2;
   string creationDate = 3;
@@ -68,6 +74,7 @@ message User {
   int32 downVotes = 11;
   string profileImageUrl = 12;
   int32 accountId = 13;
+  UserMetadata metadata = 14;
 }
 
 message UserEdit {
