@@ -27,7 +27,7 @@ service Node {
   rpc remove(UserId) returns (google.protobuf.Empty){}
   rpc removeUserRemoteHelper(UserId) returns (google.protobuf.Empty){}
   rpc migrateUsersToPredecessorRemoteHelper(google.protobuf.Empty) returns (google.protobuf.Empty){}
-  rpc getUserIds (NodeAddress) returns (stream UserId) {}
+  rpc getUserIds (NodeAddress) returns (stream UserIdWithMetadata) {}
 }
 
 message NodeAddress {
@@ -52,6 +52,17 @@ message Trash{
 
 message UserId {
   uint32 id = 1;
+}
+
+message UserIdWithMetadata {
+  message UserMetadata {
+    int32 primaryHash = 1;
+    int32 secondaryHash = 2;
+    bool  isPrimaryHash = 3;
+  }
+  uint32 id = 1;
+  UserMetadata metadata = 14;
+
 }
 
 

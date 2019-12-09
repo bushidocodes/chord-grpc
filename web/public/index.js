@@ -120,13 +120,20 @@ async function loadData() {
             });
         }
 
-        domString = domString.concat(`<br>Users:`);
+        domString = domString.concat(`<br>Users:<br>`);
         if (data.fingerTable) {
-          domString = domString.concat(`<ul>`);
-          data.userIds.forEach(userId => {
-            domString = domString.concat(`<li>${userId}</li>`);
-          });
-          domString = domString.concat(`</ul>`);
+          data.userIds.forEach(
+            ({
+              id,
+              metadata: { primaryHash, secondaryHash, isPrimaryHash }
+            }) => {
+              const key = isPrimaryHash ? primaryHash : secondaryHash;
+              const alternateKey = !isPrimaryHash ? primaryHash : secondaryHash;
+              domString = domString.concat(
+                `${key} - User ${id} (Also ${alternateKey})<br>`
+              );
+            }
+          );
         }
 
         nodeContent.innerHTML = domString;

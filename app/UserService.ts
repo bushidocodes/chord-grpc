@@ -26,6 +26,12 @@ const packageDefinition = loadSync(
 );
 const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 
+interface Metadata {
+  primaryHash: number;
+  secondaryHash: number;
+  isPrimaryHash: boolean;
+}
+
 interface User {
   id: number;
   reputation: number;
@@ -40,6 +46,7 @@ interface User {
   downVotes: number;
   profileImageUrl: string;
   accountId: number;
+  metadata: Metadata;
 }
 
 export class UserService extends ChordNode {
@@ -93,10 +100,11 @@ export class UserService extends ChordNode {
 
   // Streams a List of User IDs stored by the Node
   getUserIds(call) {
-    const userIds = Object.keys(this.userMap);
-    userIds.forEach(userId => {
+    const users = Object.values(this.userMap);
+    users.forEach(user => {
       call.write({
-        id: userId
+        id: user.id,
+        metadata: user.metadata
       });
     });
     call.end();

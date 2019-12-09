@@ -45,4 +45,5 @@ body,
   border-left: none;
   padding: 5px;
   overflow-y: scroll;
+  font-size: 12px;
 }

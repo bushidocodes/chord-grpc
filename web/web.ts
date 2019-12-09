@@ -59,7 +59,7 @@ class ChordCrawler {
       if (!foundDangling) {
         // If we've visited all known nodes, clear the walk and try again
         this.walk.clear();
-        await this.advance();
+        this.shuffleCurrentNode();
       }
     }
   }
@@ -130,8 +130,8 @@ class ChordCrawler {
         // Update UserIds
         const userIdStream = await this.client.getUserIds();
         this.state[connectionString].userIds = [];
-        userIdStream.on("data", ({ id }) => {
-          this.state[connectionString].userIds.push(id);
+        userIdStream.on("data", idWithMetadata => {
+          this.state[connectionString].userIds.push(idWithMetadata);
         });
 
         // Update Successor
