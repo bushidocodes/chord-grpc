@@ -3,6 +3,7 @@ body,
 #grid {
   width: auto;
   height: 100%;
+  margin: 0px;
 }
 
 :focus {
@@ -43,4 +44,6 @@ body,
   border-top: none;
   border-left: none;
   padding: 5px;
+  overflow-y: scroll;
+  font-size: 12px;
 }

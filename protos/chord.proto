@@ -5,21 +5,6 @@ package chord;
 import "google/protobuf/empty.proto";
 
 service Node {
-
-  // Application Level RPC Calls
-  rpc summary(Trash) returns (NodeAddress) {}
-
-  // Once a client knows the node to connect to, it can fetch the data
-  rpc fetch (UserRequest) returns (User) {}
-  // Once a client knows the node to connect to, we can insert the user at that node.
-  rpc insert (UserEdit) returns (google.protobuf.Empty) {}
-  rpc insertUserRemoteHelper (UserEdit) returns (google.protobuf.Empty) {}
-  rpc lookup (UserRequest) returns (User) {}
-  rpc lookupUserRemoteHelper (UserRequest) returns (User) {}
-  rpc remove(UserRequest) returns (google.protobuf.Empty){}
-  rpc removeUserRemoteHelper(UserRequest) returns (google.protobuf.Empty){}
-  rpc migrateUsersToPredecessorRemoteHelper(google.protobuf.Empty) returns (google.protobuf.Empty){}
-  
   // Chord Library Level RPC Calls
   rpc getNodeIdRemoteHelper (NodeAddress) returns (NodeAddress) {}
   rpc findSuccessorRemoteHelper (RemoteId) returns (NodeAddress) {}
@@ -31,10 +16,18 @@ service Node {
   rpc closestPrecedingFingerRemoteHelper (RemoteId) returns (NodeAddress) {}
   rpc notify (NodeAddress) returns (google.protobuf.Empty) {}
   rpc updateFingerTable (FingerTableEntry) returns (NodeAddress) {}
-}
 
-message NodeId {
-  uint32 id = 1;
+  // Application Level RPC Calls
+  rpc summary(Trash) returns (NodeAddress) {}
+  rpc fetch (UserId) returns (User) {}
+  rpc insert (UserEdit) returns (google.protobuf.Empty) {}
+  rpc insertUserRemoteHelper (UserEdit) returns (google.protobuf.Empty) {}
+  rpc lookup (UserId) returns (User) {}
+  rpc lookupUserRemoteHelper (UserId) returns (User) {}
+  rpc remove(UserId) returns (google.protobuf.Empty){}
+  rpc removeUserRemoteHelper(UserId) returns (google.protobuf.Empty){}
+  rpc migrateUsersToPredecessorRemoteHelper(google.protobuf.Empty) returns (google.protobuf.Empty){}
+  rpc getUserIds (NodeAddress) returns (stream UserIdWithMetadata) {}
 }
 
 message NodeAddress {
@@ -57,14 +50,28 @@ message Trash{
   uint32 id = 1;
 }
 
-// The request message containing the user's name.
-message UserRequest {
-  int32 id = 1;
+message UserId {
+  uint32 id = 1;
 }
 
-// A User seems to have a local Id and profile associated with the StackOverflow group. These Ids are tied together via AccountIds
-// For the chord project, I think we can just hash off the Id key, since these are unique.
+message UserIdWithMetadata {
+  message UserMetadata {
+    int32 primaryHash = 1;
+    int32 secondaryHash = 2;
+    bool  isPrimaryHash = 3;
+  }
+  uint32 id = 1;
+  UserMetadata metadata = 14;
+
+}
+
+
 message User {
+  message UserMetadata {
+    int32 primaryHash = 1;
+    int32 secondaryHash = 2;
+    bool  isPrimaryHash = 3;
+  }
   int32 id = 1;
   int32 reputation = 2;
   string creationDate = 3;
@@ -78,14 +85,10 @@ message User {
   int32 downVotes = 11;
   string profileImageUrl = 12;
   int32 accountId = 13;
+  UserMetadata metadata = 14;
 }
 
 message UserEdit {
   User user = 1;
   bool edit = 2; 
 }
-
-
-
-
-

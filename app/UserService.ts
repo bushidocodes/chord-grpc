@@ -2,6 +2,7 @@ import os from "os";
 import path from "path";
 import grpc from "grpc";
 import { loadSync } from "@grpc/proto-loader";
+import { cloneDeep } from "lodash";
 
 import { ChordNode } from "./ChordNode";
 import {
@@ -25,6 +26,12 @@ const packageDefinition = loadSync(
 );
 const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 
+interface Metadata {
+  primaryHash: number;
+  secondaryHash: number;
+  isPrimaryHash: boolean;
+}
+
 interface User {
   id: number;
   reputation: number;
@@ -39,6 +46,7 @@ interface User {
   downVotes: number;
   profileImageUrl: string;
   accountId: number;
+  metadata: Metadata;
 }
 
 export class UserService extends ChordNode {
@@ -71,6 +79,7 @@ export class UserService extends ChordNode {
       setSuccessor: this.setSuccessor.bind(this),
       getPredecessor: this.getPredecessor.bind(this),
       setPredecessor: this.setPredecessor.bind(this),
+      getUserIds: this.getUserIds.bind(this),
       getFingerTableEntries: this.getFingerTableEntries.bind(this),
       closestPrecedingFingerRemoteHelper: this.closestPrecedingFingerRemoteHelper.bind(
         this
@@ -89,10 +98,22 @@ export class UserService extends ChordNode {
     server.start();
   }
 
-  // Removes a User from local state
-  removeUser(id) {
-    if (this.userMap[id]) {
-      delete this.userMap[id];
+  // Streams a List of User IDs stored by the Node
+  getUserIds(call) {
+    const users = Object.values(this.userMap);
+    users.forEach(user => {
+      call.write({
+        id: user.id,
+        metadata: user.metadata
+      });
+    });
+    call.end();
+  }
+
+  // Removes a User from local state matching the hash
+  removeUser(hashedUserId) {
+    if (this.userMap[hashedUserId]) {
+      delete this.userMap[hashedUserId];
       console.log("removeUser: user removed");
       return null;
     } else {
@@ -111,11 +132,8 @@ export class UserService extends ChordNode {
   // Removes a User regardless of location in cluster
   async remove(message, callback) {
     const userId = message.request.id;
-    let isPrimaryHash: boolean = true;
-
-    const err1 = await this.removeWithHash(userId, isPrimaryHash);
-    isPrimaryHash = false;
-    const err2 = await this.removeWithHash(userId, isPrimaryHash);
+    const err1 = await this.removeWithHash(userId, true);
+    const err2 = await this.removeWithHash(userId, false);
 
     if (err1 && err2) callback(err1, {});
     else callback(null, {});
@@ -149,7 +167,7 @@ export class UserService extends ChordNode {
 
     if (this.iAmTheNode(successor)) {
       if (DEBUGGING_LOCAL) console.log("remove: remove user from local node");
-      const err = this.removeUser(userId);
+      const err = this.removeUser(lookupKey);
       return err;
     } else {
       try {
@@ -157,7 +175,7 @@ export class UserService extends ChordNode {
           console.log("remove: remove user from remote node");
         const successorClient = connect(successor);
         await successorClient.removeUserRemoteHelper(
-          { id: userId },
+          { id: lookupKey },
           (err, _) => {
             return err;
           }
@@ -177,18 +195,24 @@ export class UserService extends ChordNode {
 
   // Insert User in local state
   insertUser(userEdit) {
-    if (DEBUGGING_LOCAL) console.log("insertUser: ", userEdit);
-    const user = userEdit.user;
-    const edit = userEdit.edit;
-    if (this.userMap[user.id] && !edit) {
-      console.log(`insertUser: ${user.id} already exits`);
+    // We need to clone deep because objects are copy by reference
+    const clonedUserEdit = cloneDeep(userEdit);
+    const key = clonedUserEdit.user.metadata.isPrimaryHash
+      ? clonedUserEdit.user.metadata.primaryHash
+      : clonedUserEdit.user.metadata.secondaryHash;
+
+    if (DEBUGGING_LOCAL) console.log("insertUser: ", clonedUserEdit);
+    const { user, edit } = clonedUserEdit;
+
+    if (this.userMap[key] && !edit) {
+      console.log(`insertUser: user already exits at hash ${key}`);
       return { code: 6 };
     } else {
-      this.userMap[user.id] = user;
+      this.userMap[key] = user;
       if (edit) {
-        console.log(`insertUser: Edited User ${user.id}`);
+        console.log(`insertUser: Edited User ${user.id} at hash ${key}`);
       } else {
-        console.log(`insertUser: Inserted User ${user.id}`);
+        console.log(`insertUser: Inserted User ${user.id} at hash ${key}`);
       }
       return null;
     }
@@ -203,13 +227,21 @@ export class UserService extends ChordNode {
 
   // Inserts a User regardless of location in cluster
   async insert(message, callback) {
+    // User and isEdit flag
     const userEdit = message.request;
-    let isPrimaryHash: boolean = true;
 
-    const err1 = await this.insertWithHash(userEdit, isPrimaryHash);
+    // Add Metadata
+    userEdit.user.metadata = {};
+    userEdit.user.metadata.primaryHash = await this.computeUserIdHashPrimary(
+      userEdit.user.id
+    );
+    userEdit.user.metadata.secondaryHash = await this.computeUserIdHashSecondary(
+      userEdit.user.id
+    );
 
-    isPrimaryHash = false;
-    const err2 = await this.insertWithHash(userEdit, isPrimaryHash);
+    // Execute Insert or Edit at primary and secondary hash
+    const err1 = await this.insertWithHash(userEdit, true);
+    const err2 = await this.insertWithHash(userEdit, false);
 
     if (err1 && err2) callback(err1, {});
     else callback(null, {});
@@ -217,24 +249,13 @@ export class UserService extends ChordNode {
 
   async insertWithHash(userEdit: any, isPrimaryHash: boolean) {
     const user = userEdit.user;
-    let lookupKey: number = null;
+    userEdit.user.metadata.isPrimaryHash = isPrimaryHash;
+    let lookupKey: number = isPrimaryHash
+      ? userEdit.user.metadata.primaryHash
+      : userEdit.user.metadata.secondaryHash;
     let successor = NULL_NODE;
-    let errorString: string = null;
 
-    //compute primary user ID from hash
-    if (user.id && user.id !== null) {
-      lookupKey = isPrimaryHash
-        ? await this.computeUserIdHashPrimary(user.id)
-        : await this.computeUserIdHashSecondary(user.id);
-    } else {
-      errorString = `insert: error computing hash of ${user.id}.`;
-      if (DEBUGGING_LOCAL) {
-        console.log(errorString);
-      }
-      throw new RangeError(errorString);
-    }
-
-    console.log(`insert: Attempting to insert user`, user.id);
+    console.log(`insert: Attempting to insert user ${user.id} at ${lookupKey}`);
     if (DEBUGGING_LOCAL) console.log(user);
     try {
       successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
@@ -281,13 +302,15 @@ export class UserService extends ChordNode {
     }
   }
 
-  lookupUser(userId) {
-    if (this.userMap[userId]) {
-      const user = this.userMap[userId];
-      if (DEBUGGING_LOCAL) console.log(`User found ${user.id}`);
+  // Look up user by hash
+  lookupUser(hashedUserId) {
+    if (this.userMap[hashedUserId]) {
+      const user = this.userMap[hashedUserId];
+      if (DEBUGGING_LOCAL)
+        console.log(`User ${user.id} found at ${hashedUserId}`);
       return { err: null, user };
     } else {
-      if (DEBUGGING_LOCAL) console.log(`User with user ID ${userId} not found`);
+      if (DEBUGGING_LOCAL) console.log(`User not found at ${hashedUserId}`);
       return { err: { code: 5 }, user: null };
     }
   }
@@ -304,12 +327,12 @@ export class UserService extends ChordNode {
   async lookup(message, callback) {
     const userId = message.request.id;
     console.log(`lookup: Looking up user ${userId}`);
-    let isPrimaryHash: boolean = true;
 
-    let userErrorResponse = await this.lookupWithHash(userId, isPrimaryHash);
+    // Try Primary Hash
+    let userErrorResponse = await this.lookupWithHash(userId, true);
     if (userErrorResponse.err) {
-      isPrimaryHash = false;
-      userErrorResponse = await this.lookupWithHash(userId, isPrimaryHash);
+      // Try Secondary Hash in case of failure
+      userErrorResponse = await this.lookupWithHash(userId, false);
     }
     callback(userErrorResponse.err, userErrorResponse.user);
   }
@@ -341,7 +364,7 @@ export class UserService extends ChordNode {
 
     if (this.iAmTheNode(successor)) {
       if (DEBUGGING_LOCAL) console.log("lookup: lookup user to local node");
-      const { err, user } = this.lookupUser(userId);
+      const { err, user } = this.lookupUser(lookupKey);
       if (DEBUGGING_LOCAL)
         console.log(
           "lookup: finished Server-side lookup, returning: ",
@@ -354,7 +377,7 @@ export class UserService extends ChordNode {
         console.log("In lookup: lookup user to remote node");
         const successorClient = connect(successor);
         const user = await successorClient.lookupUserRemoteHelper({
-          id: userId
+          id: lookupKey
         });
         return { err: null, user };
       } catch (err) {
@@ -371,9 +394,8 @@ export class UserService extends ChordNode {
   }
 
   async migrateKeysBeforeDeparture() {
-    const migrateToPredecessor = false;
     try {
-      await this.migrateUsersToPredecessorOrSuccessor(migrateToPredecessor);
+      await this.migrateUsersToSuccessor();
       return true;
     } catch (error) {
       handleGRPCErrors(
@@ -392,7 +414,6 @@ export class UserService extends ChordNode {
 
     const successorClient = connect(this.fingerTable[0].successor);
     try {
-      const migrateToPredecessor = true;
       await successorClient.migrateUsersToPredecessorRemoteHelper();
     } catch (error) {
       handleGRPCErrors(
@@ -405,39 +426,56 @@ export class UserService extends ChordNode {
     }
   }
 
-  migrateUsersToPredecessorOrSuccessor(migrateToPredecessor: boolean) {
-    if (this.objectIsEmpty(this.userMap)) {
-      return null;
-    }
+  migrateUsersToPredecessor() {
+    if (this.userMapIsEmpty()) return null;
 
-    let usersToMigrate;
-    if (migrateToPredecessor) {
-      usersToMigrate = Object.keys(this.userMap).filter(userId =>
+    const client = connect(this.predecessor);
+
+    Object.keys(this.userMap)
+      .filter(hashedKey =>
         isInModuloRange(
-          parseInt(userId, 10),
+          parseInt(hashedKey, 10),
           this.id,
           false,
           this.predecessor.id,
           true
         )
-      );
-    } else {
-      usersToMigrate = Object.keys(this.userMap);
-    }
+      )
+      .forEach(hashedKey => {
+        try {
+          client.insertUserRemoteHelper({
+            user: this.userMap[hashedKey],
+            edit: false
+          });
+          this.removeUser(hashedKey);
+        } catch (error) {
+          handleGRPCErrors(
+            "migrateUsersToPredecessor",
+            "insertUserRemoteHelper",
+            this.predecessor.host,
+            this.predecessor.port,
+            error
+          );
+        }
+      });
+    return null;
+  }
 
-    const client = migrateToPredecessor
-      ? connect(this.predecessor)
-      : connect(this.fingerTable[0].successor);
-    usersToMigrate.forEach(userId => {
+  migrateUsersToSuccessor() {
+    if (this.userMapIsEmpty()) return null;
+
+    const client = connect(this.fingerTable[0].successor);
+
+    Object.keys(this.userMap).forEach(hashedKey => {
       try {
         client.insertUserRemoteHelper({
-          user: this.userMap[userId],
+          user: this.userMap[hashedKey],
           edit: false
         });
-        this.removeUser(userId);
+        this.removeUser(hashedKey);
       } catch (error) {
         handleGRPCErrors(
-          "migrateUsersToPredecessorOSucessor",
+          "migrateUsersToSuccessor",
           "insertUserRemoteHelper",
           this.predecessor.host,
           this.predecessor.port,
@@ -448,17 +486,12 @@ export class UserService extends ChordNode {
     return null;
   }
 
-  migrateUsersToPredecessorRemoteHelper(message, callback) {
-    const migrateToPredecessor = true;
-    callback(
-      this.migrateUsersToPredecessorOrSuccessor(migrateToPredecessor),
-      {}
-    );
+  migrateUsersToPredecessorRemoteHelper(_, callback) {
+    callback(this.migrateUsersToPredecessor(), {});
   }
 
-  // I tried to move this logic to utis.js but got an error
-  // Cannot destructure property `variables` of 'undefined' or 'null'
-  objectIsEmpty(object) {
+  // Checks if the local this.userMap is an empty object
+  userMapIsEmpty() {
     return (
       Object.entries(this.userMap).length === 0 &&
       this.userMap.constructor === Object

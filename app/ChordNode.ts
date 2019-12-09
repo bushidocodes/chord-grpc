@@ -1047,8 +1047,12 @@ export class ChordNode {
       console.error(`stabilize: updateSuccessorTable failed with `, err);
     }
 
-    console.log(`--\n{${this.id}}.predecessor = ${this.predecessor.id}`);
-    console.log(`{${this.id}}.successor = ${this.fingerTable[0].successor.id}`);
+    if (DEBUGGING_LOCAL) {
+      console.log(`--\n{${this.id}}.predecessor = ${this.predecessor.id}`);
+      console.log(
+        `{${this.id}}.successor = ${this.fingerTable[0].successor.id}`
+      );
+    }
     return true;
   }
 

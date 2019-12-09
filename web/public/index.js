@@ -95,10 +95,10 @@ async function loadData() {
           .forEach(([key, value]) => {
             domString = domString.concat(`${key}: ${value}<br>`);
           });
-        domString = domString.concat(`<br>Successor: <br>`);
-        if (data.successor) {
+        domString = domString.concat(`<br>Predecessor: <br>`);
+        if (data.predecessor) {
           domString = domString.concat(
-            `${data.successor.id} @ ${data.successor.host}:${data.successor.port}<br>`
+            `${data.predecessor.id} @ ${data.predecessor.host}:${data.predecessor.port}<br>`
           );
         }
 
@@ -119,6 +119,23 @@ async function loadData() {
               );
             });
         }
+
+        domString = domString.concat(`<br>Users:<br>`);
+        if (data.fingerTable) {
+          data.userIds.forEach(
+            ({
+              id,
+              metadata: { primaryHash, secondaryHash, isPrimaryHash }
+            }) => {
+              const key = isPrimaryHash ? primaryHash : secondaryHash;
+              const alternateKey = !isPrimaryHash ? primaryHash : secondaryHash;
+              domString = domString.concat(
+                `${key} - User ${id} (Also ${alternateKey})<br>`
+              );
+            }
+          );
+        }
+
         nodeContent.innerHTML = domString;
       }
     });
