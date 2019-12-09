@@ -30,39 +30,37 @@ class ChordCrawler {
       await this.crawl();
     }, stepInMS);
   }
-  pruneUponCycle(connectionString) {
-    // If we touch a node we've already touched, we've walked a complete cycle
-    if (this.walk.has(connectionString)) {
-      // We can now flush dangling nodes not encountered during the walk
+  async advance() {
+    const connectionString = `${this.host}:${this.port}`;
+    this.walk.add(connectionString);
+    this.state[connectionString].successor.host;
+    // If the current node has a successor that we haven't yet crawled, advance to it
+    if (
+      this.state[connectionString] &&
+      this.state[connectionString].successor &&
+      this.state[connectionString].successor.host &&
+      this.state[connectionString].successor.port &&
+      !this.walk.has(
+        `${this.state[connectionString].successor.host}:${this.state[connectionString].successor.port}`
+      )
+    ) {
+      this.host = this.state[connectionString].successor.host;
+      this.port = this.state[connectionString].successor.port;
+    } else {
+      let foundDangling = false;
       for (let storedConnectionString of Object.keys(this.state)) {
         if (!this.walk.has(storedConnectionString)) {
-          delete this.state[storedConnectionString];
+          this.host = this.state[storedConnectionString].host;
+          this.port = this.state[storedConnectionString].port;
+          foundDangling = true;
+          break;
         }
       }
-      // Clear to start a new walk
-      this.walk.clear();
-    } else {
-      // Not yet a cycle, so add node to the walk
-      this.walk.add(connectionString);
-    }
-  }
-
-  updateFingerTable(connectionStringOfSourceNode, fingerTable) {
-    if (this.state[connectionStringOfSourceNode]) {
-      this.state[connectionStringOfSourceNode].fingerTable = fingerTable;
-    }
-  }
-
-  clearUserIds(connectionStringOfSourceNode) {
-    if (!this.state[connectionStringOfSourceNode]) {
-      this.state[connectionStringOfSourceNode] = {};
-    }
-    this.state[connectionStringOfSourceNode].userIds = [];
-  }
-
-  addUserId(connectionStringOfSourceNode, userId) {
-    if (this.state[connectionStringOfSourceNode]) {
-      this.state[connectionStringOfSourceNode].userIds.push(userId);
+      if (!foundDangling) {
+        // If we've visited all known nodes, clear the walk and try again
+        this.walk.clear();
+        await this.advance();
+      }
     }
   }
 
@@ -71,13 +69,7 @@ class ChordCrawler {
       this.state[connectionStringOfSourceNode].successor = successorNode;
     }
   }
-  updateNode(node) {
-    const connectionString = `${node.host}:${node.port}`;
-    this.state[connectionString] = {
-      ...this.state[connectionString],
-      ...node
-    };
-  }
+
   shuffleCurrentNode() {
     // If we have trouble reaching a node, just shuffle to any other node and walk from there
     const otherNodes = Object.values(this.state).filter(
@@ -106,38 +98,56 @@ class ChordCrawler {
       this.canAdvance = false;
       const connectionString = `${this.host}:${this.port}`;
       console.log(`Connecting to ${connectionString}`);
-      const client = caller(connectionString, PROTO_PATH, "Node");
+      this.client = caller(connectionString, PROTO_PATH, "Node");
 
       try {
-        const successorNode = await client.getSuccessorRemoteHelper(
-          DUMMY_REQUEST_OBJECT
-        );
-        this.pruneUponCycle(connectionString);
+        // Request ID to see if the node is even responsive
+        const { id } = await this.client.getNodeIdRemoteHelper();
+
+        // If it is, plumb out the object in state if anything is missing
+        if (!this.state[connectionString]) {
+          this.state[connectionString] = {};
+          this.state[connectionString].host = this.host;
+          this.state[connectionString].port = this.port;
+        }
+        if (!this.state[connectionString].fingerTable) {
+          this.state[connectionString].fingerTable = {};
+        }
+        if (!this.state[connectionString].userIds) {
+          this.state[connectionString].userIds = [];
+        }
+        if (!this.state[connectionString].id) {
+          this.state[connectionString].id = id;
+        }
+
         // Update Fingers
-        let fingerTable = {};
-        const thing = await client.getFingerTableEntries(DUMMY_REQUEST_OBJECT);
-        thing.on("data", function({ index, node }) {
-          fingerTable[index] = node;
+        const fingerTableStream = await this.client.getFingerTableEntries();
+        this.state[connectionString].fingerTable = {};
+        fingerTableStream.on("data", ({ index, node }) => {
+          this.state[connectionString].fingerTable[index] = node;
         });
-        thing.on("end", () =>
-          this.updateFingerTable(connectionString, fingerTable)
-        );
 
         // Update UserIds
-        const userIdStream = await client.getUserIds(DUMMY_REQUEST_OBJECT);
-        this.clearUserIds(connectionString);
+        const userIdStream = await this.client.getUserIds();
+        this.state[connectionString].userIds = [];
         userIdStream.on("data", ({ id }) => {
-          this.addUserId(connectionString, id);
+          this.state[connectionString].userIds.push(id);
         });
 
         // Update Successor
-        this.updateSuccessor(connectionString, successorNode);
-        this.updateNode(successorNode);
-        this.host = successorNode.host;
-        this.port = successorNode.port;
+        const successorNode = await this.client.getSuccessorRemoteHelper();
+        this.state[connectionString].successor = successorNode;
+
+        // Advance to the successor or a known node in a partition
+        this.advance();
       } catch (err) {
-        console.error("Error is : ", err);
-        this.shuffleCurrentNode();
+        if (err.code == 14) {
+          // If you can't reach a node, delete it and select a random node to continue walk
+          delete this.state[connectionString];
+          this.shuffleCurrentNode();
+        } else {
+          console.log(err);
+        }
       } finally {
         this.canAdvance = true;
       }
