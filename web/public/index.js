@@ -95,10 +95,10 @@ async function loadData() {
           .forEach(([key, value]) => {
             domString = domString.concat(`${key}: ${value}<br>`);
           });
-        domString = domString.concat(`<br>Successor: <br>`);
-        if (data.successor) {
+        domString = domString.concat(`<br>Predecessor: <br>`);
+        if (data.predecessor) {
           domString = domString.concat(
-            `${data.successor.id} @ ${data.successor.host}:${data.successor.port}<br>`
+            `${data.predecessor.id} @ ${data.predecessor.host}:${data.predecessor.port}<br>`
           );
         }
 

@@ -134,6 +134,10 @@ class ChordCrawler {
           this.state[connectionString].userIds.push(idWithMetadata);
         });
 
+        // Update Predecessor
+        const predecessorNode = await this.client.getPredecessor();
+        this.state[connectionString].predecessor = predecessorNode;
+
         // Update Successor
         const successorNode = await this.client.getSuccessorRemoteHelper();
         this.state[connectionString].successor = successorNode;
