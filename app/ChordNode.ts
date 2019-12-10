@@ -9,6 +9,7 @@ import {
   SUCCESSOR_TABLE_MAX_LENGTH,
   NULL_NODE
 } from "./utils";
+import { phi } from "mathjs";
 
 interface Node {
   id: number;
@@ -28,6 +29,7 @@ export class ChordNode {
   fingerTable: Array<FingerTableEntry>;
   successorTable: Array<Node>;
   predecessor: Node;
+  fibonacciAlpha: number;
 
   constructor({ id, host, port }) {
     if (!host || !port) {
@@ -464,9 +466,19 @@ export class ChordNode {
 
     // initialize finger table with reasonable values
     this.fingerTable.pop();
-    for (let i = 0; i < HASH_BIT_LENGTH; i++) {
+    // Base 2 intialization
+    // const numberOfEntries = HASH_BIT_LENGTH;
+    // const base = 2;
+
+    // Base golden ratio initialization
+    const numberOfEntries = Math.round(HASH_BIT_LENGTH / Math.log(phi));
+    const base = phi;
+
+    for (let i = 0; i < numberOfEntries; i++) {
       this.fingerTable.push({
-        start: (this.id + 2 ** i) % 2 ** HASH_BIT_LENGTH,
+        start:
+          (this.id + Math.round(base ** i)) %
+          Math.round(base ** numberOfEntries),
         successor: this.encapsulateSelf()
       });
     }
