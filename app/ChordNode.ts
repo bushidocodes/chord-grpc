@@ -698,7 +698,7 @@ export class ChordNode {
     if (DEBUGGING_LOCAL)
       console.log("initFingerTable: predecessor  ", this.predecessor);
 
-    for (let i = 0; i < HASH_BIT_LENGTH - 1; i++) {
+    for (let i = 0; i < this.fingerTable.length - 1; i++) {
       if (
         isInModuloRange(
           this.fingerTable[i + 1].start,

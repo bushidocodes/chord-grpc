@@ -77,8 +77,6 @@ export function sha1(source: String): Promise<String> {
   });
 }
 
-const MAX_BIT_LENGTH = 32;
-
 /** Compute a hash of desired length for the input string.
  * The function uses SHA-1 to compute an intermmediate string output,
  * then truncates to the user-specified size from the high-order bits.
@@ -92,10 +90,10 @@ export async function computeIntegerHash(
 
   const MAX_JS_INT_BIT_LENGTH = 32;
   const BIT_PER_HEX_CHARACTER = 4;
-  if (HASH_BIT_LENGTH > MAX_BIT_LENGTH) {
+  if (HASH_BIT_LENGTH > MAX_JS_INT_BIT_LENGTH) {
     console.error(
       `Warning. Requested ${HASH_BIT_LENGTH} bits `,
-      `but only ${MAX_BIT_LENGTH} bits available due to numerical simplification.`
+      `but only ${MAX_JS_INT_BIT_LENGTH} bits available due to numerical simplification.`
     );
     process.exit(-9);
   }
@@ -128,7 +126,7 @@ export async function computeIntegerHash(
     integerHash = (integerHash & (2 ** HASH_BIT_LENGTH - 1)) >>> 0;
   } else {
     // by picking the high-order bits
-    integerHash = integerHash >>> (MAX_BIT_LENGTH - HASH_BIT_LENGTH);
+    integerHash = integerHash >>> (MAX_JS_INT_BIT_LENGTH - HASH_BIT_LENGTH);
   }
   if (DEBUGGING_LOCAL)
     console.log(`Truncated integer value is ${integerHash}.`);
