@@ -6,6 +6,8 @@ import {
   handleGRPCErrors,
   DEBUGGING_LOCAL,
   HASH_BIT_LENGTH,
+  FIBONACCI_ALPHA,
+  IS_FIBONACCI_CHORD,
   SUCCESSOR_TABLE_MAX_LENGTH,
   NULL_NODE
 } from "./utils";
@@ -29,7 +31,6 @@ export class ChordNode {
   fingerTable: Array<FingerTableEntry>;
   successorTable: Array<Node>;
   predecessor: Node;
-  fibonacciAlpha: number = 0.75;
 
   constructor({ id, host, port }) {
     if (!host || !port) {
@@ -466,24 +467,16 @@ export class ChordNode {
 
     // initialize finger table with reasonable values
     this.fingerTable.pop();
-    // Base 2 intialization
-    // const numberOfEntries = HASH_BIT_LENGTH;
-    // const base = 2;
 
-    // Base golden ratio initialization
-    const numberOfEntries = Math.round(HASH_BIT_LENGTH / Math.log(phi));
-    const base = phi;
-
+    const base = IS_FIBONACCI_CHORD ? phi : 2;
+    const numberOfEntries = Math.round(HASH_BIT_LENGTH / Math.log2(base));
     // Pruning: we prune starting from the first entries, up to fibonacciAlpha entries
-
     for (let i = 0; i < numberOfEntries; i++) {
       // We only prune 1 - alpha percentage of the entries, and only odd ones
-      if (i < (1 - this.fibonacciAlpha) * numberOfEntries * 2 && i % 2 == 1)
+      if (i < (1 - FIBONACCI_ALPHA) * numberOfEntries * 2 && i % 2 == 1)
         continue;
       this.fingerTable.push({
-        start:
-          (this.id + Math.round(base ** i)) %
-          Math.round(base ** numberOfEntries),
+        start: (this.id + Math.round(base ** i)) % 2 ** HASH_BIT_LENGTH,
         successor: this.encapsulateSelf()
       });
     }
