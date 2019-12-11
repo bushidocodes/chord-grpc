@@ -125,7 +125,7 @@ export async function computeIntegerHash(
   // truncate the hash to the desired number of bits
   if (!highOrderBits) {
     // by picking the low-order bits
-    integerHash = integerHash & (2 ** HASH_BIT_LENGTH - 1);
+    integerHash = (integerHash & (2 ** HASH_BIT_LENGTH - 1)) >>> 0;
   } else {
     // by picking the high-order bits
     integerHash = integerHash >>> (MAX_BIT_LENGTH - HASH_BIT_LENGTH);
