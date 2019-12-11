@@ -339,7 +339,7 @@ export class ChordNode {
     let nPreceding = NULL_NODE;
     if (this.iAmTheNode(nodeQueried)) {
       // use local value
-      for (let i = HASH_BIT_LENGTH - 1; i >= 0; i--) {
+      for (let i = this.fingerTable.length - 1; i >= 0; i--) {
         if (
           isInModuloRange(
             this.fingerTable[i].successor.id,
@@ -459,7 +459,7 @@ export class ChordNode {
     if (!knownNode.host) knownNode.host = this.host;
     if (!knownNode.port) knownNode.port = this.port;
 
-    // Generate the for this node ID from the host connection strings if not already forced by user
+    // Generate the ID for this node from the host connection strings if not already forced by user
     if (!this.id) {
       this.id = await computeHostPortHash(this.host, this.port);
     }
@@ -733,7 +733,7 @@ export class ChordNode {
     let pNodeSearchID, pNodeClient;
     let pNode = NULL_NODE;
 
-    for (let i = 0; i < HASH_BIT_LENGTH; i++) {
+    for (let i = 0; i < this.fingerTable.length; i++) {
       pNodeSearchID =
         (this.id - 2 ** i + 2 ** HASH_BIT_LENGTH) % 2 ** HASH_BIT_LENGTH;
       if (DEBUGGING_LOCAL)
@@ -988,25 +988,25 @@ export class ChordNode {
    */
   async stabilize() {
     let successorClient, x;
-    try {
-      successorClient = connect(this.fingerTable[0].successor);
-    } catch (err) {
-      console.error(
-        `stabilize: call to connect {${this.fingerTable[0].successor.id}} failed with `,
-        err
-      );
-      return false;
-    }
     if (this.iAmMyOwnSuccessor()) {
       // use local value
       await this.stabilizeSelf();
-      x = { id: this.id, host: this.host, port: this.port };
+      x = this.encapsulateSelf();
     } else {
       // use remote value
       try {
+        successorClient = connect(this.fingerTable[0].successor);
+      } catch (err) {
+        console.error(
+          `stabilize: call to connect {${this.fingerTable[0].successor.id}} failed with `,
+          err
+        );
+        return false;
+      }
+      try {
         x = await successorClient.getPredecessor(this.fingerTable[0].successor);
       } catch (err) {
-        x = { id: this.id, host: this.host, port: this.port };
+        x = this.encapsulateSelf();
         handleGRPCErrors(
           "stabilize",
           "getPredecessor",
@@ -1038,14 +1038,10 @@ export class ChordNode {
       );
     }
 
-    if (this.id !== this.fingerTable[0].successor.id) {
+    if (!this.iAmMyOwnSuccessor()) {
       try {
         successorClient = connect(this.fingerTable[0].successor);
-        await successorClient.notify({
-          id: this.id,
-          host: this.host,
-          port: this.port
-        });
+        await successorClient.notify(this.encapsulateSelf());
       } catch (err) {
         handleGRPCErrors(
           "stabilize",
@@ -1064,6 +1060,7 @@ export class ChordNode {
       console.error(`stabilize: updateSuccessorTable failed with `, err);
     }
 
+    // set to (1) to use as debugging tells
     if (DEBUGGING_LOCAL) {
       console.log(`--\n{${this.id}}.predecessor = ${this.predecessor.id}`);
       console.log(
@@ -1084,7 +1081,6 @@ export class ChordNode {
     let predecessorSeemsOK = false;
     if (this.predecessor.id == null) {
       // this node is in real trouble since its predecessor is no good either
-      // TODO try to rescue it by stepping through the rest of its finger table, else destroy it
       predecessorSeemsOK = false;
       return predecessorSeemsOK;
     }
@@ -1132,7 +1128,7 @@ export class ChordNode {
    */
   async fixFingers() {
     let nSuccessor = NULL_NODE;
-    const randomId = Math.ceil(Math.random() * (HASH_BIT_LENGTH - 1));
+    const randomId = Math.ceil(Math.random() * (this.fingerTable.length - 1));
     try {
       nSuccessor = await this.findSuccessor(
         this.fingerTable[randomId].start,
@@ -1214,7 +1210,6 @@ export class ChordNode {
    * Remove node from the chord gracefully by migrating keys to the remaining nodes.
    */
   async destructor() {
-    console.log("In destructor");
     let migrationSeemsOK = false;
     let successor = NULL_NODE;
     let successorSeemsOK = false;
@@ -1228,20 +1223,17 @@ export class ChordNode {
         successor = NULL_NODE;
       } else {
         try {
-          console.log("Trying confirmExists");
           successorSeemsOK = await this.confirmExist(this.successorTable[i]);
-          console.log("Finished confirmExists");
         } catch (err) {
           successorSeemsOK = false;
           console.log(
-            `Error in destructor({${this.id}}) call to confirmExist({${this.successorTable[i].id}})`,
+            `Error in destructor({${this.id}}) call to confirmExist({${this.successorTable[i].id}})\n`,
             err
           );
         }
         successor = this.successorTable[i];
       }
     }
-    console.log("successorSeemsOK", successorSeemsOK);
     // alternatively pick successor from finger table
     for (let i = 0; !successorSeemsOK && i < this.fingerTable.length; i++) {
       if (this.fingerTable[i].successor.id == null) {
@@ -1258,7 +1250,7 @@ export class ChordNode {
         } catch (err) {
           successorSeemsOK = false;
           console.log(
-            `Error in destructor({${this.id}}) call to confirmExist({${this.fingerTable[i].successor.id}})`,
+            `Error in destructor({${this.id}}) call to confirmExist({${this.fingerTable[i].successor.id}})\n`,
             err
           );
         }
@@ -1272,7 +1264,7 @@ export class ChordNode {
       } catch (err) {
         successorSeemsOK = false;
         console.log(
-          `Error in destructor({${this.id}}) call to confirmExist({${this.predecessor}})`,
+          `Error in destructor({${this.id}}) call to confirmExist({${this.predecessor}})\n`,
           err
         );
       }
@@ -1282,11 +1274,10 @@ export class ChordNode {
     let migrationError = null;
     if (successorSeemsOK) {
       try {
-        console.log("Attempting to migrate");
         migrationSeemsOK = await this.migrateKeysBeforeDeparture();
       } catch (migrationError) {
         migrationSeemsOK = false;
-        console.error();
+        console.error(migrationError);
       }
     }
     // notify predecessor
@@ -1321,7 +1312,7 @@ export class ChordNode {
     }
     // report what's up and destroy the node by exiting the process
     console.log(
-      `Node {${this.id}} at "${this.host}:${this.port}" is exiting the chord.`
+      `\n\nNode {${this.id}} at "${this.host}:${this.port}" is exiting the chord.`
     );
     if (successorSeemsOK && migrationSeemsOK) {
       console.log(`Its keys are migrating to node {${successor.id}}.\n`);
