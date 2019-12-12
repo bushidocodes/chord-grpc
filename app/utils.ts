@@ -5,9 +5,9 @@ import caller from "grpc-caller";
 
 const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
 
-export const HASH_BIT_LENGTH = 8; //TBD
+export const HASH_BIT_LENGTH = 32; //TBD
 export const FIBONACCI_ALPHA = 0.7;
-export const IS_FIBONACCI_CHORD: boolean = true;
+export const IS_FIBONACCI_CHORD: boolean = false;
 export const NULL_NODE = { id: null, host: null, port: null };
 export const DEBUGGING_LOCAL = false;
 export const SUCCESSOR_TABLE_MAX_LENGTH = Math.max(
