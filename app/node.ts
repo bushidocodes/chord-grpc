@@ -49,16 +49,15 @@ let node;
  *
  * And takes the following optional flags
  * --id         - This node's id
- * --knownId   - The ID of a node in the cluster
- * --knownHost   - The host name of a node in the cluster
- * --knownPort - The TCP Port of a node in the cluster
+ * --knownHost  - The host name of a node in the cluster
+ * --knownPort  - The TCP Port of a node in the cluster
  */
 async function main() {
   console.log("This process is your pid " + process.pid);
   const args = minimist(process.argv.slice(2), {
     string: ["host", "knownHost"],
     // @ts-ignore
-    number: ["port", "knownPort", "id", "knownId", "knownId"]
+    number: ["port", "knownPort", "id"]
   });
 
   if (args.hashOnly) {
@@ -69,18 +68,8 @@ async function main() {
   // sanitize parameters corresponding to known node
   // + if no known host or port were provided, it is assumed that they are self's
   // + such as when starting a new chord; ie, joining itself
-  let knownNodeId = args.knownId ? args.knownId : null;
   let knownNodeHost = args.knownHost ? args.knownHost : args.host;
   let knownNodePort = args.knownPort ? args.knownPort : args.port;
-  // protect against bad Known ID inputs
-  if (knownNodeId && knownNodeId > 2 ** HASH_BIT_LENGTH - 1) {
-    console.error(
-      `Error. Bad known ID {${args.knownId}} > [ 2^m-1 --> {${2 **
-        HASH_BIT_LENGTH -
-        1}} ]. Thus, terminating...\n`
-    );
-    return -13;
-  }
 
   // protect against bad ID inputs
   if (args.id && args.id > 2 ** HASH_BIT_LENGTH - 1) {
@@ -95,7 +84,7 @@ async function main() {
   try {
     await userServiceNode.serve();
     let knownNode = {
-      id: knownNodeId,
+      id: null,
       host: knownNodeHost,
       port: knownNodePort
     };
@@ -121,18 +110,18 @@ async function main() {
     process.on("SIGTERM", () => process.kill(process.pid, "SIGINT"));
   }
 
-  // handle "ctrl + c" as a graceful exit - tested on Linux 20191205
+  // handle "ctrl + c" as a graceful exit
   process.on("SIGINT", async function() {
-    console.log("I pressed ctrl c");
+    console.log("\n\nUser issued ctrl+c");
     await userServiceNode.destructor();
-    console.log("Out of destructor");
+    console.log(`Exiting process ${process.pid}`);
     process.exit();
   });
 
   process.on("SIGTERM", async function() {
-    console.log("I pressed ctrl c");
+    console.log("\n\nSIGTERM caught");
     await userServiceNode.destructor();
-    console.log("Out of destructor");
+    console.log(`Exiting process ${process.pid}`);
     process.exit();
   });
 }

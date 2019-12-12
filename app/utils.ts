@@ -5,7 +5,9 @@ import caller from "grpc-caller";
 
 const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
 
-export const HASH_BIT_LENGTH = 32;
+export const HASH_BIT_LENGTH = 32; //TBD
+export const FIBONACCI_ALPHA = 0.7;
+export const IS_FIBONACCI_CHORD: boolean = false;
 export const NULL_NODE = { id: null, host: null, port: null };
 export const DEBUGGING_LOCAL = false;
 export const SUCCESSOR_TABLE_MAX_LENGTH = Math.max(
@@ -77,8 +79,6 @@ export function sha1(source: String): Promise<String> {
   });
 }
 
-const MAX_BIT_LENGTH = 32;
-
 /** Compute a hash of desired length for the input string.
  * The function uses SHA-1 to compute an intermmediate string output,
  * then truncates to the user-specified size from the high-order bits.
@@ -92,10 +92,10 @@ export async function computeIntegerHash(
 
   const MAX_JS_INT_BIT_LENGTH = 32;
   const BIT_PER_HEX_CHARACTER = 4;
-  if (HASH_BIT_LENGTH > MAX_BIT_LENGTH) {
+  if (HASH_BIT_LENGTH > MAX_JS_INT_BIT_LENGTH) {
     console.error(
       `Warning. Requested ${HASH_BIT_LENGTH} bits `,
-      `but only ${MAX_BIT_LENGTH} bits available due to numerical simplification.`
+      `but only ${MAX_JS_INT_BIT_LENGTH} bits available due to numerical simplification.`
     );
     process.exit(-9);
   }
@@ -125,10 +125,10 @@ export async function computeIntegerHash(
   // truncate the hash to the desired number of bits
   if (!highOrderBits) {
     // by picking the low-order bits
-    integerHash = integerHash & (2 ** HASH_BIT_LENGTH - 1);
+    integerHash = (integerHash & (2 ** HASH_BIT_LENGTH - 1)) >>> 0;
   } else {
     // by picking the high-order bits
-    integerHash = integerHash >>> (MAX_BIT_LENGTH - HASH_BIT_LENGTH);
+    integerHash = integerHash >>> (MAX_JS_INT_BIT_LENGTH - HASH_BIT_LENGTH);
   }
   if (DEBUGGING_LOCAL)
     console.log(`Truncated integer value is ${integerHash}.`);
