@@ -473,7 +473,11 @@ export class ChordNode {
     // Pruning: we prune starting from the first entries, up to fibonacciAlpha entries
     for (let i = 0; i < numberOfEntries; i++) {
       // We only prune 1 - alpha percentage of the entries, and only odd ones
-      if (i < (1 - FIBONACCI_ALPHA) * numberOfEntries * 2 && i % 2 == 1)
+      if (
+        !IS_FIBONACCI_CHORD &&
+        i < (1 - FIBONACCI_ALPHA) * numberOfEntries * 2 &&
+        i % 2 == 1
+      )
         continue;
       this.fingerTable.push({
         start: (this.id + Math.round(base ** i)) % 2 ** HASH_BIT_LENGTH,
