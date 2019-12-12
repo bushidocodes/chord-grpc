@@ -23,6 +23,7 @@ docker-compose up --scale node_secondary=5 -d
 Then open localhost:1337 in a browser
 
 Then run the following command in a separate tab to seed the sample StackOverflow data:
+
 ```
 npm run client -- bulkInsert --path ./data/tinyUsers.json
 ```
@@ -30,8 +31,15 @@ npm run client -- bulkInsert --path ./data/tinyUsers.json
 You can then use the Data API as documented in `commands.md`
 
 You can also scale out the Chord cluster and see the data migrate:
+
 ```
 docker-compose up --scale node_secondary=8 -d
+```
+
+When you are complete, be sure to stop the chord:
+
+```
+docker-compose down
 ```
 
 ## License
