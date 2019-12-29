@@ -1,5 +1,7 @@
 # Chord (Node.js and gRPC)
 
+[View Project Walkthrough and Demo on YouTube](https://www.youtube.com/watch?v=x2AixjsanyE)
+
 This project is an implementation of a p2p distributed hash table using the Chord algorithm by Ion Stoica, Robert Morris, David Karger, Kaashoek, and Hari Balakrishnan. It uses Node.js to implement the nodes, and gRPC as the method of inter-node communiation.
 
 The client script:
