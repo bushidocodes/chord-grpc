@@ -1,0 +1,82 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "node_prefix": {
+      "defaultValue": "seanrules",
+      "type": "string"
+    },
+    "node_id": {
+      "type": "array",
+      "defaultValue": [0, 1, 2, 3, 4, 5, 6, 7]
+    }
+  },
+  "variables": {},
+  "resources": [
+    {
+      "type": "Microsoft.ContainerInstance/containerGroups",
+      "apiVersion": "2018-10-01",
+      "copy": {
+        "name": "chord_instance_count",
+        "count": 8
+      },
+      "location": "eastus",
+      "name": "[concat(parameters('node_prefix'), parameters('node_id')[copyIndex()])]",
+      "properties": {
+        "containers": [
+          {
+            "name": "[concat(parameters('node_prefix'), parameters('node_id')[copyIndex()])]",
+            "properties": {
+              "image": "spmcbride1201/chord-node",
+              "command": [
+                "npm",
+                "run",
+                "server",
+                "--",
+                "--host",
+                "[concat(parameters('node_prefix'), parameters('node_id')[copyIndex()], '.eastus.azurecontainer.io')]",
+                "--knownHost",
+                "seanrules0.eastus.azurecontainer.io",
+                "--knownPort",
+                "1337"
+              ],
+              "ports": [
+                {
+                  "protocol": "TCP",
+                  "port": 80
+                },
+                {
+                  "protocol": "TCP",
+                  "port": 1337
+                }
+              ],
+              "environmentVariables": [],
+              "resources": {
+                "requests": {
+                  "memoryInGB": 2,
+                  "cpu": 1
+                }
+              }
+            }
+          }
+        ],
+        "restartPolicy": "OnFailure",
+        "ipAddress": {
+          "ports": [
+            {
+              "protocol": "TCP",
+              "port": 80
+            },
+            {
+              "protocol": "TCP",
+              "port": 1337
+            }
+          ],
+          "type": "Public",
+          "dnsNameLabel": "[concat(parameters('node_prefix'), parameters('node_id')[copyIndex()])]"
+        },
+        "osType": "Linux"
+      }
+    }
+  ]
+}
