@@ -8,7 +8,7 @@ export class Client {
   host: string;
   port: number;
   client: any;
-  constructor(host, port) {
+  constructor(host: string, port: number) {
     this.host = host;
     this.port = port;
     this.client = caller(`${this.host}:${this.port}`, PROTO_PATH, "Node");
@@ -32,7 +32,7 @@ export class Client {
       process.exit();
     }
 
-    await this.client.lookup({ id: rest.id }, (err, user) => {
+    await this.client.lookup({ id: rest.id }, (err: any, user: any) => {
       if (err) {
         console.error(`User with userId ${rest.id} not found`);
         console.error(err);
@@ -118,7 +118,7 @@ export class Client {
     }
     console.log("Beginning client-side remove: ", rest.id);
 
-    await this.client.remove({ id: rest.id }, (err, _) => {
+    await this.client.remove({ id: rest.id }, (err: any, _: any) => {
       if (err) {
         console.error("User not deleted");
         console.error(err);
