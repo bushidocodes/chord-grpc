@@ -31,7 +31,7 @@
     "grpc-caller": "^0.13.0",
     "lodash": "^4.6.1",
     "mathjs": "^6.2.5",
-    "minimist": "^1.2.0",
+    "minimist": "^1.2.2",
     "xml2js": "^0.4.22"
   },
   "devDependencies": {
