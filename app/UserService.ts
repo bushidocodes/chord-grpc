@@ -99,7 +99,10 @@ export class UserService extends ChordNode {
   }
 
   // Streams a List of User IDs stored by the Node
-  getUserIds(call) {
+  getUserIds(call: {
+    write: (arg0: { id: number; metadata: Metadata }) => void;
+    end: () => void;
+  }) {
     const users = Object.values(this.userMap);
     users.forEach(user => {
       call.write({
@@ -111,7 +114,7 @@ export class UserService extends ChordNode {
   }
 
   // Removes a User from local state matching the hash
-  removeUser(hashedUserId) {
+  removeUser(hashedUserId: string | number) {
     if (this.userMap[hashedUserId]) {
       delete this.userMap[hashedUserId];
       console.log("removeUser: user removed");
@@ -123,14 +126,20 @@ export class UserService extends ChordNode {
   }
 
   // gRPC Handler to allow other nodes to remove users from our local state
-  async removeUserRemoteHelper(message, callback) {
+  async removeUserRemoteHelper(
+    message: { request: { id: any } },
+    callback: (call: { code: number }, arg1: {}) => void
+  ) {
     if (DEBUGGING_LOCAL) console.log("removeUserRemoteHelper: ", message);
     const err = this.removeUser(message.request.id);
     callback(err, {});
   }
 
   // Removes a User regardless of location in cluster
-  async remove(message, callback) {
+  async remove(
+    message: { request: { id: any } },
+    callback: (call: any, arg1: {}) => void
+  ) {
     const userId = message.request.id;
     const err1 = await this.removeWithHash(userId, true);
     const err2 = await this.removeWithHash(userId, false);
@@ -176,7 +185,7 @@ export class UserService extends ChordNode {
         const successorClient = connect(successor);
         await successorClient.removeUserRemoteHelper(
           { id: lookupKey },
-          (err, _) => {
+          (err: any, _: any) => {
             return err;
           }
         );
@@ -194,7 +203,7 @@ export class UserService extends ChordNode {
   }
 
   // Insert User in local state
-  insertUser(userEdit) {
+  insertUser(userEdit: any) {
     // We need to clone deep because objects are copy by reference
     const clonedUserEdit = cloneDeep(userEdit);
     const key = clonedUserEdit.user.metadata.isPrimaryHash
@@ -219,14 +228,20 @@ export class UserService extends ChordNode {
   }
 
   // gRPC Handler to allow other nodes to insert users into our local state
-  async insertUserRemoteHelper(message, callback) {
+  async insertUserRemoteHelper(
+    message: { request: any },
+    callback: (call: { code: number }, arg1: {}) => void
+  ) {
     if (DEBUGGING_LOCAL) console.log("insertUserRemoteHelper: ", message);
     const err = this.insertUser(message.request);
     callback(err, {});
   }
 
   // Inserts a User regardless of location in cluster
-  async insert(message, callback) {
+  async insert(
+    message: { request: any },
+    callback: (call: any, arg1: {}) => void
+  ) {
     // User and isEdit flag
     const userEdit = message.request;
 
@@ -272,10 +287,13 @@ export class UserService extends ChordNode {
       try {
         console.log("insert: insert user to remote node", lookupKey);
         const successorClient = connect(successor);
-        await successorClient.insertUserRemoteHelper(userEdit, (err, _) => {
-          console.log("insert finishing");
-          return err;
-        });
+        await successorClient.insertUserRemoteHelper(
+          userEdit,
+          (err: any, _: any) => {
+            console.log("insert finishing");
+            return err;
+          }
+        );
       } catch (err) {
         handleGRPCErrors(
           "insert",
@@ -290,7 +308,10 @@ export class UserService extends ChordNode {
   }
 
   // gRPC handler that returns a user locally from this node
-  fetch(message, callback) {
+  fetch(
+    message: { request: { id: any } },
+    callback: (call: { code: number }, arg1: User) => void
+  ) {
     const {
       request: { id }
     } = message;
@@ -303,7 +324,7 @@ export class UserService extends ChordNode {
   }
 
   // Look up user by hash
-  lookupUser(hashedUserId) {
+  lookupUser(hashedUserId: number) {
     if (this.userMap[hashedUserId]) {
       const user = this.userMap[hashedUserId];
       if (DEBUGGING_LOCAL)
@@ -315,7 +336,10 @@ export class UserService extends ChordNode {
     }
   }
 
-  async lookupUserRemoteHelper(message, callback) {
+  async lookupUserRemoteHelper(
+    message: { request: { id: any } },
+    callback: (call: any, arg1: any) => void
+  ) {
     if (DEBUGGING_LOCAL)
       console.log("beginning lookupUserRemoteHelper: ", message.request.id);
     const { err, user } = this.lookupUser(message.request.id);
@@ -324,7 +348,10 @@ export class UserService extends ChordNode {
     callback(err, user);
   }
 
-  async lookup(message, callback) {
+  async lookup(
+    message: { request: { id: number } },
+    callback: (call: any, arg1: any) => void
+  ) {
     const userId = message.request.id;
     console.log(`lookup: Looking up user ${userId}`);
 
@@ -486,7 +513,10 @@ export class UserService extends ChordNode {
     return null;
   }
 
-  migrateUsersToPredecessorRemoteHelper(_, callback) {
+  migrateUsersToPredecessorRemoteHelper(
+    _: any,
+    callback: (call: any, arg1: {}) => void
+  ) {
     callback(this.migrateUsersToPredecessor(), {});
   }
 

@@ -9,23 +9,19 @@ const PUBLIC_PATH = path.resolve(__dirname, "./public");
 
 const DEFAULT_HOST_NAME = os.hostname();
 const CRAWLER_INTERVAL_MS = 3000;
-const DUMMY_REQUEST_OBJECT = { id: 99 };
 
 class ChordCrawler {
   host: string;
   port: number;
   client: any;
-  state: object;
-  walk: Set<any>;
-  canAdvance: boolean;
+  state: object = {};
+  walk: Set<any> = new Set([]);
+  canAdvance: boolean = true;
 
-  constructor(host, port, stepInMS) {
+  constructor(host: string, port: number, stepInMS: number) {
     this.host = host;
     this.port = port;
     this.client = caller(`${this.host}:${this.port}`, PROTO_PATH, "Node");
-    this.state = {};
-    this.walk = new Set([]);
-    this.canAdvance = true; // Gate in case crawl execution is slower than quantum
     setInterval(async () => {
       await this.crawl();
     }, stepInMS);
@@ -64,7 +60,10 @@ class ChordCrawler {
     }
   }
 
-  updateSuccessor(connectionStringOfSourceNode, successorNode) {
+  updateSuccessor(
+    connectionStringOfSourceNode: string | number,
+    successorNode: any
+  ) {
     if (this.state[connectionStringOfSourceNode]) {
       this.state[connectionStringOfSourceNode].successor = successorNode;
     }
@@ -130,7 +129,7 @@ class ChordCrawler {
         // Update UserIds
         const userIdStream = await this.client.getUserIds();
         this.state[connectionString].userIds = [];
-        userIdStream.on("data", idWithMetadata => {
+        userIdStream.on("data", (idWithMetadata: any) => {
           this.state[connectionString].userIds.push(idWithMetadata);
         });
 
@@ -171,7 +170,7 @@ function main() {
     const app = express();
     const port = args.webPort || 1337;
     app.use(express.static(PUBLIC_PATH));
-    app.get("/data", (req, res) => res.json(crawler.state));
+    app.get("/data", (_, res) => res.json(crawler.state));
     app.listen(port, () =>
       console.log(`Example app listening on port ${port}!`)
     );

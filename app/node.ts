@@ -9,8 +9,6 @@ import {
   handleGRPCErrors,
   HASH_BIT_LENGTH
 } from "./utils";
-import { userInfo } from "os";
-import { OneofDescriptorProto } from "protobufjs/ext/descriptor";
 
 export async function endpointIsResponsive(host: string, port: number) {
   const client = connect({ host, port });
@@ -23,7 +21,7 @@ export async function endpointIsResponsive(host: string, port: number) {
   }
 }
 
-async function hashDryRun(sourceValue) {
+async function hashDryRun(sourceValue: string) {
   try {
     const integerHash = await computeIntegerHash(sourceValue);
     console.log(`ID {${integerHash}} computed from hash of {${sourceValue}}`);
@@ -36,8 +34,6 @@ async function hashDryRun(sourceValue) {
   }
   return 0;
 }
-
-let node;
 
 /**
  * Starts an RPC server that receives requests for the Greeter service at the
@@ -82,7 +78,7 @@ async function main() {
 
   let userServiceNode = new UserService({ ...args });
   try {
-    await userServiceNode.serve();
+    userServiceNode.serve();
     let knownNode = {
       id: null,
       host: knownNodeHost,

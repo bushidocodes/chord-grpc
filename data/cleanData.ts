@@ -4,14 +4,30 @@ import { parseString } from "xml2js";
 
 const COUNT_OF_USERS_IN_TINY_USERS = 100;
 
+interface XMLGeneratedPerson {
+  Id: string;
+  Reputation: string;
+  CreationDate: string;
+  DisplayName: string;
+  LastAccessDate: string;
+  WebsiteUrl: string;
+  Location: string;
+  AboutMe: string;
+  Views: string;
+  UpVotes: string;
+  DownVotes: string;
+  ProfileImageUrl: string;
+  AccountId: string;
+}
+
 // Quick and dirty script to convert the StackOverflow data from XML to JSON
-fs.readFile(`${__dirname}/users.xml`, (err, data) => {
-  parseString(data, (err, rawData) => {
+fs.readFile(`${__dirname}/users.xml`, (_err, data) => {
+  parseString(data, (_err, rawData) => {
     const result = {};
     const tinyResult = {};
     rawData.users.row
-      .map(person => person["$"])
-      .map(person => ({
+      .map((person: { [x: string]: any }) => person["$"])
+      .map((person: XMLGeneratedPerson) => ({
         id: parseInt(person.Id, 10),
         reputation: parseInt(person.Reputation, 10),
         creationDate: person.CreationDate,
@@ -26,7 +42,7 @@ fs.readFile(`${__dirname}/users.xml`, (err, data) => {
         profileImageUrl: person.ProfileImageUrl,
         accountId: parseInt(person.AccountId, 10)
       }))
-      .forEach((person, idx) => {
+      .forEach((person: { id: string | number }, idx: number) => {
         if (idx < COUNT_OF_USERS_IN_TINY_USERS) {
           tinyResult[person.id] = person;
         }
