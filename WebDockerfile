@@ -1,4 +1,9 @@
 FROM node:13-alpine
+RUN apk add --no-cache --virtual .gyp \
+        python \
+        make \
+        g++
+        
 USER node
 WORKDIR /home/node
 COPY --chown=node:node package*.json ./
