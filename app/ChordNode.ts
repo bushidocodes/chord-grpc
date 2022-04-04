@@ -28,9 +28,18 @@ export class ChordNode {
   id: number;
   host: string;
   port: number;
-  fingerTable: Array<FingerTableEntry>;
-  successorTable: Array<Node>;
-  predecessor: Node;
+  fingerTable: Array<FingerTableEntry> = [
+    {
+      start: null,
+      successor: NULL_NODE
+    }
+  ];
+  successorTable: Array<Node> = [NULL_NODE];
+  predecessor: Node = NULL_NODE;
+  stabilizeIsLocked: boolean = false;
+  fixFingersIsLocked: boolean = false;
+  fingerToFix: number = 0;
+  checkPredecessorIsLocked: boolean = false;
 
   constructor({ id, host, port }) {
     if (!host || !port) {
@@ -42,16 +51,6 @@ export class ChordNode {
     this.id = id;
     this.host = host;
     this.port = port;
-
-    this.fingerTable = [
-      {
-        start: null,
-        successor: NULL_NODE
-      }
-    ];
-    this.successorTable = [NULL_NODE];
-    //TBD 20191127this.predecessor = { id: null, host: null, port: null };
-    this.predecessor = NULL_NODE;
   }
 
   iAmTheNode(theNode: Node): boolean {
@@ -76,10 +75,8 @@ export class ChordNode {
 
   /**
    * Print Summary of state of node
-   * @param userRequestObject
-   * @param callback gRPC callback
    */
-  summary(_, callback) {
+  summary(_: any, callback: (arg0: any, arg1: Node) => void) {
     console.log("Summary: fingerTable: \n", this.fingerTable);
     console.log("Summary: Predecessor: ", this.predecessor);
     callback(null, this.encapsulateSelf());
@@ -91,11 +88,10 @@ export class ChordNode {
    * However, it is able to discern whether to do a local lookup or an RPC.
    * If the querying node is the same as the queried node, it will stay local.
    *
-   * @param {number} id value being searched
    * @param nodeQueried node being queried for the ID
    *
    */
-  async findSuccessor(id, nodeQueried) {
+  async findSuccessor(id: number, nodeQueried: Node) {
     let nPrime = NULL_NODE;
     let nPrimeSuccessor = NULL_NODE;
     if (DEBUGGING_LOCAL)
@@ -154,7 +150,10 @@ export class ChordNode {
    * @param idAndNodeQueried {id:, node:}, where ID is the key sought
    * @param callback grpc callback function
    */
-  async findSuccessorRemoteHelper(idAndNodeQueried, callback) {
+  async findSuccessorRemoteHelper(
+    idAndNodeQueried: { request: { id: number; node: Node } },
+    callback: (arg0: any, arg1: Node) => void
+  ) {
     const id = idAndNodeQueried.request.id;
     const nodeQueried = idAndNodeQueried.request.node;
 
@@ -187,7 +186,7 @@ export class ChordNode {
    *  with the exception of the limits on the while loop.
    * @param {number} id the key sought
    */
-  async findPredecessor(id) {
+  async findPredecessor(id: number) {
     if (DEBUGGING_LOCAL) console.log("findPredecessor: id = ", id);
 
     let nPrime = this.encapsulateSelf();
@@ -246,10 +245,9 @@ export class ChordNode {
   /**
    * Return the successor of a given node by either a local lookup or an RPC.
    * If the querying node is the same as the queried node, it will be a local lookup.
-   * @param nodeQueried
    * @returns : the successor if the successor seems valid, or a null node otherwise
    */
-  async getSuccessor(nodeQueried) {
+  async getSuccessor(nodeQueried: Node) {
     if (DEBUGGING_LOCAL) console.log(`getSuccessor(${nodeQueried.id})`);
 
     // get n.successor either locally or remotely
@@ -287,20 +285,21 @@ export class ChordNode {
   /**
    * RPC equivalent of the getSuccessor() method.
    * It is implemented as simply a wrapper for the getSuccessor() function.
-   * @param _ - dummy parameter
-   * @param callback - grpc callback
    */
-  async getSuccessorRemoteHelper(_, callback) {
+  async getSuccessorRemoteHelper(
+    _: any,
+    callback: (arg0: any, arg1: Node) => void
+  ) {
     callback(null, this.fingerTable[0].successor);
   }
 
   /**
    * RPC to replace the value of the node's successor.
-   *
-   * @param {Node} message contains a node object as "message.request"
-   * @param callback
    */
-  async setSuccessor(message, callback) {
+  async setSuccessor(
+    message: { request: any },
+    callback: (arg0: any, arg1: {}) => void
+  ) {
     if (DEBUGGING_LOCAL) {
       console.log("setSuccessor: Self = ", this.encapsulateSelf());
       console.log(
@@ -331,12 +330,10 @@ export class ChordNode {
    * However, it is able to discern whether to do a local lookup or an RPC.
    * If the querying node is the same as the queried node, it will stay local.
    *
-   * @param id
-   * @param nodeQueried
    * @returns the closest preceding node to ID
    *
    */
-  async closestPrecedingFinger(id, nodeQueried) {
+  async closestPrecedingFinger(id: number, nodeQueried: Node) {
     let nPreceding = NULL_NODE;
     if (this.iAmTheNode(nodeQueried)) {
       // use local value
@@ -384,10 +381,11 @@ export class ChordNode {
    * It is implemented as simply a wrapper for the local closestPrecedingFinger() function.
    *
    * @param idAndNodeQueried {id:, node:}, where ID is the key sought
-   * @param callback - grpc callback
-   *
    */
-  async closestPrecedingFingerRemoteHelper(idAndNodeQueried, callback) {
+  async closestPrecedingFingerRemoteHelper(
+    idAndNodeQueried: { request: { id: any; node: Node } },
+    callback: (arg0: any, arg1: Node) => void
+  ) {
     const id = idAndNodeQueried.request.id;
     const nodeQueried = idAndNodeQueried.request.node;
     let nPreceding = NULL_NODE;
@@ -405,16 +403,15 @@ export class ChordNode {
 
   /**
    * RPC to return the node's predecessor.
-   *
-   * @param _ - unused dummy argument
-   * @param callback - grpc callback
-   * @returns predecessor node
    */
-  async getPredecessor(_, callback) {
+  async getPredecessor(_: any, callback: (arg0: any, arg1: Node) => void) {
     callback(null, this.predecessor);
   }
 
-  async getFingerTableEntries(call) {
+  async getFingerTableEntries(call: {
+    write: (arg0: { index: number; node: Node }) => void;
+    end: () => void;
+  }) {
     this.fingerTable.forEach(fingerTableEntry => {
       call.write({
         index: fingerTableEntry.start,
@@ -426,11 +423,11 @@ export class ChordNode {
 
   /**
    * RPC to replace the value of the node's predecessor.
-   *
-   * @param {Node} message contains a node object as "message.request"
-   * @param callback
    */
-  async setPredecessor(message, callback) {
+  async setPredecessor(
+    message: { request: Node },
+    callback: (arg0: any, arg1: {}) => void
+  ) {
     if (DEBUGGING_LOCAL) {
       console.log("setPredecessor: Self = ", this.encapsulateSelf());
       console.log(
@@ -451,7 +448,7 @@ export class ChordNode {
     callback(null, {});
   }
 
-  async joinCluster(knownNode) {
+  async joinCluster(knownNode: Node) {
     let errorString = null;
     let knownNodeId = null;
     let possibleCollidingNode = NULL_NODE;
@@ -567,11 +564,9 @@ export class ChordNode {
 
   /**
    * Determine whether a node exists by asking for its ID.
-   *
-   * @param knownNode   - node defined as {id, host, port}
-   * @returns {boolean} - true if the node has a valid ID
+   * @returns - true if the node has a valid ID
    */
-  async confirmExist(knownNode) {
+  async confirmExist(knownNode: Node): Promise<boolean> {
     let nodeId = null;
     let nodeExists = false;
     try {
@@ -593,10 +588,9 @@ export class ChordNode {
 
   /**
    * Returns a node's ID, making an RPC if necessary.
-   * @param knownNode   - node defined as {id, host, port}
-   * @returns {number}  - node's ID, or null if error
+   * @returns - node's ID, or null if error
    */
-  async getNodeId(knownNode) {
+  async getNodeId(knownNode: Node): Promise<number> {
     let nodeId = null;
     let knownNodeObject = NULL_NODE;
     let selfNodeString = (this.host + ":" + this.port).toLowerCase();
@@ -630,17 +624,18 @@ export class ChordNode {
    *
    * @param {any} _           - unused dummy argument
    * @param {string} callback - grpc callback
-   * @returns {number}        - node's ID, or null if error
    */
-  async getNodeIdRemoteHelper(_, callback) {
+  async getNodeIdRemoteHelper(
+    _: any,
+    callback: (arg0: any, arg1: Node) => void
+  ): Promise<void> {
     callback(null, { id: this.id, host: this.host, port: this.port });
   }
 
   /**
    * Directly implement the pseudocode's initFingerTable() method.
-   * @param nPrime
    */
-  async initFingerTable(nPrime) {
+  async initFingerTable(nPrime: Node) {
     if (DEBUGGING_LOCAL) {
       console.log(
         `initFingerTable: self = ${this.id}; self.successor = ${this.fingerTable[0].successor.id}; finger[0].start = ${this.fingerTable[0].start} n' = ${nPrime.id}`
@@ -727,7 +722,10 @@ export class ChordNode {
    */
   async updateOthers() {
     if (DEBUGGING_LOCAL) console.log("updateOthers");
-    let pNodeSearchID, pNodeClient;
+    let pNodeSearchID: number,
+      pNodeClient: {
+        updateFingerTable: (arg0: { node: Node; index: number }) => any;
+      };
     let pNode = NULL_NODE;
 
     for (let i = 0; i < this.fingerTable.length; i++) {
@@ -772,10 +770,11 @@ export class ChordNode {
 
   /**
    * RPC that directly implements the pseudocode's updateFingerTable() method.
-   * @param message - consists of {sNode, fingerIndex} *
-   * @param callback - grpc callback
    */
-  async updateFingerTable(message, callback) {
+  async updateFingerTable(
+    message: { request: { node: Node; index: any } },
+    callback: (arg0: any, arg1: {}) => void
+  ) {
     const sNode = message.request.node;
     const fingerIndex = message.request.index;
 
@@ -801,7 +800,10 @@ export class ChordNode {
       this.fingerTable[fingerIndex].successor = sNode;
       const pClient = connect(this.predecessor);
       try {
-        await pClient.updateFingerTable({ node: sNode, index: fingerIndex });
+        await pClient.updateFingerTable({
+          node: sNode,
+          index: fingerIndex
+        });
       } catch (err) {
         handleGRPCErrors(
           "updateFingerTable",
@@ -839,10 +841,10 @@ export class ChordNode {
    *      [1-] it replaces it with the first live entry in its successor list
    *      [2-] and reconciles its successor list with its new successor."
    *
-   * @returns {boolean} true if it was successful; false otherwise.
+   * @returns true if it was successful; false otherwise.
    *
    */
-  async updateSuccessorTable() {
+  async updateSuccessorTable(): Promise<boolean> {
     if (DEBUGGING_LOCAL) {
       console.log(
         `updateSuccessorTable: {${this.id}}.successorTable[] =\n`,
@@ -984,87 +986,98 @@ export class ChordNode {
    *  2- additional step of updating the successor table as recommended by the IEEE paper.
    */
   async stabilize() {
-    let successorClient, x;
-    if (this.iAmMyOwnSuccessor()) {
-      // use local value
-      await this.stabilizeSelf();
-      x = this.encapsulateSelf();
-    } else {
-      // use remote value
-      try {
-        successorClient = connect(this.fingerTable[0].successor);
-      } catch (err) {
-        console.error(
-          `stabilize: call to connect {${this.fingerTable[0].successor.id}} failed with `,
-          err
-        );
-        return false;
-      }
-      try {
-        x = await successorClient.getPredecessor(this.fingerTable[0].successor);
-      } catch (err) {
+    if (!this.stabilizeIsLocked) {
+      this.stabilizeIsLocked = true;
+      let successorClient: {
+          getPredecessor: (arg0: Node) => any;
+          notify: (arg0: Node) => any;
+        },
+        x: Node;
+      if (this.iAmMyOwnSuccessor()) {
+        // use local value
+        await this.stabilizeSelf();
         x = this.encapsulateSelf();
-        handleGRPCErrors(
-          "stabilize",
-          "getPredecessor",
-          this.fingerTable[0].successor.host,
-          this.fingerTable[0].successor.port,
-          err
+      } else {
+        // use remote value
+        try {
+          successorClient = connect(this.fingerTable[0].successor);
+        } catch (err) {
+          console.error(
+            `stabilize: call to connect {${this.fingerTable[0].successor.id}} failed with `,
+            err
+          );
+          this.stabilizeIsLocked = false;
+          return false;
+        }
+        try {
+          x = await successorClient.getPredecessor(
+            this.fingerTable[0].successor
+          );
+        } catch (err) {
+          x = this.encapsulateSelf();
+          handleGRPCErrors(
+            "stabilize",
+            "getPredecessor",
+            this.fingerTable[0].successor.host,
+            this.fingerTable[0].successor.port,
+            err
+          );
+        }
+      }
+
+      if (
+        isInModuloRange(
+          x.id,
+          this.id,
+          false,
+          this.fingerTable[0].successor.id,
+          false
+        )
+      ) {
+        this.fingerTable[0].successor = x;
+      }
+
+      if (DEBUGGING_LOCAL) {
+        console.log(
+          `\nstabilize: leaving stabilize()`,
+          `\n\t{${this.id}}.predecessor = ${this.predecessor.id}`,
+          `\n\t{${this.id}}.fingerTable[] is:\n${this.fingerTable}`,
+          `\n\t{${this.id}}.successorTable[] is:\n${this.successorTable}\n`
         );
       }
-    }
 
-    if (
-      isInModuloRange(
-        x.id,
-        this.id,
-        false,
-        this.fingerTable[0].successor.id,
-        false
-      )
-    ) {
-      this.fingerTable[0].successor = x;
-    }
+      if (!this.iAmMyOwnSuccessor()) {
+        try {
+          successorClient = connect(this.fingerTable[0].successor);
+          await successorClient.notify(this.encapsulateSelf());
+        } catch (err) {
+          handleGRPCErrors(
+            "stabilize",
+            "successorClient",
+            this.fingerTable[0].successor.host,
+            this.fingerTable[0].successor.port,
+            err
+          );
+        }
+      }
 
-    if (DEBUGGING_LOCAL) {
-      console.log(
-        `\nstabilize: leaving stabilize()`,
-        `\n\t{${this.id}}.predecessor = ${this.predecessor.id}`,
-        `\n\t{${this.id}}.fingerTable[] is:\n${this.fingerTable}`,
-        `\n\t{${this.id}}.successorTable[] is:\n${this.successorTable}\n`
-      );
-    }
-
-    if (!this.iAmMyOwnSuccessor()) {
+      // update successor table - deviates from SIGCOMM
       try {
-        successorClient = connect(this.fingerTable[0].successor);
-        await successorClient.notify(this.encapsulateSelf());
+        await this.updateSuccessorTable();
       } catch (err) {
-        handleGRPCErrors(
-          "stabilize",
-          "successorClient",
-          this.fingerTable[0].successor.host,
-          this.fingerTable[0].successor.port,
-          err
+        console.error(`stabilize: updateSuccessorTable failed with `, err);
+      }
+
+      // set to (1) to use as debugging tells
+      if (DEBUGGING_LOCAL) {
+        console.log(`--\n{${this.id}}.predecessor = ${this.predecessor.id}`);
+        console.log(
+          `{${this.id}}.successor = ${this.fingerTable[0].successor.id}`
         );
       }
+      this.stabilizeIsLocked = false;
+      return true;
     }
-
-    // update successor table - deviates from SIGCOMM
-    try {
-      await this.updateSuccessorTable();
-    } catch (err) {
-      console.error(`stabilize: updateSuccessorTable failed with `, err);
-    }
-
-    // set to (1) to use as debugging tells
-    if (DEBUGGING_LOCAL) {
-      console.log(`--\n{${this.id}}.predecessor = ${this.predecessor.id}`);
-      console.log(
-        `{${this.id}}.successor = ${this.fingerTable[0].successor.id}`
-      );
-    }
-    return true;
   }
 
   /**
@@ -1072,9 +1085,9 @@ export class ChordNode {
    * The kick comes from setting the successor to be equal to the predecessor.
    *
    * This is an original function, not described in either version of the paper - added 20191021.
-   * @returns {boolean} true if it was a good kick; false if bad kick.
+   * @returns true if it was a good kick; false if bad kick.
    */
-  async stabilizeSelf() {
+  async stabilizeSelf(): Promise<boolean> {
     let predecessorSeemsOK = false;
     if (this.predecessor.id == null) {
       // this node is in real trouble since its predecessor is no good either
@@ -1106,10 +1119,11 @@ export class ChordNode {
 
   /**
    * Directly implements the pseudocode's notify() method.
-   * @param message
-   * @param callback the gRPC callback
    */
-  async notify(message, callback) {
+  async notify(
+    message: { request: any },
+    callback: (arg0: any, arg1: {}) => void
+  ) {
     const nPrime = message.request;
     if (
       this.predecessor.id == null ||
@@ -1124,26 +1138,34 @@ export class ChordNode {
    * Directly implements the pseudocode's fixFingers() method.
    */
   async fixFingers() {
-    let nSuccessor = NULL_NODE;
-    const randomId = Math.ceil(Math.random() * (this.fingerTable.length - 1));
-    try {
-      nSuccessor = await this.findSuccessor(
-        this.fingerTable[randomId].start,
-        this.encapsulateSelf()
-      );
-      if (nSuccessor.id !== null) {
-        this.fingerTable[randomId].successor = nSuccessor;
+    if (!this.fixFingersIsLocked) {
+      this.fixFingersIsLocked = true;
+      let nSuccessor = NULL_NODE;
+      try {
+        nSuccessor = await this.findSuccessor(
+          this.fingerTable[this.fingerToFix].start,
+          this.encapsulateSelf()
+        );
+        if (nSuccessor.id !== null) {
+          this.fingerTable[this.fingerToFix].successor = nSuccessor;
+        }
+      } catch (err) {
+        console.error(`fixFingers: findSuccessor failed with `, err);
       }
-    } catch (err) {
-      console.error(`fixFingers: findSuccessor failed with `, err);
-    }
-    if (DEBUGGING_LOCAL) {
-      console.log(
-        `fixFingers: Fix {${this.id}}.fingerTable[${randomId}], with start = ${this.fingerTable[randomId].start}.`
-      );
-      console.log(
-        `fixFingers: fingerTable[${randomId}] = ${this.fingerTable[randomId].successor}`
-      );
+      if (DEBUGGING_LOCAL) {
+        console.log(
+          `fixFingers: Fix {${this.id}}.fingerTable[${this.fingerToFix}], with start = ${this.fingerTable[this.fingerToFix].start}.`
+        );
+        console.log(
+          `fixFingers: fingerTable[${this.fingerToFix}] = ${this.fingerTable[this.fingerToFix].successor}`
+        );
+      }
+      if (this.fingerToFix < this.fingerTable.length - 1) {
+        this.fingerToFix++;
+      } else {
+        this.fingerToFix = 0;
+      }
+      this.fixFingersIsLocked = false;
     }
   }
 
@@ -1151,24 +1173,29 @@ export class ChordNode {
    * Checks to make sure that the predecessor is still responsive
    */
   async checkPredecessor() {
-    if (this.predecessor.id !== null && !this.iAmMyOwnPredecessor()) {
-      const predecessorClient = connect(this.predecessor);
-      try {
-        const _ = await predecessorClient.getPredecessor(this.id);
-      } catch (err) {
-        handleGRPCErrors(
-          "checkPredecessor",
-          "getPredecessor",
-          this.predecessor.host,
-          this.predecessor.port,
-          err
-        );
-        // Wipe out the predecessor if it doesn't respond
-        this.predecessor = { id: null, host: null, port: null };
-        return false;
+    if (!this.checkPredecessorIsLocked) {
+      this.checkPredecessorIsLocked = true;
+      if (this.predecessor.id !== null && !this.iAmMyOwnPredecessor()) {
+        const predecessorClient = connect(this.predecessor);
+        try {
+          const _ = await predecessorClient.getPredecessor(this.id);
+        } catch (err) {
+          handleGRPCErrors(
+            "checkPredecessor",
+            "getPredecessor",
+            this.predecessor.host,
+            this.predecessor.port,
+            err
+          );
+          // Wipe out the predecessor if it doesn't respond
+          this.predecessor = { id: null, host: null, port: null };
+          this.checkPredecessorIsLocked = false;
+          return false;
+        }
       }
+      this.checkPredecessorIsLocked = false;
+      return true;
     }
-    return true;
   }
 
   /**
@@ -1180,7 +1207,6 @@ export class ChordNode {
         `{${this.id}}.isOkSuccessor(${this.fingerTable[0].successor.id})`
       );
 
-    let nSuccessor = NULL_NODE;
     let successorSeemsOK = false;
     if (this.fingerTable[0].successor.id == null) {
       successorSeemsOK = false;
