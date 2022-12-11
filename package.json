@@ -26,7 +26,7 @@
     "@types/xml2js": "^0.4.5",
     "async": "^1.5.2",
     "crypto-js": "^3.1.9-1",
-    "express": "^4.17.1",
+    "express": "^4.17.3",
     "google-protobuf": "^3.10.0",
     "grpc": "^1.24.9",
     "grpc-caller": "^0.13.0",
