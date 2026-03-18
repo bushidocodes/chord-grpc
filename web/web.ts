@@ -9,71 +9,66 @@ const DEFAULT_HOST_NAME = os.hostname();
 const CRAWLER_INTERVAL_MS = 3000;
 
 class ChordCrawler {
-  host: string;
-  port: number;
-  client: any;
-  state: object = {};
-  walk: Set<any> = new Set([]);
-  canAdvance: boolean = true;
+  #host: string;
+  #port: number;
+  #client: any;
+  #state: object = {};
+  #walk: Set<any> = new Set([]);
+  #canAdvance: boolean = true;
+
+  get state() {
+    return this.#state;
+  }
 
   constructor(host: string, port: number, stepInMS: number) {
-    this.host = host;
-    this.port = port;
-    this.client = connect({ host: this.host, port: this.port });
+    this.#host = host;
+    this.#port = port;
+    this.#client = connect({ host: this.#host, port: this.#port });
     setInterval(async () => {
-      await this.crawl();
+      await this.#crawl();
     }, stepInMS);
   }
-  async advance() {
-    const connectionString = `${this.host}:${this.port}`;
-    this.walk.add(connectionString);
-    this.state[connectionString].successor.host;
+
+  #advance() {
+    const connectionString = `${this.#host}:${this.#port}`;
+    this.#walk.add(connectionString);
     // If the current node has a successor that we haven't yet crawled, advance to it
     if (
-      this.state[connectionString] &&
-      this.state[connectionString].successor &&
-      this.state[connectionString].successor.host &&
-      this.state[connectionString].successor.port &&
-      !this.walk.has(
-        `${this.state[connectionString].successor.host}:${this.state[connectionString].successor.port}`,
+      this.#state[connectionString] &&
+      this.#state[connectionString].successor &&
+      this.#state[connectionString].successor.host &&
+      this.#state[connectionString].successor.port &&
+      !this.#walk.has(
+        `${this.#state[connectionString].successor.host}:${this.#state[connectionString].successor.port}`,
       )
     ) {
-      this.host = this.state[connectionString].successor.host;
-      this.port = this.state[connectionString].successor.port;
+      this.#host = this.#state[connectionString].successor.host;
+      this.#port = this.#state[connectionString].successor.port;
     } else {
       let foundDangling = false;
-      for (let storedConnectionString of Object.keys(this.state)) {
-        if (!this.walk.has(storedConnectionString)) {
-          this.host = this.state[storedConnectionString].host;
-          this.port = this.state[storedConnectionString].port;
+      for (const storedConnectionString of Object.keys(this.#state)) {
+        if (!this.#walk.has(storedConnectionString)) {
+          this.#host = this.#state[storedConnectionString].host;
+          this.#port = this.#state[storedConnectionString].port;
           foundDangling = true;
           break;
         }
       }
       if (!foundDangling) {
         // If we've visited all known nodes, clear the walk and try again
-        this.walk.clear();
-        this.shuffleCurrentNode();
+        this.#walk.clear();
+        this.#shuffleCurrentNode();
       }
     }
   }
 
-  updateSuccessor(
-    connectionStringOfSourceNode: string | number,
-    successorNode: any,
-  ) {
-    if (this.state[connectionStringOfSourceNode]) {
-      this.state[connectionStringOfSourceNode].successor = successorNode;
-    }
-  }
-
-  shuffleCurrentNode() {
+  #shuffleCurrentNode() {
     // If we have trouble reaching a node, just shuffle to any other node and walk from there
-    const otherNodes = Object.values(this.state).filter(
+    const otherNodes = Object.values(this.#state).filter(
       (node) =>
-        (node.host !== this.host || node.port !== this.port) &&
-        this.host &&
-        this.port,
+        (node.host !== this.#host || node.port !== this.#port) &&
+        this.#host &&
+        this.#port,
     );
 
     // Just return if we don't have any possible alternatives
@@ -84,73 +79,74 @@ class ChordCrawler {
     const randomNode =
       otherNodes[Math.floor(Math.random() * otherNodes.length)];
 
-    this.host = randomNode.host;
-    this.port = randomNode.port;
+    this.#host = randomNode.host;
+    this.#port = randomNode.port;
 
     // And we have to invalidate the current walk to avoid accidental pruning
-    this.walk.clear();
+    this.#walk.clear();
   }
-  async crawl() {
-    if (this.canAdvance) {
-      this.canAdvance = false;
-      const connectionString = `${this.host}:${this.port}`;
+
+  async #crawl() {
+    if (this.#canAdvance) {
+      this.#canAdvance = false;
+      const connectionString = `${this.#host}:${this.#port}`;
       console.log(`Connecting to ${connectionString}`);
-      this.client = connect({ host: this.host, port: this.port });
+      this.#client = connect({ host: this.#host, port: this.#port });
 
       try {
         // Request ID to see if the node is even responsive
-        const { id } = await this.client.getNodeIdRemoteHelper();
+        const { id } = await this.#client.getNodeIdRemoteHelper();
 
         // If it is, plumb out the object in state if anything is missing
-        if (!this.state[connectionString]) {
-          this.state[connectionString] = {};
-          this.state[connectionString].host = this.host;
-          this.state[connectionString].port = this.port;
+        if (!this.#state[connectionString]) {
+          this.#state[connectionString] = {};
+          this.#state[connectionString].host = this.#host;
+          this.#state[connectionString].port = this.#port;
         }
-        if (!this.state[connectionString].fingerTable) {
-          this.state[connectionString].fingerTable = {};
+        if (!this.#state[connectionString].fingerTable) {
+          this.#state[connectionString].fingerTable = {};
         }
-        if (!this.state[connectionString].userIds) {
-          this.state[connectionString].userIds = [];
+        if (!this.#state[connectionString].userIds) {
+          this.#state[connectionString].userIds = [];
         }
-        if (!this.state[connectionString].id) {
-          this.state[connectionString].id = id;
+        if (!this.#state[connectionString].id) {
+          this.#state[connectionString].id = id;
         }
 
         // Update Fingers
-        const fingerTableStream = await this.client.getFingerTableEntries();
-        this.state[connectionString].fingerTable = {};
+        const fingerTableStream = await this.#client.getFingerTableEntries();
+        this.#state[connectionString].fingerTable = {};
         fingerTableStream.on("data", ({ index, node }) => {
-          this.state[connectionString].fingerTable[index] = node;
+          this.#state[connectionString].fingerTable[index] = node;
         });
 
         // Update UserIds
-        const userIdStream = await this.client.getUserIds();
-        this.state[connectionString].userIds = [];
+        const userIdStream = await this.#client.getUserIds();
+        this.#state[connectionString].userIds = [];
         userIdStream.on("data", (idWithMetadata: any) => {
-          this.state[connectionString].userIds.push(idWithMetadata);
+          this.#state[connectionString].userIds.push(idWithMetadata);
         });
 
         // Update Predecessor
-        const predecessorNode = await this.client.getPredecessor();
-        this.state[connectionString].predecessor = predecessorNode;
+        const predecessorNode = await this.#client.getPredecessor();
+        this.#state[connectionString].predecessor = predecessorNode;
 
         // Update Successor
-        const successorNode = await this.client.getSuccessorRemoteHelper();
-        this.state[connectionString].successor = successorNode;
+        const successorNode = await this.#client.getSuccessorRemoteHelper();
+        this.#state[connectionString].successor = successorNode;
 
         // Advance to the successor or a known node in a partition
-        this.advance();
+        this.#advance();
       } catch (err) {
         if (err.code == 14) {
           // If you can't reach a node, delete it and select a random node to continue walk
-          delete this.state[connectionString];
-          this.shuffleCurrentNode();
+          delete this.#state[connectionString];
+          this.#shuffleCurrentNode();
         } else {
           console.log(err);
         }
       } finally {
-        this.canAdvance = true;
+        this.#canAdvance = true;
       }
     }
   }
@@ -159,7 +155,7 @@ class ChordCrawler {
 function main() {
   if (process.argv.length >= 2) {
     const args = minimist(process.argv.slice(2));
-    let crawler = new ChordCrawler(
+    const crawler = new ChordCrawler(
       args.host || DEFAULT_HOST_NAME,
       args.port,
       args.interval || CRAWLER_INTERVAL_MS,
