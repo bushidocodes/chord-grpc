@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Chord-gRPC is a peer-to-peer distributed hash table (DHT) implementing the Chord algorithm. Built with TypeScript 5 / Node.js (tested on 14–24) and `@grpc/grpc-js` for inter-node communication. Includes a web UI for network visualization and a CLI client for data operations. The application layer implements a "Stack Exchange User Service" storing Stack Overflow user profiles. Docker containers use Node 24.
+Chord-gRPC is a peer-to-peer distributed hash table (DHT) implementing the Chord algorithm. Built with TypeScript 5 / Node.js (tested on 18–24) and `@grpc/grpc-js` for inter-node communication. Includes a web UI for network visualization and a CLI client for data operations. The application layer implements a "Stack Exchange User Service" storing Stack Overflow user profiles. Docker containers use Node 24.
 
 ## Commands
 

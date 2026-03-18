@@ -17,19 +17,18 @@
   },
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@grpc/grpc-js": "^1.12.5",
     "@grpc/proto-loader": "^0.7.0",
-    "crypto-js": "^4.2.0",
     "express": "^4.21.0",
-    "lodash": "^4.17.21",
     "minimist": "^1.2.8",
     "xml2js": "^0.6.0"
   },
   "devDependencies": {
-    "@types/crypto-js": "^4.2.0",
     "@types/express": "^5.0.0",
-    "@types/lodash": "^4.17.0",
     "@types/minimist": "^1.2.5",
     "@types/xml2js": "^0.4.14",
     "husky": "^9.0.0",

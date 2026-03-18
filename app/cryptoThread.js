@@ -1,3 +1,5 @@
-const CryptoJS = require("crypto-js");
+const crypto = require("crypto");
 const { parentPort, workerData } = require("worker_threads");
-parentPort.postMessage(CryptoJS.SHA1(workerData).toString());
+parentPort.postMessage(
+  crypto.createHash("sha1").update(workerData).digest("hex"),
+);

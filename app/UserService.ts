@@ -2,7 +2,6 @@ import os from "os";
 import path from "path";
 import * as grpc from "@grpc/grpc-js";
 import { loadSync } from "@grpc/proto-loader";
-import { cloneDeep } from "lodash";
 
 import { ChordNode } from "./ChordNode";
 import {
@@ -207,7 +206,7 @@ export class UserService extends ChordNode {
   // Insert User in local state
   insertUser(userEdit: any) {
     // We need to clone deep because objects are copy by reference
-    const clonedUserEdit = cloneDeep(userEdit);
+    const clonedUserEdit = structuredClone(userEdit);
     const key = clonedUserEdit.user.metadata.isPrimaryHash
       ? clonedUserEdit.user.metadata.primaryHash
       : clonedUserEdit.user.metadata.secondaryHash;

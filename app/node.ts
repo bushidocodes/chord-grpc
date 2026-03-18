@@ -13,7 +13,7 @@ import {
 export async function endpointIsResponsive(host: string, port: number) {
   const client = connect({ host, port });
   try {
-    await client.summary(this.id);
+    await client.summary({});
     return true;
   } catch (err) {
     handleGRPCErrors("endpointIsResponsive", "summary", host, port, err);
