@@ -11,7 +11,7 @@ import {
   handleGRPCErrors,
   isInModuloRange,
   NULL_NODE,
-  computeIntegerHash
+  computeIntegerHash,
 } from "./utils";
 
 const packageDefinition = loadSync(
@@ -21,8 +21,8 @@ const packageDefinition = loadSync(
     longs: String,
     enums: String,
     defaults: true,
-    oneofs: true
-  }
+    oneofs: true,
+  },
 );
 const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 
@@ -60,8 +60,7 @@ export class UserService extends ChordNode {
   // Starts the gRPC Server
   serve() {
     const server = new grpc.Server();
-    // @ts-ignore
-    server.addService(chord.Node.service, {
+    server.addService((chord as any).Node.service, {
       summary: this.summary.bind(this),
       fetch: this.fetch.bind(this),
       remove: this.remove.bind(this),
@@ -70,9 +69,8 @@ export class UserService extends ChordNode {
       insertUserRemoteHelper: this.insertUserRemoteHelper.bind(this),
       lookup: this.lookup.bind(this),
       lookupUserRemoteHelper: this.lookupUserRemoteHelper.bind(this),
-      migrateUsersToPredecessorRemoteHelper: this.migrateUsersToPredecessorRemoteHelper.bind(
-        this
-      ),
+      migrateUsersToPredecessorRemoteHelper:
+        this.migrateUsersToPredecessorRemoteHelper.bind(this),
       getNodeIdRemoteHelper: this.getNodeIdRemoteHelper.bind(this),
       findSuccessorRemoteHelper: this.findSuccessorRemoteHelper.bind(this),
       getSuccessorRemoteHelper: this.getSuccessorRemoteHelper.bind(this),
@@ -81,12 +79,11 @@ export class UserService extends ChordNode {
       setPredecessor: this.setPredecessor.bind(this),
       getUserIds: this.getUserIds.bind(this),
       getFingerTableEntries: this.getFingerTableEntries.bind(this),
-      closestPrecedingFingerRemoteHelper: this.closestPrecedingFingerRemoteHelper.bind(
-        this
-      ),
+      closestPrecedingFingerRemoteHelper:
+        this.closestPrecedingFingerRemoteHelper.bind(this),
       updateFingerTable: this.updateFingerTable.bind(this),
       notify: this.notify.bind(this),
-      destructor: this.destructor.bind(this)
+      destructor: this.destructor.bind(this),
     });
 
     // We assume that binding to 0.0.0.0 indeed makes us accessible at this.host
@@ -94,12 +91,12 @@ export class UserService extends ChordNode {
     server.bindAsync(
       `0.0.0.0:${this.port}`,
       grpc.ServerCredentials.createInsecure(),
-      err => {
+      (err) => {
         if (err) {
           console.error(`Failed to bind server: ${err.message}`);
           process.exit(1);
         }
-      }
+      },
     );
   }
 
@@ -109,10 +106,10 @@ export class UserService extends ChordNode {
     end: () => void;
   }) {
     const users = Object.values(this.userMap);
-    users.forEach(user => {
+    users.forEach((user) => {
       call.write({
         id: user.id,
-        metadata: user.metadata
+        metadata: user.metadata,
       });
     });
     call.end();
@@ -133,7 +130,7 @@ export class UserService extends ChordNode {
   // gRPC Handler to allow other nodes to remove users from our local state
   async removeUserRemoteHelper(
     message: { request: { id: any } },
-    callback: (call: { code: number }, arg1: {}) => void
+    callback: (call: { code: number }, arg1: {}) => void,
   ) {
     if (DEBUGGING_LOCAL) console.log("removeUserRemoteHelper: ", message);
     const err = this.removeUser(message.request.id);
@@ -143,7 +140,7 @@ export class UserService extends ChordNode {
   // Removes a User regardless of location in cluster
   async remove(
     message: { request: { id: any } },
-    callback: (call: any, arg1: {}) => void
+    callback: (call: any, arg1: {}) => void,
   ) {
     const userId = message.request.id;
     const err1 = await this.removeWithHash(userId, true);
@@ -192,7 +189,7 @@ export class UserService extends ChordNode {
           { id: lookupKey },
           (err: any, _: any) => {
             return err;
-          }
+          },
         );
       } catch (err) {
         handleGRPCErrors(
@@ -200,7 +197,7 @@ export class UserService extends ChordNode {
           "removeUserRemoteHelper",
           successor.host,
           successor.port,
-          err
+          err,
         );
         return err;
       }
@@ -235,7 +232,7 @@ export class UserService extends ChordNode {
   // gRPC Handler to allow other nodes to insert users into our local state
   async insertUserRemoteHelper(
     message: { request: any },
-    callback: (call: { code: number }, arg1: {}) => void
+    callback: (call: { code: number }, arg1: {}) => void,
   ) {
     if (DEBUGGING_LOCAL) console.log("insertUserRemoteHelper: ", message);
     const err = this.insertUser(message.request);
@@ -245,7 +242,7 @@ export class UserService extends ChordNode {
   // Inserts a User regardless of location in cluster
   async insert(
     message: { request: any },
-    callback: (call: any, arg1: {}) => void
+    callback: (call: any, arg1: {}) => void,
   ) {
     // User and isEdit flag
     const userEdit = message.request;
@@ -253,11 +250,10 @@ export class UserService extends ChordNode {
     // Add Metadata
     userEdit.user.metadata = {};
     userEdit.user.metadata.primaryHash = await this.computeUserIdHashPrimary(
-      userEdit.user.id
+      userEdit.user.id,
     );
-    userEdit.user.metadata.secondaryHash = await this.computeUserIdHashSecondary(
-      userEdit.user.id
-    );
+    userEdit.user.metadata.secondaryHash =
+      await this.computeUserIdHashSecondary(userEdit.user.id);
 
     // Execute Insert or Edit at primary and secondary hash
     const err1 = await this.insertWithHash(userEdit, true);
@@ -297,7 +293,7 @@ export class UserService extends ChordNode {
           (err: any, _: any) => {
             console.log("insert finishing");
             return err;
-          }
+          },
         );
       } catch (err) {
         handleGRPCErrors(
@@ -305,7 +301,7 @@ export class UserService extends ChordNode {
           "insertUser",
           successor.host,
           successor.port,
-          err
+          err,
         );
         return err;
       }
@@ -315,10 +311,10 @@ export class UserService extends ChordNode {
   // gRPC handler that returns a user locally from this node
   fetch(
     message: { request: { id: any } },
-    callback: (call: { code: number }, arg1: User) => void
+    callback: (call: { code: number }, arg1: User) => void,
   ) {
     const {
-      request: { id }
+      request: { id },
     } = message;
     console.log(`Requested User ${id}`);
     if (!this.userMap[id]) {
@@ -343,7 +339,7 @@ export class UserService extends ChordNode {
 
   async lookupUserRemoteHelper(
     message: { request: { id: any } },
-    callback: (call: any, arg1: any) => void
+    callback: (call: any, arg1: any) => void,
   ) {
     if (DEBUGGING_LOCAL)
       console.log("beginning lookupUserRemoteHelper: ", message.request.id);
@@ -355,7 +351,7 @@ export class UserService extends ChordNode {
 
   async lookup(
     message: { request: { id: number } },
-    callback: (call: any, arg1: any) => void
+    callback: (call: any, arg1: any) => void,
   ) {
     const userId = message.request.id;
     console.log(`lookup: Looking up user ${userId}`);
@@ -401,7 +397,7 @@ export class UserService extends ChordNode {
         console.log(
           "lookup: finished Server-side lookup, returning: ",
           err,
-          user
+          user,
         );
       return { err, user };
     } else {
@@ -409,7 +405,7 @@ export class UserService extends ChordNode {
         console.log("In lookup: lookup user to remote node");
         const successorClient = connect(successor);
         const user = await successorClient.lookupUserRemoteHelper({
-          id: lookupKey
+          id: lookupKey,
         });
         return { err: null, user };
       } catch (err) {
@@ -418,7 +414,7 @@ export class UserService extends ChordNode {
           "lookupUserRemotehelper",
           successor.host,
           successor.port,
-          err
+          err,
         );
         return { err, user: null };
       }
@@ -435,7 +431,7 @@ export class UserService extends ChordNode {
         "migrateUsersToNewPredecessor",
         this.predecessor.host,
         this.predecessor.port,
-        error
+        error,
       );
       return false;
     }
@@ -453,7 +449,7 @@ export class UserService extends ChordNode {
         "migrateUsersToNewPredecessor",
         this.predecessor.host,
         this.predecessor.port,
-        error
+        error,
       );
     }
   }
@@ -464,20 +460,20 @@ export class UserService extends ChordNode {
     const client = connect(this.predecessor);
 
     Object.keys(this.userMap)
-      .filter(hashedKey =>
+      .filter((hashedKey) =>
         isInModuloRange(
           parseInt(hashedKey, 10),
           this.id,
           false,
           this.predecessor.id,
-          true
-        )
+          true,
+        ),
       )
-      .forEach(hashedKey => {
+      .forEach((hashedKey) => {
         try {
           client.insertUserRemoteHelper({
             user: this.userMap[hashedKey],
-            edit: false
+            edit: false,
           });
           this.removeUser(hashedKey);
         } catch (error) {
@@ -486,7 +482,7 @@ export class UserService extends ChordNode {
             "insertUserRemoteHelper",
             this.predecessor.host,
             this.predecessor.port,
-            error
+            error,
           );
         }
       });
@@ -498,11 +494,11 @@ export class UserService extends ChordNode {
 
     const client = connect(this.fingerTable[0].successor);
 
-    Object.keys(this.userMap).forEach(hashedKey => {
+    Object.keys(this.userMap).forEach((hashedKey) => {
       try {
         client.insertUserRemoteHelper({
           user: this.userMap[hashedKey],
-          edit: false
+          edit: false,
         });
         this.removeUser(hashedKey);
       } catch (error) {
@@ -511,7 +507,7 @@ export class UserService extends ChordNode {
           "insertUserRemoteHelper",
           this.predecessor.host,
           this.predecessor.port,
-          error
+          error,
         );
       }
     });
@@ -520,7 +516,7 @@ export class UserService extends ChordNode {
 
   migrateUsersToPredecessorRemoteHelper(
     _: any,
-    callback: (call: any, arg1: {}) => void
+    callback: (call: any, arg1: {}) => void,
   ) {
     callback(this.migrateUsersToPredecessor(), {});
   }
@@ -538,7 +534,7 @@ export class UserService extends ChordNode {
     let userIdString: string = userId.toString().toLowerCase();
     let hashedUserId: number = await computeIntegerHash(
       userIdString,
-      highOrderBits
+      highOrderBits,
     );
     return hashedUserId;
   }
@@ -548,7 +544,7 @@ export class UserService extends ChordNode {
     let userIdString: string = userId.toString().toLowerCase();
     let hashedUserId: number = await computeIntegerHash(
       userIdString,
-      highOrderBits
+      highOrderBits,
     );
     return hashedUserId;
   }

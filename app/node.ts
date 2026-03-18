@@ -7,7 +7,7 @@ import {
   connect,
   computeIntegerHash,
   handleGRPCErrors,
-  HASH_BIT_LENGTH
+  HASH_BIT_LENGTH,
 } from "./utils";
 
 export async function endpointIsResponsive(host: string, port: number) {
@@ -28,7 +28,7 @@ async function hashDryRun(sourceValue: string) {
   } catch (err) {
     console.error(
       `Error computing hash of ${sourceValue}. Thus, terminating...\n`,
-      err
+      err,
     );
     return -13;
   }
@@ -52,9 +52,8 @@ async function main() {
   console.log("This process is your pid " + process.pid);
   const args = minimist(process.argv.slice(2), {
     string: ["host", "knownHost"],
-    // @ts-ignore
-    number: ["port", "knownPort", "id"]
-  });
+    number: ["port", "knownPort", "id"],
+  } as minimist.Opts);
 
   if (args.hashOnly) {
     const rc = await hashDryRun(args.hashOnly);
@@ -70,8 +69,9 @@ async function main() {
   // protect against bad ID inputs
   if (args.id && args.id > 2 ** HASH_BIT_LENGTH - 1) {
     console.error(
-      `Error. Bad ID {${args.id}} > 2^m-1 {${2 ** HASH_BIT_LENGTH -
-        1}}. Terminating...\n`
+      `Error. Bad ID {${args.id}} > 2^m-1 {${
+        2 ** HASH_BIT_LENGTH - 1
+      }}. Terminating...\n`,
     );
     return -13;
   }
@@ -79,14 +79,14 @@ async function main() {
   let userServiceNode = new UserService({
     id: args.id,
     host: args.host,
-    port: args.port
+    port: args.port,
   });
   try {
     userServiceNode.serve();
     let knownNode = {
       id: null,
       host: knownNodeHost,
-      port: knownNodePort
+      port: knownNodePort,
     };
     await userServiceNode.joinCluster(knownNode);
   } catch (err) {
@@ -97,7 +97,7 @@ async function main() {
   if (process.platform === "win32") {
     const rl = readline.createInterface({
       input: process.stdin,
-      output: process.stdout
+      output: process.stdout,
     });
     rl.on("SIGINT", () => {
       console.log("INT!");
@@ -111,14 +111,14 @@ async function main() {
   }
 
   // handle "ctrl + c" as a graceful exit
-  process.on("SIGINT", async function() {
+  process.on("SIGINT", async function () {
     console.log("\n\nUser issued ctrl+c");
     await userServiceNode.destructor();
     console.log(`Exiting process ${process.pid}`);
     process.exit();
   });
 
-  process.on("SIGTERM", async function() {
+  process.on("SIGTERM", async function () {
     console.log("\n\nSIGTERM caught");
     await userServiceNode.destructor();
     console.log(`Exiting process ${process.pid}`);
