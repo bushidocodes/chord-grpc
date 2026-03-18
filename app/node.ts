@@ -76,7 +76,11 @@ async function main() {
     return -13;
   }
 
-  let userServiceNode = new UserService({ ...args });
+  let userServiceNode = new UserService({
+    id: args.id,
+    host: args.host,
+    port: args.port
+  });
   try {
     userServiceNode.serve();
     let knownNode = {

@@ -2,9 +2,7 @@ import express from "express";
 import minimist from "minimist";
 import os from "os";
 import path from "path";
-import caller from "grpc-caller";
-
-const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
+import { connect } from "../app/utils";
 const PUBLIC_PATH = path.resolve(__dirname, "./public");
 
 const DEFAULT_HOST_NAME = os.hostname();
@@ -21,7 +19,7 @@ class ChordCrawler {
   constructor(host: string, port: number, stepInMS: number) {
     this.host = host;
     this.port = port;
-    this.client = caller(`${this.host}:${this.port}`, PROTO_PATH, "Node");
+    this.client = connect({ host: this.host, port: this.port });
     setInterval(async () => {
       await this.crawl();
     }, stepInMS);
@@ -97,7 +95,7 @@ class ChordCrawler {
       this.canAdvance = false;
       const connectionString = `${this.host}:${this.port}`;
       console.log(`Connecting to ${connectionString}`);
-      this.client = caller(connectionString, PROTO_PATH, "Node");
+      this.client = connect({ host: this.host, port: this.port });
 
       try {
         // Request ID to see if the node is even responsive

@@ -1,9 +1,19 @@
 import path from "path";
 import process from "process";
 import { Worker } from "worker_threads";
-import caller from "grpc-caller";
+import * as grpc from "@grpc/grpc-js";
+import { loadSync } from "@grpc/proto-loader";
 
 const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
+
+const packageDefinition = loadSync(PROTO_PATH, {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true
+});
+const chordProto = grpc.loadPackageDefinition(packageDefinition).chord as any;
 
 export const HASH_BIT_LENGTH = 32; //TBD
 export const FIBONACCI_ALPHA = 0.7;
@@ -247,6 +257,51 @@ export function handleGRPCErrors(
   }
 }
 
+/**
+ * Creates a gRPC client for the Node service with promisified unary methods.
+ * Streaming methods (getFingerTableEntries, getUserIds) remain unchanged.
+ */
 export function connect({ host, port }: { host: string; port: number }) {
-  return caller(`${host}:${port}`, PROTO_PATH, "Node");
+  const raw = new chordProto.Node(
+    `${host}:${port}`,
+    grpc.credentials.createInsecure()
+  );
+  return promisifyClient(raw);
+}
+
+function promisifyClient(client: any) {
+  const streamMethods = new Set(["getFingerTableEntries", "getUserIds"]);
+  const proto = Object.getPrototypeOf(client);
+
+  for (const method of Object.keys(proto)) {
+    if (method.startsWith("$") || method.startsWith("_")) continue;
+    const original = proto[method];
+    if (typeof original !== "function") continue;
+    if (streamMethods.has(method)) {
+      // Wrap streaming calls to allow zero-arg invocation
+      const origMethod = client[method].bind(client);
+      client[method] = (req?: any) => origMethod(req || {});
+    } else {
+      // Promisify unary calls, supporting optional request arg and optional callback
+      const origMethod = client[method].bind(client);
+      client[method] = (reqOrCb?: any, maybeCb?: any) => {
+        // If called with a callback as second arg, use callback style
+        if (typeof maybeCb === "function") {
+          return origMethod(reqOrCb || {}, maybeCb);
+        }
+        // If called with a callback as first arg (no request), use callback style
+        if (typeof reqOrCb === "function") {
+          return origMethod({}, reqOrCb);
+        }
+        // Otherwise return a promise
+        return new Promise((resolve, reject) => {
+          origMethod(reqOrCb || {}, (err: any, response: any) => {
+            if (err) reject(err);
+            else resolve(response);
+          });
+        });
+      };
+    }
+  }
+  return client;
 }

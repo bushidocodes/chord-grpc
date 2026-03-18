@@ -1,8 +1,6 @@
-import caller from "grpc-caller";
 import path from "path";
 import fs from "fs";
-
-const PROTO_PATH = path.resolve(__dirname, "../protos/chord.proto");
+import { connect } from "../app/utils";
 
 export class Client {
   host: string;
@@ -11,7 +9,7 @@ export class Client {
   constructor(host: string, port: number) {
     this.host = host;
     this.port = port;
-    this.client = caller(`${this.host}:${this.port}`, PROTO_PATH, "Node");
+    this.client = connect({ host: this.host, port: this.port });
   }
 
   async summary() {

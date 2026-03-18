@@ -1,6 +1,6 @@
 import os from "os";
 import path from "path";
-import grpc from "grpc";
+import * as grpc from "@grpc/grpc-js";
 import { loadSync } from "@grpc/proto-loader";
 import { cloneDeep } from "lodash";
 
@@ -91,11 +91,16 @@ export class UserService extends ChordNode {
 
     // We assume that binding to 0.0.0.0 indeed makes us accessible at this.host
     console.log(`Serving on ${this.host}:${this.port}`);
-    server.bind(
+    server.bindAsync(
       `0.0.0.0:${this.port}`,
-      grpc.ServerCredentials.createInsecure()
+      grpc.ServerCredentials.createInsecure(),
+      err => {
+        if (err) {
+          console.error(`Failed to bind server: ${err.message}`);
+          process.exit(1);
+        }
+      }
     );
-    server.start();
   }
 
   // Streams a List of User IDs stored by the Node
