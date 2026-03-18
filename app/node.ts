@@ -3,23 +3,7 @@ import minimist from "minimist";
 import { UserService } from "./UserService";
 import readline from "readline";
 
-import {
-  connect,
-  computeIntegerHash,
-  handleGRPCErrors,
-  HASH_BIT_LENGTH,
-} from "./utils";
-
-export async function endpointIsResponsive(host: string, port: number) {
-  const client = connect({ host, port });
-  try {
-    await client.summary({});
-    return true;
-  } catch (err) {
-    handleGRPCErrors("endpointIsResponsive", "summary", host, port, err);
-    return false;
-  }
-}
+import { computeIntegerHash, HASH_BIT_LENGTH } from "./utils";
 
 async function hashDryRun(sourceValue: string) {
   try {

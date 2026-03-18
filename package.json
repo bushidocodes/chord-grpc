@@ -24,13 +24,13 @@
     "@grpc/grpc-js": "^1.12.5",
     "@grpc/proto-loader": "^0.7.0",
     "express": "^4.21.0",
-    "minimist": "^1.2.8",
-    "xml2js": "^0.6.0"
+    "minimist": "^1.2.8"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/minimist": "^1.2.5",
     "@types/xml2js": "^0.4.14",
+    "xml2js": "^0.6.0",
     "husky": "^9.0.0",
     "prettier": "^3.0.0",
     "pretty-quick": "^4.0.0",

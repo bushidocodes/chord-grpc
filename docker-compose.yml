@@ -22,6 +22,6 @@ services:
     depends_on:
       - node_primary
     volumes:
-      - ./web:/home/node/app/web
-      - /home/node/app/node_modules/
+      - ./web:/home/node/web
+      - /home/node/node_modules/
     command: npm run devWeb -- --host node_primary --port 1337 --webPort 1337

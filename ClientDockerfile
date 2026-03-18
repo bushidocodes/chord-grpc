@@ -2,7 +2,7 @@ FROM node:24-alpine
 USER node
 WORKDIR /home/node
 COPY --chown=node:node package*.json ./
-RUN npm install
+RUN npm install --ignore-scripts
 COPY --chown=node:node . .
 EXPOSE 1337
 CMD [ "node", "./client/client.js"]
