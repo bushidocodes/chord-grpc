@@ -1,6 +1,6 @@
 import path from "path";
 import fs from "fs";
-import { connect } from "../app/utils";
+import { connect } from "../app/utils.ts";
 
 export class Client {
   host: string;
@@ -17,7 +17,7 @@ export class Client {
     try {
       const node = await this.client.summary({ id: 1 });
       console.log(
-        `The node returned id: ${node.id}, host: ${node.host}, port: ${node.port}`
+        `The node returned id: ${node.id}, host: ${node.host}, port: ${node.port}`,
       );
     } catch (err) {
       console.error(err);
@@ -46,10 +46,10 @@ export class Client {
       console.log("node client insert --id=42424242");
 
       console.log(
-        "optional fields include reputation, creationDate, displayName, lastAccessDate, websiteUrl, location, aboutMe, views, upVotes, downVotes, profileImageUrl, accountId"
+        "optional fields include reputation, creationDate, displayName, lastAccessDate, websiteUrl, location, aboutMe, views, upVotes, downVotes, profileImageUrl, accountId",
       );
       console.log(
-        'node client insert --id=42424242 --displayName="Sean McBride" --reputation=3 --website="https://www.bushido.codes"'
+        'node client insert --id=42424242 --displayName="Sean McBride" --reputation=3 --website="https://www.bushido.codes"',
       );
       process.exit();
     }
@@ -66,7 +66,7 @@ export class Client {
       upVotes: rest.upVotes || 0,
       downVotes: rest.downVotes || 0,
       profileImageUrl: rest.profileImageUrl || 0,
-      accountId: rest.accoutId || 0
+      accountId: rest.accoutId || 0,
     };
     try {
       const _ = await this.client.insert({ user, edit: rest.edit });
@@ -97,12 +97,12 @@ export class Client {
       process.exit();
     }
     try {
-      const jsonPath = path.resolve(__dirname, "..", rest.path);
+      const jsonPath = path.resolve(import.meta.dirname, "..", rest.path);
       console.log(jsonPath);
       fs.readFile(jsonPath, "utf8", (err, rawData) => {
         const data = JSON.parse(rawData);
         const users: { [x: string]: any; _: any }[] = Object.values(data);
-        users.forEach(user => this.insert(user));
+        users.forEach((user) => this.insert(user));
       });
     } catch (err) {
       console.error(err);

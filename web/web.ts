@@ -2,8 +2,8 @@ import express from "express";
 import minimist from "minimist";
 import os from "os";
 import path from "path";
-import { connect } from "../app/utils";
-const PUBLIC_PATH = path.resolve(__dirname, "./public");
+import { connect } from "../app/utils.ts";
+const PUBLIC_PATH = path.resolve(import.meta.dirname, "./public");
 
 const DEFAULT_HOST_NAME = os.hostname();
 const CRAWLER_INTERVAL_MS = 3000;
@@ -35,7 +35,7 @@ class ChordCrawler {
       this.state[connectionString].successor.host &&
       this.state[connectionString].successor.port &&
       !this.walk.has(
-        `${this.state[connectionString].successor.host}:${this.state[connectionString].successor.port}`
+        `${this.state[connectionString].successor.host}:${this.state[connectionString].successor.port}`,
       )
     ) {
       this.host = this.state[connectionString].successor.host;
@@ -60,7 +60,7 @@ class ChordCrawler {
 
   updateSuccessor(
     connectionStringOfSourceNode: string | number,
-    successorNode: any
+    successorNode: any,
   ) {
     if (this.state[connectionStringOfSourceNode]) {
       this.state[connectionStringOfSourceNode].successor = successorNode;
@@ -70,10 +70,10 @@ class ChordCrawler {
   shuffleCurrentNode() {
     // If we have trouble reaching a node, just shuffle to any other node and walk from there
     const otherNodes = Object.values(this.state).filter(
-      node =>
+      (node) =>
         (node.host !== this.host || node.port !== this.port) &&
         this.host &&
-        this.port
+        this.port,
     );
 
     // Just return if we don't have any possible alternatives
@@ -162,7 +162,7 @@ function main() {
     let crawler = new ChordCrawler(
       args.host || DEFAULT_HOST_NAME,
       args.port,
-      args.interval || CRAWLER_INTERVAL_MS
+      args.interval || CRAWLER_INTERVAL_MS,
     );
 
     const app = express();
@@ -170,7 +170,7 @@ function main() {
     app.use(express.static(PUBLIC_PATH));
     app.get("/data", (_, res) => res.json(crawler.state));
     app.listen(port, () =>
-      console.log(`Example app listening on port ${port}!`)
+      console.log(`Example app listening on port ${port}!`),
     );
   }
 }

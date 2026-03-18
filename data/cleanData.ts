@@ -21,7 +21,7 @@ interface XMLGeneratedPerson {
 }
 
 // Quick and dirty script to convert the StackOverflow data from XML to JSON
-fs.readFile(`${__dirname}/users.xml`, (_err, data) => {
+fs.readFile(`${import.meta.dirname}/users.xml`, (_err, data) => {
   parseString(data, (_err, rawData) => {
     const result = {};
     const tinyResult = {};
@@ -40,7 +40,7 @@ fs.readFile(`${__dirname}/users.xml`, (_err, data) => {
         upVotes: parseInt(person.UpVotes, 10),
         downVotes: parseInt(person.DownVotes, 10),
         profileImageUrl: person.ProfileImageUrl,
-        accountId: parseInt(person.AccountId, 10)
+        accountId: parseInt(person.AccountId, 10),
       }))
       .forEach((person: { id: string | number }, idx: number) => {
         if (idx < COUNT_OF_USERS_IN_TINY_USERS) {
@@ -48,7 +48,13 @@ fs.readFile(`${__dirname}/users.xml`, (_err, data) => {
         }
         result[person.id] = person;
       });
-    fs.writeFileSync(`${__dirname}/users.json`, JSON.stringify(result));
-    fs.writeFileSync(`${__dirname}/tinyUsers.json`, JSON.stringify(tinyResult));
+    fs.writeFileSync(
+      `${import.meta.dirname}/users.json`,
+      JSON.stringify(result),
+    );
+    fs.writeFileSync(
+      `${import.meta.dirname}/tinyUsers.json`,
+      JSON.stringify(tinyResult),
+    );
   });
 });

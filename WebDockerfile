@@ -5,4 +5,4 @@ COPY --chown=node:node package*.json ./
 RUN npm install --ignore-scripts
 COPY --chown=node:node . .
 EXPOSE 1337
-CMD [ "node", "./web/web.js"]
+CMD [ "node", "./web/web.ts"]

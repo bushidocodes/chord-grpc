@@ -1,6 +1,6 @@
 import minimist from "minimist";
 import os from "os";
-import { Client } from "./common";
+import { Client } from "./common.ts";
 
 function main() {
   if (process.argv.length >= 3) {

@@ -1,13 +1,16 @@
 {
   "compilerOptions": {
     "allowJs": false,
-    "module": "commonjs",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "removeComments": true,
     "preserveConstEnums": true,
     "esModuleInterop": true,
     "sourceMap": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true
   },
-  "include": ["**/*.ts", "app/cryptoThread.js"],
+  "include": ["**/*.ts"],
   "exclude": ["node_modules", "**/*.spec.ts"]
 }

@@ -1,9 +1,9 @@
 import process from "process";
 import minimist from "minimist";
-import { UserService } from "./UserService";
+import { UserService } from "./UserService.ts";
 import readline from "readline";
 
-import { computeIntegerHash, HASH_BIT_LENGTH } from "./utils";
+import { computeIntegerHash, HASH_BIT_LENGTH } from "./utils.ts";
 
 async function hashDryRun(sourceValue: string) {
   try {

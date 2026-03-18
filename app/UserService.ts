@@ -3,7 +3,7 @@ import path from "path";
 import * as grpc from "@grpc/grpc-js";
 import { loadSync } from "@grpc/proto-loader";
 
-import { ChordNode } from "./ChordNode";
+import { ChordNode } from "./ChordNode.ts";
 import {
   connect,
   DEBUGGING_LOCAL,
@@ -11,10 +11,10 @@ import {
   isInModuloRange,
   NULL_NODE,
   computeIntegerHash,
-} from "./utils";
+} from "./utils.ts";
 
 const packageDefinition = loadSync(
-  path.resolve(__dirname, "../protos/chord.proto"),
+  path.resolve(import.meta.dirname, "../protos/chord.proto"),
   {
     keepCase: true,
     longs: String,
