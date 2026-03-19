@@ -56,8 +56,8 @@ message UserId {
 
 message UserIdWithMetadata {
   message UserMetadata {
-    int32 primaryHash = 1;
-    int32 secondaryHash = 2;
+    uint32 primaryHash = 1;
+    uint32 secondaryHash = 2;
     bool  isPrimaryHash = 3;
   }
   uint32 id = 1;
@@ -68,8 +68,8 @@ message UserIdWithMetadata {
 
 message User {
   message UserMetadata {
-    int32 primaryHash = 1;
-    int32 secondaryHash = 2;
+    uint32 primaryHash = 1;
+    uint32 secondaryHash = 2;
     bool  isPrimaryHash = 3;
   }
   int32 id = 1;

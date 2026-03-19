@@ -1,9 +1,22 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
 html,
 body,
 #grid {
-  width: auto;
+  width: 100%;
   height: 100%;
-  margin: 0px;
+  font-family:
+    "Inter",
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  background: #0f1117;
+  color: #e1e4e8;
 }
 
 :focus {
@@ -12,38 +25,151 @@ body,
 
 #grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  grid-template-rows: repeat(5, 1fr);
-  grid-column-gap: 0px;
-  grid-row-gap: 0px;
+  grid-template-columns: 1fr 320px;
+  grid-template-rows: auto 1fr;
+  gap: 1px;
+  height: 100vh;
+  background: #21262d;
 }
 
 #mynetwork {
-  grid-area: 1 / 1 / 6 / 5;
-  box-sizing: border-box;
-  width: 100%;
-  border: solid;
-  padding: 5px;
+  grid-row: 1 / 3;
+  grid-column: 1;
+  background: #0d1117;
 }
 
 #nodeCount {
-  grid-area: 1 / 5 / 2 / 6;
-  box-sizing: border-box;
+  grid-row: 1;
+  grid-column: 2;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: solid;
-  border-left: none;
-  padding: 5px;
-  font-size: 80px;
+  gap: 12px;
+  padding: 20px;
+  background: #161b22;
+  font-size: 56px;
+  font-weight: 700;
+  color: #58a6ff;
+  letter-spacing: -2px;
 }
+
+#nodeCount::after {
+  content: "nodes";
+  font-size: 14px;
+  font-weight: 400;
+  color: #8b949e;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
 #nodeContent {
-  grid-area: 2 / 5 / 6 / 6;
-  box-sizing: border-box;
-  border: solid;
-  border-top: none;
-  border-left: none;
-  padding: 5px;
-  overflow-y: scroll;
+  grid-row: 2;
+  grid-column: 2;
+  background: #161b22;
+  padding: 16px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #c9d1d9;
+}
+
+#nodeContent:empty::before {
+  content: "Click a node to view details";
+  color: #484f58;
+  font-style: italic;
+}
+
+#nodeContent .section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #8b949e;
+  margin-top: 16px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #21262d;
+}
+
+#nodeContent .section-title:first-child {
+  margin-top: 0;
+}
+
+#nodeContent .node-id {
+  font-size: 20px;
+  font-weight: 700;
+  color: #58a6ff;
+  margin-bottom: 2px;
+}
+
+#nodeContent .node-host {
   font-size: 12px;
+  color: #8b949e;
+  font-family: "SFMono-Regular", "Cascadia Code", "Fira Code", monospace;
+  margin-bottom: 12px;
+}
+
+#nodeContent .detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+}
+
+#nodeContent .detail-key {
+  color: #8b949e;
+}
+
+#nodeContent .detail-value {
+  font-family: "SFMono-Regular", "Cascadia Code", "Fira Code", monospace;
+  color: #e1e4e8;
+  font-size: 12px;
+}
+
+#nodeContent .finger-entry {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-family: "SFMono-Regular", "Cascadia Code", "Fira Code", monospace;
+  font-size: 12px;
+}
+
+#nodeContent .finger-key {
+  color: #8b949e;
+}
+
+#nodeContent .finger-value {
+  color: #7ee787;
+}
+
+#nodeContent .user-entry {
+  padding: 2px 0;
+  font-family: "SFMono-Regular", "Cascadia Code", "Fira Code", monospace;
+  font-size: 12px;
+}
+
+#nodeContent .user-primary {
+  color: #d2a8ff;
+}
+
+#nodeContent .user-secondary {
+  color: #8b949e;
+  font-size: 11px;
+}
+
+/* Scrollbar styling */
+#nodeContent::-webkit-scrollbar {
+  width: 6px;
+}
+
+#nodeContent::-webkit-scrollbar-track {
+  background: #161b22;
+}
+
+#nodeContent::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 3px;
+}
+
+#nodeContent::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
 }
