@@ -1,8 +1,9 @@
 FROM node:24-alpine
+RUN corepack enable
 USER node
 WORKDIR /home/node
-COPY --chown=node:node package*.json ./
-RUN npm install --ignore-scripts
+COPY --chown=node:node package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY --chown=node:node . .
 EXPOSE 1337
 CMD [ "node", "./web/web.ts"]

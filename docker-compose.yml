@@ -5,12 +5,12 @@ services:
       dockerfile: NodeDockerfile
     ports:
       - "8440:1337"
-    command: "npm run devServer -- --host node_primary --knownHost node_primary --knownPort 1337"
+    command: "pnpm run devServer -- --host node_primary --knownHost node_primary --knownPort 1337"
   node_secondary:
     build:
       context: .
       dockerfile: NodeDockerfile
-    command: "npm run devServer -- --knownHost node_primary --knownPort 1337"
+    command: "pnpm run devServer -- --knownHost node_primary --knownPort 1337"
     depends_on:
       - node_primary
   web:
@@ -24,4 +24,4 @@ services:
     volumes:
       - ./web:/home/node/web
       - /home/node/node_modules/
-    command: npm run devWeb -- --host node_primary --port 1337 --webPort 1337
+    command: pnpm run devWeb -- --host node_primary --port 1337 --webPort 1337

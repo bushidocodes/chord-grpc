@@ -18,6 +18,7 @@
   },
   "author": "",
   "license": "ISC",
+  "packageManager": "pnpm@11.5.0",
   "engines": {
     "node": ">=24"
   },
