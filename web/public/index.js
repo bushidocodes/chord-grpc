@@ -187,39 +187,55 @@ async function loadData() {
         const nodeContent = document.getElementById("nodeContent");
         const data = nodeSet.get(params.nodes[0]).data;
 
-        let html = "";
+        const frag = document.createDocumentFragment();
+
+        function el(tag, className, text) {
+          const e = document.createElement(tag);
+          if (className) e.className = className;
+          if (text !== undefined) e.textContent = text;
+          return e;
+        }
 
         // Node header
-        html += `<div class="node-id">${data.id}</div>`;
-        html += `<div class="node-host">${data.host}:${data.port}</div>`;
+        frag.appendChild(el("div", "node-id", data.id));
+        frag.appendChild(el("div", "node-host", `${data.host}:${data.port}`));
 
         // Predecessor
-        html += `<div class="section-title">Predecessor</div>`;
+        frag.appendChild(el("div", "section-title", "Predecessor"));
         if (data.predecessor && data.predecessor.id) {
-          html += `<div class="detail-row">`;
-          html += `<span class="detail-key">${data.predecessor.id}</span>`;
-          html += `<span class="detail-value">${data.predecessor.host}:${data.predecessor.port}</span>`;
-          html += `</div>`;
+          const row = el("div", "detail-row");
+          row.appendChild(el("span", "detail-key", data.predecessor.id));
+          row.appendChild(
+            el(
+              "span",
+              "detail-value",
+              `${data.predecessor.host}:${data.predecessor.port}`,
+            ),
+          );
+          frag.appendChild(row);
         } else {
-          html += `<span class="detail-key">None</span>`;
+          frag.appendChild(el("span", "detail-key", "None"));
         }
 
         // Finger Table
-        html += `<div class="section-title">Finger Table</div>`;
+        frag.appendChild(el("div", "section-title", "Finger Table"));
         if (data.fingerTable) {
           const entries = Object.entries(data.fingerTable);
           const above = entries.filter(([k]) => k >= data.id);
           const below = entries.filter(([k]) => k < data.id);
           [...above, ...below].forEach(([k, v]) => {
-            html += `<div class="finger-entry">`;
-            html += `<span class="finger-key">${k}</span>`;
-            html += `<span class="finger-value">${v.id} @ ${v.host}:${v.port}</span>`;
-            html += `</div>`;
+            const entry = el("div", "finger-entry");
+            entry.appendChild(el("span", "finger-key", k));
+            entry.appendChild(
+              el("span", "finger-value", `${v.id} @ ${v.host}:${v.port}`),
+            );
+            frag.appendChild(entry);
           });
         }
 
         // Users
-        html += `<div class="section-title">Users (${data.userIds ? data.userIds.length : 0})</div>`;
+        const userCount = data.userIds ? data.userIds.length : 0;
+        frag.appendChild(el("div", "section-title", `Users (${userCount})`));
         if (data.userIds) {
           data.userIds.forEach(
             ({
@@ -228,16 +244,18 @@ async function loadData() {
             }) => {
               const key = isPrimaryHash ? primaryHash : secondaryHash;
               const alternateKey = !isPrimaryHash ? primaryHash : secondaryHash;
-              html += `<div class="user-entry">`;
-              html += `<span class="user-primary">${key}</span> `;
-              html += `User ${id} `;
-              html += `<span class="user-secondary">(alt: ${alternateKey})</span>`;
-              html += `</div>`;
+              const entry = el("div", "user-entry");
+              entry.appendChild(el("span", "user-primary", key));
+              entry.appendChild(document.createTextNode(` User ${id} `));
+              entry.appendChild(
+                el("span", "user-secondary", `(alt: ${alternateKey})`),
+              );
+              frag.appendChild(entry);
             },
           );
         }
 
-        nodeContent.innerHTML = html;
+        nodeContent.replaceChildren(frag);
       }
     });
   } else {
