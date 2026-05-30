@@ -16,7 +16,7 @@
     "devWeb": "node --watch ./web/web.ts",
     "copyVendor": "node ./scripts/copy-vendor.js",
     "postinstall": "node ./scripts/copy-vendor.js",
-    "prepare": "husky || true"
+    "prepare": "is-ci || husky"
   },
   "author": "",
   "license": "ISC",
@@ -35,6 +35,7 @@
     "@types/minimist": "^1.2.5",
     "@types/xml2js": "^0.4.14",
     "husky": "^9.0.0",
+    "is-ci": "^4.1.0",
     "lodash": "^4.18.1",
     "prettier": "^3.0.0",
     "pretty-quick": "^4.0.0",
