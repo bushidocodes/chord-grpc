@@ -1296,9 +1296,10 @@ export class ChordNode {
     if (successorSeemsOK) {
       try {
         migrationSeemsOK = await this.migrateKeysBeforeDeparture();
-      } catch (migrationError) {
+      } catch (err) {
         migrationSeemsOK = false;
-        console.error(migrationError);
+        migrationError = err;
+        console.error(err);
       }
     }
     // notify predecessor
