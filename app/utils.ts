@@ -1,6 +1,6 @@
 import path from "path";
 import process from "process";
-import { Worker } from "worker_threads";
+import crypto from "crypto";
 import * as grpc from "@grpc/grpc-js";
 import { loadSync } from "@grpc/proto-loader";
 
@@ -76,20 +76,12 @@ export function isInModuloRange(
 }
 
 /**
- * Creates a worker thread to execute crypto and returns a result.
- * To use `const result = await sha1("stuff2");`
+ * Computes the SHA-1 digest of the input as a lowercase hex string.
+ * Hashing a short string is a microsecond-scale, CPU-only operation, so it
+ * runs synchronously on the main thread.
  */
-export function sha1(source: String): Promise<String> {
-  return new Promise((resolve, reject) => {
-    const worker = new Worker(
-      path.join(import.meta.dirname, "./cryptoThread.js"),
-      {
-        workerData: source,
-      },
-    );
-    worker.on("message", resolve);
-    worker.on("error", reject);
-  });
+export function sha1(source: string): string {
+  return crypto.createHash("sha1").update(source).digest("hex");
 }
 
 /** Compute a hash of desired length for the input string.
@@ -112,7 +104,7 @@ export async function computeIntegerHash(
     );
     process.exit(-9);
   }
-  let hashOutput = await sha1(stringForHashing);
+  let hashOutput = sha1(stringForHashing);
   if (DEBUGGING_LOCAL)
     console.log(`Full hash of "${stringForHashing}" is ${hashOutput}.`);
   // truncate because JavaScript only does bitwise operations on 32-bit numbers
