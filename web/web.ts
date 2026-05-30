@@ -116,15 +116,23 @@ class ChordCrawler {
         // Update Fingers
         const fingerTableStream = await this.#client.getFingerTableEntries();
         this.#state[connectionString].fingerTable = {};
-        fingerTableStream.on("data", ({ index, node }) => {
-          this.#state[connectionString].fingerTable[index] = node;
+        await new Promise<void>((resolve, reject) => {
+          fingerTableStream.on("data", ({ index, node }) => {
+            this.#state[connectionString].fingerTable[index] = node;
+          });
+          fingerTableStream.on("end", resolve);
+          fingerTableStream.on("error", reject);
         });
 
         // Update UserIds
         const userIdStream = await this.#client.getUserIds();
         this.#state[connectionString].userIds = [];
-        userIdStream.on("data", (idWithMetadata: any) => {
-          this.#state[connectionString].userIds.push(idWithMetadata);
+        await new Promise<void>((resolve, reject) => {
+          userIdStream.on("data", (idWithMetadata: any) => {
+            this.#state[connectionString].userIds.push(idWithMetadata);
+          });
+          userIdStream.on("end", resolve);
+          userIdStream.on("error", reject);
         });
 
         // Update Predecessor
