@@ -63,7 +63,7 @@ The `npm test` script is a placeholder that exits with an error.
 
 - **32-bit hash space**: SHA-1 truncated to `HASH_BIT_LENGTH=32` bits (configurable in `app/utils.ts`)
 - **Dual-hashing replication**: Each user stored at two nodes (primary + secondary hash) for fault tolerance
-- **Worker threads**: SHA-1 hashing offloaded to `app/cryptoThread.js` to avoid blocking
+- **Synchronous hashing**: SHA-1 of short strings runs on the main thread via Node's `crypto` (`sha1()` in `app/utils.ts`)
 - **Fibonacci finger tables**: Optional optimization via `FIBONACCI_ALPHA` constant
 - **Circular key space**: `isInModuloRange()` in `utils.ts` handles wraparound arithmetic
 
