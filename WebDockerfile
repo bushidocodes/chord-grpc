@@ -5,5 +5,6 @@ WORKDIR /home/node
 COPY --chown=node:node package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY --chown=node:node . .
+RUN pnpm run copyVendor
 EXPOSE 1337
 CMD [ "node", "./web/web.ts"]
