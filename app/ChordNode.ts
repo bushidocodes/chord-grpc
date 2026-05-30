@@ -817,14 +817,10 @@ export class ChordNode {
           `updateFingerTable: Updated {${this.id}}.fingerTable[${fingerIndex}] to ${sNode}`,
         );
 
-      // TODO: Figure out how to determine if the above had an RC of 0
-      // If so call callback({status: 0, message: "OK"}, {});
       callback(null, {});
       return;
     }
 
-    // TODO: Figure out how to determine if the above had an RC of 0
-    //callback({ status: 0, message: "OK" }, {});
     callback(null, {});
   }
 
