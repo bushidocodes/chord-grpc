@@ -16,7 +16,7 @@
     "devWeb": "node --watch ./web/web.ts",
     "copyVendor": "node ./scripts/copy-vendor.js",
     "postinstall": "node ./scripts/copy-vendor.js",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "author": "",
   "license": "ISC",
