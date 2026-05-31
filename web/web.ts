@@ -166,11 +166,13 @@ class ChordCrawler {
         this.#advance();
       } catch (err) {
         if (err.code == 14) {
-          // If you can't reach a node, delete it and select a random node to continue walk
+          console.error(
+            `Node ${connectionString} is unreachable — pruning and resetting to seed`,
+          );
           delete this.#state[connectionString];
-          this.#shuffleCurrentNode();
+          this.#resetToSeed();
         } else {
-          console.log(err);
+          console.error(`Unexpected error crawling ${connectionString}:`, err);
         }
       } finally {
         this.#canAdvance = true;
