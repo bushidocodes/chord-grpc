@@ -5,11 +5,15 @@ services:
       dockerfile: NodeDockerfile
     ports:
       - "8440:1337"
+    environment:
+      - LOG_LEVEL=info
     command: "pnpm run devServer --host node_primary --knownHost node_primary --knownPort 1337"
   node_secondary:
     build:
       context: .
       dockerfile: NodeDockerfile
+    environment:
+      - LOG_LEVEL=info
     command: "pnpm run devServer --knownHost node_primary --knownPort 1337"
     depends_on:
       - node_primary

@@ -28,7 +28,8 @@
     "@grpc/grpc-js": "^1.12.5",
     "@grpc/proto-loader": "^0.7.0",
     "express": "^4.21.0",
-    "minimist": "^1.2.8"
+    "minimist": "^1.2.8",
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
