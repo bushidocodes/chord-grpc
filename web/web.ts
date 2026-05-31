@@ -11,6 +11,8 @@ const CRAWLER_INTERVAL_MS = 3000;
 class ChordCrawler {
   #host: string;
   #port: number;
+  #seedHost: string;
+  #seedPort: number;
   #client: any;
   #state: object = {};
   #walk: Set<any> = new Set([]);
@@ -23,6 +25,8 @@ class ChordCrawler {
   constructor(host: string, port: number, stepInMS: number) {
     this.#host = host;
     this.#port = port;
+    this.#seedHost = host;
+    this.#seedPort = port;
     this.#client = connect({ host: this.#host, port: this.#port });
     setInterval(async () => {
       await this.#crawl();
@@ -60,6 +64,12 @@ class ChordCrawler {
         this.#shuffleCurrentNode();
       }
     }
+  }
+
+  #resetToSeed() {
+    this.#host = this.#seedHost;
+    this.#port = this.#seedPort;
+    this.#walk.clear();
   }
 
   #shuffleCurrentNode() {
@@ -141,17 +151,28 @@ class ChordCrawler {
 
         // Update Successor
         const successorNode = await this.#client.getSuccessorRemoteHelper();
+        if (!successorNode.host || !successorNode.port) {
+          console.error(
+            `Node ${connectionString} returned invalid successor`,
+            `(host=${successorNode.host}, port=${successorNode.port}) — pruning and resetting to seed`,
+          );
+          delete this.#state[connectionString];
+          this.#resetToSeed();
+          return;
+        }
         this.#state[connectionString].successor = successorNode;
 
         // Advance to the successor or a known node in a partition
         this.#advance();
       } catch (err) {
         if (err.code == 14) {
-          // If you can't reach a node, delete it and select a random node to continue walk
+          console.error(
+            `Node ${connectionString} is unreachable — pruning and resetting to seed`,
+          );
           delete this.#state[connectionString];
-          this.#shuffleCurrentNode();
+          this.#resetToSeed();
         } else {
-          console.log(err);
+          console.error(`Unexpected error crawling ${connectionString}:`, err);
         }
       } finally {
         this.#canAdvance = true;
