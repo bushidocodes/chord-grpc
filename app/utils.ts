@@ -3,6 +3,7 @@ import process from "process";
 import crypto from "crypto";
 import * as grpc from "@grpc/grpc-js";
 import { loadSync } from "@grpc/proto-loader";
+import pino from "pino";
 
 const PROTO_PATH = path.resolve(import.meta.dirname, "../protos/chord.proto");
 
@@ -19,11 +20,16 @@ export const HASH_BIT_LENGTH = 32; //TBD
 export const FIBONACCI_ALPHA = 0.7;
 export const IS_FIBONACCI_CHORD: boolean = false;
 export const NULL_NODE = { id: null, host: null, port: null };
-export const DEBUGGING_LOCAL = false;
 export const SUCCESSOR_TABLE_MAX_LENGTH = Math.max(
   Math.ceil(HASH_BIT_LENGTH / 4),
   1,
 );
+
+export function createLogger(host: string, port: number) {
+  return pino({ level: process.env.LOG_LEVEL ?? "info" }).child({
+    node: `${host}:${port}`,
+  });
+}
 
 /**
  * Accounts for the modulo arithmetic to determine whether the input value is within the bounds.
@@ -92,9 +98,6 @@ export async function computeIntegerHash(
   stringForHashing: string,
   highOrderBits: boolean = true,
 ): Promise<number> {
-  // enable debugging output
-  const DEBUGGING_LOCAL = false;
-
   const MAX_JS_INT_BIT_LENGTH = 32;
   const BIT_PER_HEX_CHARACTER = 4;
   if (HASH_BIT_LENGTH > MAX_JS_INT_BIT_LENGTH) {
@@ -105,8 +108,6 @@ export async function computeIntegerHash(
     process.exit(-9);
   }
   let hashOutput = sha1(stringForHashing);
-  if (DEBUGGING_LOCAL)
-    console.log(`Full hash of "${stringForHashing}" is ${hashOutput}.`);
   // truncate because JavaScript only does bitwise operations on 32-bit numbers
   if (!highOrderBits) {
     // keep the low-order bits
@@ -120,12 +121,10 @@ export async function computeIntegerHash(
       MAX_JS_INT_BIT_LENGTH / BIT_PER_HEX_CHARACTER,
     );
   }
-  if (DEBUGGING_LOCAL) console.log(`Truncated string value is ${hashOutput}.`);
 
   let integerHash: number;
   // convert from hexadecimal to decimal
   integerHash = parseInt("0x" + hashOutput);
-  if (DEBUGGING_LOCAL) console.log(`Integer value is ${integerHash}.`);
 
   // truncate the hash to the desired number of bits
   if (!highOrderBits) {
@@ -135,8 +134,6 @@ export async function computeIntegerHash(
     // by picking the high-order bits
     integerHash = integerHash >>> (MAX_JS_INT_BIT_LENGTH - HASH_BIT_LENGTH);
   }
-  if (DEBUGGING_LOCAL)
-    console.log(`Truncated integer value is ${integerHash}.`);
 
   return integerHash;
 }
@@ -153,102 +150,119 @@ interface GRPCError {
 }
 
 export function handleGRPCErrors(
+  logger: pino.Logger,
   scope: string,
   call: string,
   host: string,
   port: number,
   err: GRPCError,
 ) {
+  const target = `${host}:${port}`;
   switch (err.code) {
     case 0:
-      console.log(
-        `${scope}: call to ${call} on ${host}:${port} returned OK. Should not have thrown`,
+      logger.warn(
+        { scope, call, target },
+        `${scope}: call to ${call} on ${target} returned OK. Should not have thrown`,
       );
       break;
     case 1:
-      console.log(`${scope}: call to ${call} on ${host}:${port} was cancelled`);
+      logger.warn(
+        { scope, call, target },
+        `${scope}: call to ${call} on ${target} was cancelled`,
+      );
       break;
     case 2:
-      console.error(
-        `${scope}: call to ${call} on ${host}:${port} returned unknown error`,
+      logger.error(
+        { scope, call, target },
+        `${scope}: call to ${call} on ${target} returned unknown error`,
       );
       break;
     case 3:
-      console.error(
-        `${scope}: call to ${call} on ${host}:${port} rejected due to invalid arguments`,
+      logger.error(
+        { scope, call, target },
+        `${scope}: call to ${call} on ${target} rejected due to invalid arguments`,
       );
       break;
     case 4:
-      console.error(
-        `${scope}: call to ${call} on ${host}:${port} exceeded deadline`,
+      logger.error(
+        { scope, call, target },
+        `${scope}: call to ${call} on ${target} exceeded deadline`,
       );
       break;
     case 5:
-      console.error(
-        `${scope}: call to ${call} on ${host}:${port} requested an entity that was not found`,
+      logger.warn(
+        { scope, call, target },
+        `${scope}: call to ${call} on ${target} requested an entity that was not found`,
       );
       break;
     case 6:
-      console.error(
-        `${scope}: call to ${call} on ${host}:${port} attempted to created an entity that already exists`,
+      logger.warn(
+        { scope, call, target },
+        `${scope}: call to ${call} on ${target} attempted to create an entity that already exists`,
       );
       break;
     case 7:
-      console.error(
-        `${scope}: call to ${call} on ${host}:${port} rejected because permission was denied`,
+      logger.error(
+        { scope, call, target },
+        `${scope}: call to ${call} on ${target} rejected because permission was denied`,
       );
       break;
     case 8:
-      console.error(
-        `${scope}: call to ${call} on ${host}:${port} failed because a resource is exhausted`,
-        err,
+      logger.error(
+        { scope, call, target, err },
+        `${scope}: call to ${call} on ${target} failed because a resource is exhausted`,
       );
       break;
     case 9:
-      console.error(
-        `${scope}: call to ${call} on ${host}:${port} failed due to pailed precondition `,
-        err,
+      logger.error(
+        { scope, call, target, err },
+        `${scope}: call to ${call} on ${target} failed due to failed precondition`,
       );
       break;
     case 10:
-      console.error(
-        `${scope}: call to ${call} on ${host}:${port} was aborted `,
-        err,
+      logger.error(
+        { scope, call, target, err },
+        `${scope}: call to ${call} on ${target} was aborted`,
       );
       break;
     case 11:
-      console.error(
-        `${scope}: call to ${call} on ${host}:${port} rejected because out of range`,
-        err,
+      logger.error(
+        { scope, call, target, err },
+        `${scope}: call to ${call} on ${target} rejected because out of range`,
       );
       break;
     case 12:
-      console.error(
-        `${scope}: call to ${call} on ${host}:${port}, which is unimplemented `,
-        err,
+      logger.error(
+        { scope, call, target },
+        `${scope}: call to ${call} on ${target}, which is unimplemented`,
       );
       break;
     case 13:
-      console.error(
-        `${scope}: call to ${call} on ${host}:${port} caused Internal Error `,
+      logger.error(
+        { scope, call, target, err },
+        `${scope}: call to ${call} on ${target} caused Internal Error`,
       );
-      console.trace(err);
       break;
     case 14:
-      console.log(`${scope}: Unable to connect to ${host}:${port}`);
+      logger.warn(
+        { scope, call, target },
+        `${scope}: Unable to connect to ${target}`,
+      );
       break;
     case 15:
-      console.log(
-        `${scope}: call to ${call} on ${host}:${port} failed due to unrecoverable data loss or corruption`,
+      logger.error(
+        { scope, call, target },
+        `${scope}: call to ${call} on ${target} failed due to unrecoverable data loss or corruption`,
       );
       break;
     case 16:
-      console.error(
-        `${scope}: call to ${call} on ${host}:${port} rejected because authentication credentials were missing`,
+      logger.error(
+        { scope, call, target },
+        `${scope}: call to ${call} on ${target} rejected because authentication credentials were missing`,
       );
       break;
     default:
-      console.trace(`${scope}:`, err);
+      logger.error({ scope, err }, `${scope}: unexpected gRPC error`);
   }
 }
 

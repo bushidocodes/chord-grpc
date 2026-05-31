@@ -6,7 +6,6 @@ import { loadSync } from "@grpc/proto-loader";
 import { ChordNode } from "./ChordNode.ts";
 import {
   connect,
-  DEBUGGING_LOCAL,
   handleGRPCErrors,
   isInModuloRange,
   NULL_NODE,
@@ -86,13 +85,13 @@ export class UserService extends ChordNode {
     });
 
     // We assume that binding to 0.0.0.0 indeed makes us accessible at this.host
-    console.log(`Serving on ${this.host}:${this.port}`);
+    this.logger.info(`Serving on ${this.host}:${this.port}`);
     server.bindAsync(
       `0.0.0.0:${this.port}`,
       grpc.ServerCredentials.createInsecure(),
       (err) => {
         if (err) {
-          console.error(`Failed to bind server: ${err.message}`);
+          this.logger.error({ err }, `Failed to bind server: ${err.message}`);
           process.exit(1);
         }
       },
@@ -118,10 +117,10 @@ export class UserService extends ChordNode {
   removeUser(hashedUserId: string | number) {
     if (this.userMap[hashedUserId]) {
       delete this.userMap[hashedUserId];
-      console.log("removeUser: user removed");
+      this.logger.info(`removeUser: user removed at hash ${hashedUserId}`);
       return null;
     } else {
-      console.log("removeUser, user DNE");
+      this.logger.warn(`removeUser: user not found at hash ${hashedUserId}`);
       return { code: 5 };
     }
   }
@@ -131,7 +130,7 @@ export class UserService extends ChordNode {
     message: { request: { id: any } },
     callback: (call: { code: number }, arg1: {}) => void,
   ) {
-    if (DEBUGGING_LOCAL) console.log("removeUserRemoteHelper: ", message);
+    this.logger.debug({ message }, "removeUserRemoteHelper");
     const err = this.removeUser(message.request.id);
     callback(err, {});
   }
@@ -153,7 +152,7 @@ export class UserService extends ChordNode {
     let successor = NULL_NODE;
     let lookupKey: number = null;
     let errorString: string = null;
-    console.log("remove: Attempting to remove user ", userId);
+    this.logger.info(`remove: Attempting to remove user ${userId}`);
 
     //compute primary user ID from hash
     if (userId && userId !== null) {
@@ -162,9 +161,7 @@ export class UserService extends ChordNode {
         : await this.computeUserIdHashSecondary(userId);
     } else {
       errorString = `insert: error computing hash of ${userId}.`;
-      if (DEBUGGING_LOCAL) {
-        console.log(errorString);
-      }
+      this.logger.error(errorString);
       throw new RangeError(errorString);
     }
 
@@ -172,17 +169,16 @@ export class UserService extends ChordNode {
       successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
     } catch (err) {
       successor = NULL_NODE;
-      console.error("remove: findSuccessor failed with ", err);
+      this.logger.error({ err }, "remove: findSuccessor failed");
     }
 
     if (this.iAmTheNode(successor)) {
-      if (DEBUGGING_LOCAL) console.log("remove: remove user from local node");
+      this.logger.debug("remove: removing user from local node");
       const err = this.removeUser(lookupKey);
       return err;
     } else {
       try {
-        if (DEBUGGING_LOCAL)
-          console.log("remove: remove user from remote node");
+        this.logger.debug("remove: removing user from remote node");
         const successorClient = connect(successor);
         await successorClient.removeUserRemoteHelper(
           { id: lookupKey },
@@ -192,6 +188,7 @@ export class UserService extends ChordNode {
         );
       } catch (err) {
         handleGRPCErrors(
+          this.logger,
           "remove",
           "removeUserRemoteHelper",
           successor.host,
@@ -211,18 +208,18 @@ export class UserService extends ChordNode {
       ? clonedUserEdit.user.metadata.primaryHash
       : clonedUserEdit.user.metadata.secondaryHash;
 
-    if (DEBUGGING_LOCAL) console.log("insertUser: ", clonedUserEdit);
+    this.logger.debug({ clonedUserEdit }, "insertUser");
     const { user, edit } = clonedUserEdit;
 
     if (this.userMap[key] && !edit) {
-      console.log(`insertUser: user already exits at hash ${key}`);
+      this.logger.warn(`insertUser: user already exists at hash ${key}`);
       return { code: 6 };
     } else {
       this.userMap[key] = user;
       if (edit) {
-        console.log(`insertUser: Edited User ${user.id} at hash ${key}`);
+        this.logger.info(`insertUser: Edited User ${user.id} at hash ${key}`);
       } else {
-        console.log(`insertUser: Inserted User ${user.id} at hash ${key}`);
+        this.logger.info(`insertUser: Inserted User ${user.id} at hash ${key}`);
       }
       return null;
     }
@@ -233,7 +230,7 @@ export class UserService extends ChordNode {
     message: { request: any },
     callback: (call: { code: number }, arg1: {}) => void,
   ) {
-    if (DEBUGGING_LOCAL) console.log("insertUserRemoteHelper: ", message);
+    this.logger.debug({ message }, "insertUserRemoteHelper");
     const err = this.insertUser(message.request);
     callback(err, {});
   }
@@ -270,32 +267,38 @@ export class UserService extends ChordNode {
       : userEdit.user.metadata.secondaryHash;
     let successor = NULL_NODE;
 
-    console.log(`insert: Attempting to insert user ${user.id} at ${lookupKey}`);
-    if (DEBUGGING_LOCAL) console.log(user);
+    this.logger.info(
+      { userId: user.id, lookupKey },
+      `insert: Attempting to insert user ${user.id} at ${lookupKey}`,
+    );
     try {
       successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
     } catch (err) {
       successor = NULL_NODE;
-      console.error("insert: findSuccessor failed with ", err);
+      this.logger.error({ err }, "insert: findSuccessor failed");
     }
 
     if (this.iAmTheNode(successor)) {
-      if (DEBUGGING_LOCAL) console.log("insert: insert user to local node");
+      this.logger.debug("insert: inserting user to local node");
       const err = this.insertUser(userEdit);
       return err;
     } else {
       try {
-        console.log("insert: insert user to remote node", lookupKey);
+        this.logger.debug(
+          { lookupKey },
+          "insert: inserting user to remote node",
+        );
         const successorClient = connect(successor);
         await successorClient.insertUserRemoteHelper(
           userEdit,
           (err: any, _: any) => {
-            console.log("insert finishing");
+            this.logger.debug("insert finishing");
             return err;
           },
         );
       } catch (err) {
         handleGRPCErrors(
+          this.logger,
           "insert",
           "insertUser",
           successor.host,
@@ -315,7 +318,7 @@ export class UserService extends ChordNode {
     const {
       request: { id },
     } = message;
-    console.log(`Requested User ${id}`);
+    this.logger.info(`fetch: Requested User ${id}`);
     if (!this.userMap[id]) {
       callback({ code: 5 }, null); // NOT_FOUND error
     } else {
@@ -327,11 +330,10 @@ export class UserService extends ChordNode {
   lookupUser(hashedUserId: number) {
     if (this.userMap[hashedUserId]) {
       const user = this.userMap[hashedUserId];
-      if (DEBUGGING_LOCAL)
-        console.log(`User ${user.id} found at ${hashedUserId}`);
+      this.logger.debug(`lookupUser: User ${user.id} found at ${hashedUserId}`);
       return { err: null, user };
     } else {
-      if (DEBUGGING_LOCAL) console.log(`User not found at ${hashedUserId}`);
+      this.logger.debug(`lookupUser: User not found at ${hashedUserId}`);
       return { err: { code: 5 }, user: null };
     }
   }
@@ -340,11 +342,12 @@ export class UserService extends ChordNode {
     message: { request: { id: any } },
     callback: (call: any, arg1: any) => void,
   ) {
-    if (DEBUGGING_LOCAL)
-      console.log("beginning lookupUserRemoteHelper: ", message.request.id);
+    this.logger.debug(
+      { id: message.request.id },
+      "beginning lookupUserRemoteHelper",
+    );
     const { err, user } = this.lookupUser(message.request.id);
-    if (DEBUGGING_LOCAL)
-      console.log("finishing lookupUserRemoteHelper: ", user);
+    this.logger.debug({ user }, "finishing lookupUserRemoteHelper");
     callback(err, user);
   }
 
@@ -353,7 +356,7 @@ export class UserService extends ChordNode {
     callback: (call: any, arg1: any) => void,
   ) {
     const userId = message.request.id;
-    console.log(`lookup: Looking up user ${userId}`);
+    this.logger.info(`lookup: Looking up user ${userId}`);
 
     // Try Primary Hash
     let userErrorResponse = await this.lookupWithHash(userId, true);
@@ -375,10 +378,8 @@ export class UserService extends ChordNode {
         ? await this.computeUserIdHashPrimary(userId)
         : await this.computeUserIdHashSecondary(userId);
     } else {
-      errorString = `insert: error computing hash of ${userId}.`;
-      if (DEBUGGING_LOCAL) {
-        console.log(errorString);
-      }
+      errorString = `lookup: error computing hash of ${userId}.`;
+      this.logger.error(errorString);
       throw new RangeError(errorString);
     }
 
@@ -386,22 +387,17 @@ export class UserService extends ChordNode {
       successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
     } catch (err) {
       successor = NULL_NODE;
-      console.error("lookup: findSuccessor failed with ", err);
+      this.logger.error({ err }, "lookup: findSuccessor failed");
     }
 
     if (this.iAmTheNode(successor)) {
-      if (DEBUGGING_LOCAL) console.log("lookup: lookup user to local node");
+      this.logger.debug("lookup: looking up user on local node");
       const { err, user } = this.lookupUser(lookupKey);
-      if (DEBUGGING_LOCAL)
-        console.log(
-          "lookup: finished Server-side lookup, returning: ",
-          err,
-          user,
-        );
+      this.logger.debug({ err, user }, "lookup: finished server-side lookup");
       return { err, user };
     } else {
       try {
-        console.log("In lookup: lookup user to remote node");
+        this.logger.debug("lookup: looking up user on remote node");
         const successorClient = connect(successor);
         const user = await successorClient.lookupUserRemoteHelper({
           id: lookupKey,
@@ -409,8 +405,9 @@ export class UserService extends ChordNode {
         return { err: null, user };
       } catch (err) {
         handleGRPCErrors(
+          this.logger,
           "lookup",
-          "lookupUserRemotehelper",
+          "lookupUserRemoteHelper",
           successor.host,
           successor.port,
           err,
@@ -426,8 +423,9 @@ export class UserService extends ChordNode {
       return true;
     } catch (error) {
       handleGRPCErrors(
-        "migrateKeysAfterJoining",
-        "migrateUsersToNewPredecessor",
+        this.logger,
+        "migrateKeysBeforeDeparture",
+        "migrateUsersToSuccessor",
         this.predecessor.host,
         this.predecessor.port,
         error,
@@ -444,8 +442,9 @@ export class UserService extends ChordNode {
       await successorClient.migrateUsersToPredecessorRemoteHelper();
     } catch (error) {
       handleGRPCErrors(
+        this.logger,
         "migrateKeysAfterJoining",
-        "migrateUsersToNewPredecessor",
+        "migrateUsersToPredecessorRemoteHelper",
         this.predecessor.host,
         this.predecessor.port,
         error,
@@ -477,6 +476,7 @@ export class UserService extends ChordNode {
           this.removeUser(hashedKey);
         } catch (error) {
           handleGRPCErrors(
+            this.logger,
             "migrateUsersToPredecessor",
             "insertUserRemoteHelper",
             this.predecessor.host,
@@ -502,6 +502,7 @@ export class UserService extends ChordNode {
         this.removeUser(hashedKey);
       } catch (error) {
         handleGRPCErrors(
+          this.logger,
           "migrateUsersToSuccessor",
           "insertUserRemoteHelper",
           this.predecessor.host,

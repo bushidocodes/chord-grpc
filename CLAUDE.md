@@ -50,6 +50,22 @@ npm run client -- predecessor --port 8440   # print predecessor node
 npm run client -- successor --port 8440     # print successor node
 ```
 
+### Logging
+
+Nodes use [pino](https://github.com/pinojs/pino) for structured JSON logging. Set `LOG_LEVEL` to control verbosity:
+
+```bash
+LOG_LEVEL=debug npm run devServer -- --port 8440   # verbose Chord protocol tracing
+LOG_LEVEL=info  npm run devServer -- --port 8440   # default: operations only
+LOG_LEVEL=warn  npm run devServer -- --port 8440   # warnings and errors only
+```
+
+For human-readable output during development, pipe through `pino-pretty`:
+
+```bash
+LOG_LEVEL=debug npm run devServer -- --port 8440 | npx pino-pretty
+```
+
 ### No test suite exists
 
 The `npm test` script is a placeholder that exits with an error.

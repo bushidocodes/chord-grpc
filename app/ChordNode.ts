@@ -1,10 +1,11 @@
 import process from "process";
+import pino from "pino";
 import {
   connect,
   isInModuloRange,
   computeHostPortHash,
   handleGRPCErrors,
-  DEBUGGING_LOCAL,
+  createLogger,
   HASH_BIT_LENGTH,
   FIBONACCI_ALPHA,
   IS_FIBONACCI_CHORD,
@@ -28,6 +29,7 @@ export class ChordNode {
   id: number;
   host: string;
   port: number;
+  logger: pino.Logger;
   fingerTable: Array<FingerTableEntry> = [
     {
       start: null,
@@ -51,6 +53,7 @@ export class ChordNode {
     this.id = id;
     this.host = host;
     this.port = port;
+    this.logger = createLogger(host, port);
   }
 
   iAmTheNode(theNode: Node): boolean {
@@ -77,8 +80,8 @@ export class ChordNode {
    * Print Summary of state of node
    */
   summary(_: any, callback: (arg0: any, arg1: Node) => void) {
-    console.log("Summary: fingerTable: \n", this.fingerTable);
-    console.log("Summary: Predecessor: ", this.predecessor);
+    this.logger.info({ fingerTable: this.fingerTable }, "Summary: fingerTable");
+    this.logger.info({ predecessor: this.predecessor }, "Summary: Predecessor");
     callback(null, this.encapsulateSelf());
   }
 
@@ -94,28 +97,28 @@ export class ChordNode {
   async findSuccessor(id: number, nodeQueried: Node) {
     let nPrime = NULL_NODE;
     let nPrimeSuccessor = NULL_NODE;
-    if (DEBUGGING_LOCAL)
-      console.log(`findSuccessor: node queried {${nodeQueried.id}}.`);
+    this.logger.debug(`findSuccessor: node queried {${nodeQueried.id}}.`);
     if (this.id != undefined && this.iAmTheNode(nodeQueried)) {
       try {
         nPrime = await this.findPredecessor(id);
       } catch (err) {
-        console.error(`findSuccessor: findPredecessor failed with `, err);
+        this.logger.error({ err }, `findSuccessor: findPredecessor failed`);
         nPrime = NULL_NODE;
       }
 
-      if (DEBUGGING_LOCAL) console.log("findSuccessor: n' is ", nPrime.id);
+      this.logger.debug(`findSuccessor: n' is ${nPrime.id}`);
 
       try {
         nPrimeSuccessor = await this.getSuccessor(nPrime);
       } catch (err) {
-        console.error(`findSuccessor: call to getSuccessor failed with `, err);
+        this.logger.error(
+          { err },
+          `findSuccessor: call to getSuccessor failed`,
+        );
         nPrimeSuccessor = NULL_NODE;
       }
 
-      if (DEBUGGING_LOCAL) {
-        console.log("findSuccessor: n'.successor is ", nPrimeSuccessor.id);
-      }
+      this.logger.debug(`findSuccessor: n'.successor is ${nPrimeSuccessor.id}`);
     } else {
       const nodeQueriedClient = connect(nodeQueried);
       try {
@@ -126,6 +129,7 @@ export class ChordNode {
       } catch (err) {
         nPrimeSuccessor = NULL_NODE;
         handleGRPCErrors(
+          this.logger,
           "findSuccessor",
           "findSuccessorRemoteHelper",
           nodeQueried.host,
@@ -135,11 +139,9 @@ export class ChordNode {
       }
     }
 
-    if (DEBUGGING_LOCAL)
-      console.log(
-        "findSuccessor: departing n'.successor = ",
-        nPrimeSuccessor.id,
-      );
+    this.logger.debug(
+      `findSuccessor: departing n'.successor = ${nPrimeSuccessor.id}`,
+    );
     return nPrimeSuccessor;
   }
 
@@ -157,28 +159,25 @@ export class ChordNode {
     const id = idAndNodeQueried.request.id;
     const nodeQueried = idAndNodeQueried.request.node;
 
-    if (DEBUGGING_LOCAL)
-      console.log(
-        `findSuccessorRemoteHelper: id = ${id} nodeQueried = ${nodeQueried.id}.`,
-      );
+    this.logger.debug(
+      `findSuccessorRemoteHelper: id = ${id} nodeQueried = ${nodeQueried.id}.`,
+    );
 
     let nPrimeSuccessor = NULL_NODE;
     try {
       nPrimeSuccessor = await this.findSuccessor(id, nodeQueried);
     } catch (err) {
-      console.error(
-        "findSuccessorRemoteHelper: findSuccessor failed with",
-        err,
+      this.logger.error(
+        { err },
+        "findSuccessorRemoteHelper: findSuccessor failed",
       );
       nPrimeSuccessor = NULL_NODE;
     }
     callback(null, nPrimeSuccessor);
 
-    if (DEBUGGING_LOCAL) {
-      console.log(
-        `findSuccessorRemoteHelper: nPrimeSuccessor = ${nPrimeSuccessor.id}`,
-      );
-    }
+    this.logger.debug(
+      `findSuccessorRemoteHelper: nPrimeSuccessor = ${nPrimeSuccessor.id}`,
+    );
   }
 
   /**
@@ -187,22 +186,20 @@ export class ChordNode {
    * @param {number} id the key sought
    */
   async findPredecessor(id: number) {
-    if (DEBUGGING_LOCAL) console.log("findPredecessor: id = ", id);
+    this.logger.debug(`findPredecessor: id = ${id}`);
 
     let nPrime = this.encapsulateSelf();
     let nPrimeSuccessor = NULL_NODE;
     try {
       nPrimeSuccessor = await this.getSuccessor(nPrime);
     } catch (err) {
-      console.error("findPredecessor: getSuccessor failed with", err);
+      this.logger.error({ err }, "findPredecessor: getSuccessor failed");
       nPrimeSuccessor = NULL_NODE;
     }
 
-    if (DEBUGGING_LOCAL) {
-      console.log(
-        `findPredecessor: before while: nPrime = ${nPrime.id}; nPrimeSuccessor = ${nPrimeSuccessor.id}`,
-      );
-    }
+    this.logger.debug(
+      `findPredecessor: before while: nPrime = ${nPrime.id}; nPrimeSuccessor = ${nPrimeSuccessor.id}`,
+    );
 
     let iterationCounter = 2 ** HASH_BIT_LENGTH * HASH_BIT_LENGTH;
     while (
@@ -211,7 +208,7 @@ export class ChordNode {
       iterationCounter >= 0
     ) {
       // loop should exit if n' and its successor are the same
-      // loop should exit if thDe iterations are ridiculous
+      // loop should exit if the iterations are ridiculous
       // update loop protection
       iterationCounter--;
       try {
@@ -220,23 +217,23 @@ export class ChordNode {
         nPrime = NULL_NODE;
       }
 
-      if (DEBUGGING_LOCAL)
-        console.log(
-          `findPredecessor: At iterator ${iterationCounter} nPrime = ${nPrime}`,
-        );
+      this.logger.debug(
+        `findPredecessor: At iterator ${iterationCounter} nPrime = ${nPrime}`,
+      );
 
       try {
         nPrimeSuccessor = await this.getSuccessor(nPrime);
       } catch (err) {
-        console.error(
-          "findPredecessor call to getSuccessor (2) failed with",
-          err,
+        this.logger.error(
+          { err },
+          "findPredecessor: call to getSuccessor (2) failed",
         );
         nPrimeSuccessor = NULL_NODE;
       }
 
-      if (DEBUGGING_LOCAL)
-        console.log("findPredecessor: nPrimeSuccessor = ", nPrimeSuccessor);
+      this.logger.debug(
+        `findPredecessor: nPrimeSuccessor = ${nPrimeSuccessor.id}`,
+      );
     }
 
     return nPrime;
@@ -248,7 +245,7 @@ export class ChordNode {
    * @returns : the successor if the successor seems valid, or a null node otherwise
    */
   async getSuccessor(nodeQueried: Node) {
-    if (DEBUGGING_LOCAL) console.log(`getSuccessor(${nodeQueried.id})`);
+    this.logger.debug(`getSuccessor(${nodeQueried.id})`);
 
     // get n.successor either locally or remotely
     let nSuccessor = NULL_NODE;
@@ -264,6 +261,7 @@ export class ChordNode {
       } catch (err) {
         nSuccessor = { id: null, host: null, port: null };
         handleGRPCErrors(
+          this.logger,
           "getSuccessor",
           "getSuccessorRemoteHelper",
           nodeQueried.host,
@@ -273,10 +271,9 @@ export class ChordNode {
       }
     }
 
-    if (DEBUGGING_LOCAL)
-      console.log(
-        `getSuccessor: returning {${nodeQueried.id}}.successor = ${nSuccessor.id}`,
-      );
+    this.logger.debug(
+      `getSuccessor: returning {${nodeQueried.id}}.successor = ${nSuccessor.id}`,
+    );
 
     return nSuccessor;
   }
@@ -299,13 +296,13 @@ export class ChordNode {
     message: { request: any },
     callback: (arg0: any, arg1: {}) => void,
   ) {
-    if (DEBUGGING_LOCAL) {
-      console.log("setSuccessor: Self = ", this.encapsulateSelf());
-      console.log(
-        "setSuccessor: original successor = ",
-        this.fingerTable[0].successor.id,
-      );
-    }
+    this.logger.debug(
+      {
+        self: this.encapsulateSelf(),
+        originalSuccessor: this.fingerTable[0].successor.id,
+      },
+      "setSuccessor",
+    );
     const successorCandidate = message.request;
     if (
       successorCandidate.id !== null &&
@@ -314,11 +311,9 @@ export class ChordNode {
     ) {
       this.fingerTable[0].successor = successorCandidate;
     }
-    if (DEBUGGING_LOCAL)
-      console.log(
-        "setSuccessor: new successor = ",
-        this.fingerTable[0].successor.id,
-      );
+    this.logger.debug(
+      `setSuccessor: new successor = ${this.fingerTable[0].successor.id}`,
+    );
 
     callback(null, {});
   }
@@ -391,9 +386,9 @@ export class ChordNode {
     try {
       nPreceding = await this.closestPrecedingFinger(id, nodeQueried);
     } catch (err) {
-      console.error(
-        "closestPrecedingFingerRemoteHelper: closestPrecedingFinger failed with ",
-        err,
+      this.logger.error(
+        { err },
+        "closestPrecedingFingerRemoteHelper: closestPrecedingFinger failed",
       );
       nPreceding = NULL_NODE;
     }
@@ -427,22 +422,20 @@ export class ChordNode {
     message: { request: Node },
     callback: (arg0: any, arg1: {}) => void,
   ) {
-    if (DEBUGGING_LOCAL) {
-      console.log("setPredecessor: Self = ", this.encapsulateSelf());
-      console.log(
-        "setPredecessor: Self's original predecessor = ",
-        this.predecessor,
-      );
-    }
+    this.logger.debug(
+      {
+        self: this.encapsulateSelf(),
+        originalPredecessor: this.predecessor,
+      },
+      "setPredecessor",
+    );
 
     this.predecessor = message.request;
 
-    if (DEBUGGING_LOCAL) {
-      console.log(
-        "setPredecessor: Self's new predecessor = ",
-        this.predecessor,
-      );
-    }
+    this.logger.debug(
+      { newPredecessor: this.predecessor },
+      "setPredecessor: updated",
+    );
 
     callback(null, {});
   }
@@ -514,9 +507,7 @@ export class ChordNode {
       if (this.iAmTheNode(possibleCollidingNode)) {
         // node collision
         errorString = `Error joining node "${this.host}:${this.port}" with ID {${this.id}} to node "${knownNode.host}:${knownNode.port}" because of a collision with node "${possibleCollidingNode.host}:${possibleCollidingNode.port}" having ID={${possibleCollidingNode.id}}.`;
-        if (DEBUGGING_LOCAL) {
-          console.log(errorString);
-        }
+        this.logger.error(errorString);
         throw new RangeError(errorString);
       }
       // now go ahead with the join
@@ -524,10 +515,8 @@ export class ChordNode {
       await this.updateOthers();
     } else {
       // the node doesn't exist so exit on error
-      errorString = `Error joining node "${this.host}:${this.port}" to node "${knownNode.host}:${knownNode.port}" because the latter can't be confirmed to exist.\n`;
-      if (DEBUGGING_LOCAL) {
-        console.log(errorString);
-      }
+      errorString = `Error joining node "${this.host}:${this.port}" to node "${knownNode.host}:${knownNode.port}" because the latter can't be confirmed to exist.`;
+      this.logger.error(errorString);
       throw new RangeError(errorString);
     }
 
@@ -535,10 +524,10 @@ export class ChordNode {
     this.successorTable[0] = this.fingerTable[0].successor;
 
     try {
-      if (DEBUGGING_LOCAL) console.log("join: calling migrateKys");
+      this.logger.debug("join: calling migrateKeys");
       await this.migrateKeysAfterJoining();
     } catch (error) {
-      console.error("Migrate keys failed with error:", error);
+      this.logger.error({ err: error }, "Migrate keys failed");
     }
 
     // And now that we've joined a cluster, we need maintain our state
@@ -548,17 +537,13 @@ export class ChordNode {
     setInterval(this.fixFingers.bind(this), 3000);
     setInterval(this.checkPredecessor.bind(this), 1000);
 
-    if (DEBUGGING_LOCAL) {
-      console.log(">>>>>     joinCluster          ");
-      console.log(
-        `The fingerTable[] leaving {${this.id}}.joinCluster(${knownNode.id}) is:\n`,
-        this.fingerTable,
-      );
-      console.log(
-        `The {${this.id}}.predecessor leaving joinCluster() is ${this.predecessor.id}`,
-      );
-      console.log("          joinCluster     <<<<<\n");
-    }
+    this.logger.debug(
+      {
+        fingerTable: this.fingerTable,
+        predecessor: this.predecessor.id,
+      },
+      `joinCluster: {${this.id}}.joinCluster(${knownNode.id}) complete`,
+    );
   }
 
   /**
@@ -572,9 +557,9 @@ export class ChordNode {
       nodeId = await this.getNodeId(knownNode);
     } catch (err) {
       nodeId = null;
-      console.error(
-        `Error confirming existence of node "${knownNode.host}:${knownNode.port}"\n`,
-        err,
+      this.logger.error(
+        { err },
+        `Error confirming existence of node "${knownNode.host}:${knownNode.port}"`,
       );
     }
     if (nodeId !== null && nodeId >= 0) {
@@ -606,12 +591,10 @@ export class ChordNode {
         nodeId = knownNodeObject.id;
       } catch (err) {
         nodeId = null;
-        if (DEBUGGING_LOCAL) {
-          console.error(
-            `Error getting ID of node "${knownNode.host}:${knownNode.port}"\n`,
-            err,
-          );
-        }
+        this.logger.debug(
+          { err },
+          `Error getting ID of node "${knownNode.host}:${knownNode.port}"`,
+        );
       }
     }
     return nodeId;
@@ -634,11 +617,9 @@ export class ChordNode {
    * Directly implement the pseudocode's initFingerTable() method.
    */
   async initFingerTable(nPrime: Node) {
-    if (DEBUGGING_LOCAL) {
-      console.log(
-        `initFingerTable: self = ${this.id}; self.successor = ${this.fingerTable[0].successor.id}; finger[0].start = ${this.fingerTable[0].start} n' = ${nPrime.id}`,
-      );
-    }
+    this.logger.debug(
+      `initFingerTable: self = ${this.id}; self.successor = ${this.fingerTable[0].successor.id}; finger[0].start = ${this.fingerTable[0].start} n' = ${nPrime.id}`,
+    );
 
     let nPrimeSuccessor = NULL_NODE;
     try {
@@ -648,15 +629,14 @@ export class ChordNode {
       );
     } catch (err) {
       nPrimeSuccessor = NULL_NODE;
-      console.error("initFingerTable: findSuccessor failed with ", err);
+      this.logger.error({ err }, "initFingerTable: findSuccessor failed");
     }
     this.fingerTable[0].successor = nPrimeSuccessor;
 
-    if (DEBUGGING_LOCAL)
-      console.log(
-        "initFingerTable: n'.successor (now  self.successor) = ",
-        nPrimeSuccessor,
-      );
+    this.logger.debug(
+      { nPrimeSuccessor },
+      "initFingerTable: n'.successor (now self.successor)",
+    );
 
     let successorClient = connect(this.fingerTable[0].successor);
     try {
@@ -666,6 +646,7 @@ export class ChordNode {
     } catch (err) {
       this.predecessor = NULL_NODE;
       handleGRPCErrors(
+        this.logger,
         "initFingerTable",
         "getPredecessor",
         this.fingerTable[0].successor.host,
@@ -677,6 +658,7 @@ export class ChordNode {
       await successorClient.setPredecessor(this.encapsulateSelf());
     } catch (err) {
       handleGRPCErrors(
+        this.logger,
         "initFingerTable",
         "setPredecessor",
         this.fingerTable[0].successor.host,
@@ -685,8 +667,10 @@ export class ChordNode {
       );
     }
 
-    if (DEBUGGING_LOCAL)
-      console.log("initFingerTable: predecessor  ", this.predecessor);
+    this.logger.debug(
+      { predecessor: this.predecessor },
+      "initFingerTable: predecessor",
+    );
 
     for (let i = 0; i < this.fingerTable.length - 1; i++) {
       if (
@@ -707,19 +691,21 @@ export class ChordNode {
           );
         } catch (err) {
           this.fingerTable[i + 1].successor = NULL_NODE;
-          console.error("initFingerTable: findSuccessor() failed with ", err);
+          this.logger.error({ err }, "initFingerTable: findSuccessor() failed");
         }
       }
     }
-    if (DEBUGGING_LOCAL)
-      console.log("initFingerTable: fingerTable[] =\n", this.fingerTable);
+    this.logger.debug(
+      { fingerTable: this.fingerTable },
+      "initFingerTable: fingerTable[]",
+    );
   }
 
   /**
    * Directly implement the pseudocode's updateOthers() method.
    */
   async updateOthers() {
-    if (DEBUGGING_LOCAL) console.log("updateOthers");
+    this.logger.debug("updateOthers");
     let pNodeSearchID: number,
       pNodeClient: {
         updateFingerTable: (arg0: { node: Node; index: number }) => any;
@@ -729,22 +715,21 @@ export class ChordNode {
     for (let i = 0; i < this.fingerTable.length; i++) {
       pNodeSearchID =
         (this.id - 2 ** i + 2 ** HASH_BIT_LENGTH) % 2 ** HASH_BIT_LENGTH;
-      if (DEBUGGING_LOCAL)
-        console.log(
-          `updateOthers: i = ${i}; findPredecessor(${pNodeSearchID}) --> pNode`,
-        );
+      this.logger.debug(
+        `updateOthers: i = ${i}; findPredecessor(${pNodeSearchID}) --> pNode`,
+      );
 
       try {
         pNode = await this.findPredecessor(pNodeSearchID);
       } catch (err) {
         pNode = NULL_NODE;
-        console.error(
-          `updateOthers: Error from findPredecessor(${pNodeSearchID}) in updateOthers().`,
-          err,
+        this.logger.error(
+          { err },
+          `updateOthers: Error from findPredecessor(${pNodeSearchID})`,
         );
       }
 
-      if (DEBUGGING_LOCAL) console.log("updateOthers: pNode = ", pNode);
+      this.logger.debug(`updateOthers: pNode = ${pNode?.id}`);
 
       if (this.id !== pNode.id) {
         pNodeClient = connect(pNode);
@@ -755,6 +740,7 @@ export class ChordNode {
           });
         } catch (err) {
           handleGRPCErrors(
+            this.logger,
             "updateOthers",
             "updateFingerTable",
             pNode.host,
@@ -776,15 +762,14 @@ export class ChordNode {
     const sNode = message.request.node;
     const fingerIndex = message.request.index;
 
-    if (DEBUGGING_LOCAL) {
-      console.log(
-        `updateFingerTable: {${this.id}}.fingerTable[] =\n`,
-        this.fingerTable,
-      );
-      console.log(
-        `updateFingerTable: sNode = ${message.request.node.id}; fingerIndex =${fingerIndex}`,
-      );
-    }
+    this.logger.debug(
+      {
+        fingerTable: this.fingerTable,
+        sNodeId: message.request.node.id,
+        fingerIndex,
+      },
+      "updateFingerTable",
+    );
 
     if (
       isInModuloRange(
@@ -804,6 +789,7 @@ export class ChordNode {
         });
       } catch (err) {
         handleGRPCErrors(
+          this.logger,
           "updateFingerTable",
           "updateFingerTable",
           this.predecessor.host,
@@ -812,10 +798,9 @@ export class ChordNode {
         );
       }
 
-      if (DEBUGGING_LOCAL)
-        console.log(
-          `updateFingerTable: Updated {${this.id}}.fingerTable[${fingerIndex}] to ${sNode}`,
-        );
+      this.logger.debug(
+        `updateFingerTable: Updated {${this.id}}.fingerTable[${fingerIndex}] to ${sNode?.id}`,
+      );
 
       callback(null, {});
       return;
@@ -839,15 +824,13 @@ export class ChordNode {
    *
    */
   async updateSuccessorTable(): Promise<boolean> {
-    if (DEBUGGING_LOCAL) {
-      console.log(
-        `updateSuccessorTable: {${this.id}}.successorTable[] =\n`,
-        this.successorTable,
-      );
-      console.log(
-        `updateSuccessorTable: successor node id = ${this.fingerTable[0].successor.id}`,
-      );
-    }
+    this.logger.debug(
+      {
+        successorTable: this.successorTable,
+        successorId: this.fingerTable[0].successor.id,
+      },
+      `updateSuccessorTable: {${this.id}}`,
+    );
 
     // check whether the successor is available
     let successorSeemsOK = false;
@@ -855,7 +838,7 @@ export class ChordNode {
       successorSeemsOK = await this.isOkSuccessor();
     } catch (err) {
       successorSeemsOK = false;
-      console.error(`updateSuccessorTable: isOkSuccessor failed with `, err);
+      this.logger.error({ err }, `updateSuccessorTable: isOkSuccessor failed`);
     }
     if (successorSeemsOK) {
       // synchronize with finger table because its successor still seemed OK
@@ -868,9 +851,9 @@ export class ChordNode {
           successorSeemsOK = await this.isOkSuccessor();
         } catch (err) {
           successorSeemsOK = false;
-          console.error(
-            `updateSuccessorTable: isOkSuccessor failed with `,
-            err,
+          this.logger.error(
+            { err },
+            `updateSuccessorTable: isOkSuccessor failed`,
           );
         }
         if (successorSeemsOK) {
@@ -900,11 +883,9 @@ export class ChordNode {
       this.successorTable.length < SUCCESSOR_TABLE_MAX_LENGTH &&
       this.id !== this.fingerTable[0].successor.id
     ) {
-      if (DEBUGGING_LOCAL) {
-        console.log(
-          `updateSuccessorTable: Short successorTable[]: [ current length ${this.successorTable.length} ] < [ ${SUCCESSOR_TABLE_MAX_LENGTH} preferred length ]`,
-        );
-      }
+      this.logger.debug(
+        `updateSuccessorTable: Short successorTable[]: [ current length ${this.successorTable.length} ] < [ ${SUCCESSOR_TABLE_MAX_LENGTH} preferred length ]`,
+      );
       for (
         let i = 0;
         i < this.successorTable.length && i <= SUCCESSOR_TABLE_MAX_LENGTH;
@@ -913,13 +894,15 @@ export class ChordNode {
         try {
           successorSuccessor = await this.getSuccessor(this.successorTable[i]);
         } catch (err) {
-          console.error(`updateSuccessorTable: getSuccessor failed with `, err);
+          this.logger.error(
+            { err },
+            `updateSuccessorTable: getSuccessor failed`,
+          );
           successorSuccessor = { id: null, host: null, port: null };
         }
-        if (DEBUGGING_LOCAL)
-          console.log(
-            `updateSuccessorTable: {${this.id}}.successorTable[${i}] = ${this.successorTable[i].id} and {${this.successorTable[i].id}}.successor[0] = ${successorSuccessor.id}`,
-          );
+        this.logger.debug(
+          `updateSuccessorTable: {${this.id}}.successorTable[${i}] = ${this.successorTable[i].id} and {${this.successorTable[i].id}}.successor[0] = ${successorSuccessor.id}`,
+        );
 
         if (
           successorSuccessor &&
@@ -949,9 +932,9 @@ export class ChordNode {
       try {
         successorSeemsOK = await this.confirmExist(this.successorTable[i]);
       } catch (err) {
-        console.error(
-          `updateSuccessorTable: call to confirmExist failed with `,
-          err,
+        this.logger.error(
+          { err },
+          `updateSuccessorTable: call to confirmExist failed`,
         );
         successorSeemsOK = false;
       }
@@ -962,11 +945,10 @@ export class ChordNode {
       i -= 1;
     }
 
-    if (DEBUGGING_LOCAL)
-      console.log(
-        `updateSuccessorTable: new {${this.id}}.successorTable[] =\n`,
-        this.successorTable,
-      );
+    this.logger.debug(
+      { successorTable: this.successorTable },
+      `updateSuccessorTable: new {${this.id}}.successorTable[]`,
+    );
 
     return successorSeemsOK;
   }
@@ -996,9 +978,9 @@ export class ChordNode {
         try {
           successorClient = connect(this.fingerTable[0].successor);
         } catch (err) {
-          console.error(
-            `stabilize: call to connect {${this.fingerTable[0].successor.id}} failed with `,
-            err,
+          this.logger.error(
+            { err },
+            `stabilize: call to connect {${this.fingerTable[0].successor.id}} failed`,
           );
           this.stabilizeIsLocked = false;
           return false;
@@ -1010,6 +992,7 @@ export class ChordNode {
         } catch (err) {
           x = this.encapsulateSelf();
           handleGRPCErrors(
+            this.logger,
             "stabilize",
             "getPredecessor",
             this.fingerTable[0].successor.host,
@@ -1031,14 +1014,14 @@ export class ChordNode {
         this.fingerTable[0].successor = x;
       }
 
-      if (DEBUGGING_LOCAL) {
-        console.log(
-          `\nstabilize: leaving stabilize()`,
-          `\n\t{${this.id}}.predecessor = ${this.predecessor.id}`,
-          `\n\t{${this.id}}.fingerTable[] is:\n${this.fingerTable}`,
-          `\n\t{${this.id}}.successorTable[] is:\n${this.successorTable}\n`,
-        );
-      }
+      this.logger.debug(
+        {
+          predecessor: this.predecessor.id,
+          fingerTable: this.fingerTable,
+          successorTable: this.successorTable,
+        },
+        `stabilize: leaving stabilize()`,
+      );
 
       if (!this.iAmMyOwnSuccessor()) {
         try {
@@ -1046,6 +1029,7 @@ export class ChordNode {
           await successorClient.notify(this.encapsulateSelf());
         } catch (err) {
           handleGRPCErrors(
+            this.logger,
             "stabilize",
             "successorClient",
             this.fingerTable[0].successor.host,
@@ -1059,16 +1043,12 @@ export class ChordNode {
       try {
         await this.updateSuccessorTable();
       } catch (err) {
-        console.error(`stabilize: updateSuccessorTable failed with `, err);
+        this.logger.error({ err }, `stabilize: updateSuccessorTable failed`);
       }
 
-      // set to (1) to use as debugging tells
-      if (DEBUGGING_LOCAL) {
-        console.log(`--\n{${this.id}}.predecessor = ${this.predecessor.id}`);
-        console.log(
-          `{${this.id}}.successor = ${this.fingerTable[0].successor.id}`,
-        );
-      }
+      this.logger.debug(
+        `stabilize: {${this.id}}.predecessor = ${this.predecessor.id}; successor = ${this.fingerTable[0].successor.id}`,
+      );
       this.stabilizeIsLocked = false;
       return true;
     }
@@ -1094,7 +1074,7 @@ export class ChordNode {
         predecessorSeemsOK = await this.checkPredecessor();
       } catch (err) {
         predecessorSeemsOK = false;
-        console.error(`stabilizeSelf: checkPredecessor failed with `, err);
+        this.logger.error({ err }, `stabilizeSelf: checkPredecessor failed`);
       }
       if (predecessorSeemsOK) {
         // then kick by setting the successor to the same as the predecessor
@@ -1102,10 +1082,9 @@ export class ChordNode {
         this.successorTable[0] = this.fingerTable[0].successor;
       }
     } else {
-      if (DEBUGGING_LOCAL)
-        console.log(
-          `stabilizeSelf: Warning: {${this.id}} is isolated because predecessor is ${this.predecessor.id} and successor is ${this.fingerTable[0].successor.id}.`,
-        );
+      this.logger.debug(
+        `stabilizeSelf: Warning: {${this.id}} is isolated because predecessor is ${this.predecessor.id} and successor is ${this.fingerTable[0].successor.id}.`,
+      );
       predecessorSeemsOK = true;
     }
     return predecessorSeemsOK;
@@ -1144,16 +1123,11 @@ export class ChordNode {
           this.fingerTable[this.fingerToFix].successor = nSuccessor;
         }
       } catch (err) {
-        console.error(`fixFingers: findSuccessor failed with `, err);
+        this.logger.error({ err }, `fixFingers: findSuccessor failed`);
       }
-      if (DEBUGGING_LOCAL) {
-        console.log(
-          `fixFingers: Fix {${this.id}}.fingerTable[${this.fingerToFix}], with start = ${this.fingerTable[this.fingerToFix].start}.`,
-        );
-        console.log(
-          `fixFingers: fingerTable[${this.fingerToFix}] = ${this.fingerTable[this.fingerToFix].successor}`,
-        );
-      }
+      this.logger.debug(
+        `fixFingers: Fix {${this.id}}.fingerTable[${this.fingerToFix}], with start = ${this.fingerTable[this.fingerToFix].start}; successor = ${this.fingerTable[this.fingerToFix].successor?.id}`,
+      );
       if (this.fingerToFix < this.fingerTable.length - 1) {
         this.fingerToFix++;
       } else {
@@ -1196,10 +1170,9 @@ export class ChordNode {
    * Checks whether the successor is still responding.
    */
   async isOkSuccessor() {
-    if (DEBUGGING_LOCAL)
-      console.log(
-        `{${this.id}}.isOkSuccessor(${this.fingerTable[0].successor.id})`,
-      );
+    this.logger.debug(
+      `{${this.id}}.isOkSuccessor(${this.fingerTable[0].successor.id})`,
+    );
 
     let successorSeemsOK = false;
     if (this.fingerTable[0].successor.id == null) {
@@ -1214,9 +1187,9 @@ export class ChordNode {
         );
       } catch (err) {
         successorSeemsOK = false;
-        console.log(
-          `Error in isOkSuccessor({${this.id}}) call to confirmExist({${this.fingerTable[0].successor.id}})`,
-          err,
+        this.logger.error(
+          { err },
+          `isOkSuccessor({${this.id}}): call to confirmExist({${this.fingerTable[0].successor.id}}) failed`,
         );
       }
     }
@@ -1243,9 +1216,9 @@ export class ChordNode {
           successorSeemsOK = await this.confirmExist(this.successorTable[i]);
         } catch (err) {
           successorSeemsOK = false;
-          console.log(
-            `Error in destructor({${this.id}}) call to confirmExist({${this.successorTable[i].id}})\n`,
-            err,
+          this.logger.error(
+            { err },
+            `destructor({${this.id}}): call to confirmExist({${this.successorTable[i].id}}) failed`,
           );
         }
         successor = this.successorTable[i];
@@ -1266,9 +1239,9 @@ export class ChordNode {
           );
         } catch (err) {
           successorSeemsOK = false;
-          console.log(
-            `Error in destructor({${this.id}}) call to confirmExist({${this.fingerTable[i].successor.id}})\n`,
-            err,
+          this.logger.error(
+            { err },
+            `destructor({${this.id}}): call to confirmExist({${this.fingerTable[i].successor.id}}) failed`,
           );
         }
         successor = this.fingerTable[i].successor;
@@ -1280,9 +1253,9 @@ export class ChordNode {
         successorSeemsOK = await this.confirmExist(this.predecessor);
       } catch (err) {
         successorSeemsOK = false;
-        console.log(
-          `Error in destructor({${this.id}}) call to confirmExist({${this.predecessor}})\n`,
-          err,
+        this.logger.error(
+          { err },
+          `destructor({${this.id}}): call to confirmExist({${this.predecessor?.id}}) failed`,
         );
       }
       successor = this.predecessor;
@@ -1295,7 +1268,10 @@ export class ChordNode {
       } catch (err) {
         migrationSeemsOK = false;
         migrationError = err;
-        console.error(err);
+        this.logger.error(
+          { err },
+          "destructor: migrateKeysBeforeDeparture failed",
+        );
       }
     }
     // notify predecessor
@@ -1305,8 +1281,9 @@ export class ChordNode {
         await predecessorClient.setSuccessor(successor);
       } catch (err) {
         handleGRPCErrors(
+          this.logger,
+          "destructor",
           "setSuccessor",
-          "predecessorClient",
           this.fingerTable[0].successor.host,
           this.fingerTable[0].successor.port,
           err,
@@ -1320,8 +1297,9 @@ export class ChordNode {
         await successorClient.setPredecessor(this.predecessor);
       } catch (err) {
         handleGRPCErrors(
+          this.logger,
+          "destructor",
           "setPredecessor",
-          "successorClient",
           successor.host,
           successor.port,
           err,
@@ -1329,19 +1307,19 @@ export class ChordNode {
       }
     }
     // report what's up and destroy the node by exiting the process
-    console.log(
-      `\n\nNode {${this.id}} at "${this.host}:${this.port}" is exiting the chord.`,
+    this.logger.info(
+      `Node {${this.id}} at "${this.host}:${this.port}" is exiting the chord.`,
     );
     if (successorSeemsOK && migrationSeemsOK) {
-      console.log(`Its keys are migrating to node {${successor.id}}.\n`);
+      this.logger.info(`Keys are migrating to node {${successor.id}}.`);
     } else if (!successorSeemsOK) {
-      console.log(
-        `Its keys are not migrating because a successor couldn't be contacted.\n`,
+      this.logger.warn(
+        `Keys are not migrating because a successor couldn't be contacted.`,
       );
     } else if (!migrationSeemsOK) {
-      console.log(
-        `Its keys are not migrating because the migration failed with error:\n`,
-        migrationError,
+      this.logger.error(
+        { err: migrationError },
+        `Keys are not migrating because the migration failed.`,
       );
     }
     process.exit(0);
