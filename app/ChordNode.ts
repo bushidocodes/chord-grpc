@@ -25,7 +25,7 @@ interface FingerTableEntry {
   successor: Node;
 }
 
-export class ChordNode {
+export abstract class ChordNode {
   id: number;
   host: string;
   port: number;
@@ -1328,14 +1328,6 @@ export class ChordNode {
     process.exit(0);
   }
 
-  /**
-   * Placeholder for data migration within the joinCluster() call.
-   */
-  async migrateKeysAfterJoining() {
-    throw new Error("Method migrateKeysAfterJoin has not been implemented");
-  }
-
-  async migrateKeysBeforeDeparture(): Promise<boolean> {
-    throw new Error("Method migrateKeysAfterJoin has not been implemented");
-  }
+  abstract migrateKeysAfterJoining(): Promise<void>;
+  abstract migrateKeysBeforeDeparture(): Promise<boolean>;
 }
