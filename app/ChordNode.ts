@@ -359,6 +359,7 @@ export class ChordNode {
       } catch (err) {
         nPreceding = NULL_NODE;
         handleGRPCErrors(
+          this.logger,
           "closestPrecedingFinger",
           "closestPrecedingFingerRemoteHelper",
           nodeQueried.host,
@@ -491,6 +492,7 @@ export class ChordNode {
       } catch (err) {
         knownNode.id = null;
         handleGRPCErrors(
+          this.logger,
           "joinCluster",
           "getNodeId",
           knownNode.host,
@@ -1149,6 +1151,7 @@ export class ChordNode {
           const _ = await predecessorClient.getPredecessor(this.id);
         } catch (err) {
           handleGRPCErrors(
+            this.logger,
             "checkPredecessor",
             "getPredecessor",
             this.predecessor.host,
