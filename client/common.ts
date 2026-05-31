@@ -24,6 +24,58 @@ export class Client {
     }
   }
 
+  async fingerTable() {
+    try {
+      const summary = await this.client.summary({ id: 1 });
+      console.log(
+        `Finger table for node ${summary.id} (${summary.host}:${summary.port}):`,
+      );
+      const stream = this.client.getFingerTableEntries();
+      let i = 0;
+      await new Promise<void>((resolve, reject) => {
+        stream.on("data", ({ index, node }: { index: number; node: any }) => {
+          console.log(
+            `  [${i++}]  start=${index}  successor=${node.id} (${node.host}:${node.port})`,
+          );
+        });
+        stream.on("end", resolve);
+        stream.on("error", reject);
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async predecessor() {
+    try {
+      const node = await this.client.getPredecessor();
+      if (!node || (!node.id && !node.host && !node.port)) {
+        console.log("No predecessor set");
+      } else {
+        console.log(
+          `Predecessor: id=${node.id}, host=${node.host}, port=${node.port}`,
+        );
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async successor() {
+    try {
+      const node = await this.client.getSuccessorRemoteHelper();
+      if (!node || (!node.id && !node.host && !node.port)) {
+        console.log("No successor set");
+      } else {
+        console.log(
+          `Successor: id=${node.id}, host=${node.host}, port=${node.port}`,
+        );
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   async lookup({ _, ...rest }) {
     if (!rest.id) {
       console.log("lookup requires an ID");

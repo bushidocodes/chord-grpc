@@ -43,6 +43,11 @@ npm run client -- edit --port 8440 --id 5 --displayName "Name" --reputation 99
 npm run client -- remove --port 8440 --id 5
 npm run client -- bulkInsert --path ./data/tinyUsers.json
 npm run client -- summary --port 8440
+
+# Ring topology inspection (useful for debugging ring formation / stale routing)
+npm run client -- fingerTable --port 8440   # print all finger table entries
+npm run client -- predecessor --port 8440   # print predecessor node
+npm run client -- successor --port 8440     # print successor node
 ```
 
 ### No test suite exists

@@ -32,6 +32,15 @@ function main() {
       case "summary":
         client.summary();
         break;
+      case "fingerTable":
+        client.fingerTable();
+        break;
+      case "predecessor":
+        client.predecessor();
+        break;
+      case "successor":
+        client.successor();
+        break;
     }
   }
 }
