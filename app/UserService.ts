@@ -452,50 +452,50 @@ export class UserService extends ChordNode {
     }
   }
 
-  migrateUsersToPredecessor() {
+  async migrateUsersToPredecessor() {
     if (this.userMapIsEmpty()) return null;
 
     const client = connect(this.predecessor);
 
-    Object.keys(this.userMap)
-      .filter((hashedKey) =>
-        isInModuloRange(
-          parseInt(hashedKey, 10),
-          this.id,
-          false,
-          this.predecessor.id,
-          true,
-        ),
-      )
-      .forEach((hashedKey) => {
-        try {
-          client.insertUserRemoteHelper({
-            user: this.userMap[hashedKey],
-            edit: false,
-          });
-          this.removeUser(hashedKey);
-        } catch (error) {
-          handleGRPCErrors(
-            this.logger,
-            "migrateUsersToPredecessor",
-            "insertUserRemoteHelper",
-            this.predecessor.host,
-            this.predecessor.port,
-            error,
-          );
-        }
-      });
+    const keysToMigrate = Object.keys(this.userMap).filter((hashedKey) =>
+      isInModuloRange(
+        parseInt(hashedKey, 10),
+        this.id,
+        false,
+        this.predecessor.id,
+        true,
+      ),
+    );
+
+    for (const hashedKey of keysToMigrate) {
+      try {
+        await client.insertUserRemoteHelper({
+          user: this.userMap[hashedKey],
+          edit: false,
+        });
+        this.removeUser(hashedKey);
+      } catch (error) {
+        handleGRPCErrors(
+          this.logger,
+          "migrateUsersToPredecessor",
+          "insertUserRemoteHelper",
+          this.predecessor.host,
+          this.predecessor.port,
+          error,
+        );
+      }
+    }
     return null;
   }
 
-  migrateUsersToSuccessor() {
+  async migrateUsersToSuccessor() {
     if (this.userMapIsEmpty()) return null;
 
     const client = connect(this.fingerTable[0].successor);
 
-    Object.keys(this.userMap).forEach((hashedKey) => {
+    for (const hashedKey of Object.keys(this.userMap)) {
       try {
-        client.insertUserRemoteHelper({
+        await client.insertUserRemoteHelper({
           user: this.userMap[hashedKey],
           edit: false,
         });
@@ -510,15 +510,15 @@ export class UserService extends ChordNode {
           error,
         );
       }
-    });
+    }
     return null;
   }
 
-  migrateUsersToPredecessorRemoteHelper(
+  async migrateUsersToPredecessorRemoteHelper(
     _: any,
     callback: (call: any, arg1: {}) => void,
   ) {
-    callback(this.migrateUsersToPredecessor(), {});
+    callback(await this.migrateUsersToPredecessor(), {});
   }
 
   // Checks if the local this.userMap is an empty object
