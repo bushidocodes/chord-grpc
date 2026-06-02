@@ -13,21 +13,19 @@ function main() {
 
     switch (command) {
       case "lookup":
-        client.lookup(args);
+        client.lookup({ id: args.id });
         break;
       case "remove":
-        client.remove(args);
+        client.remove({ id: args.id });
         break;
       case "bulkInsert":
-        client.bulkInsert(args);
+        client.bulkInsert({ path: args.path });
         break;
       case "insert":
-        args["edit"] = false;
-        client.insert(args);
+        client.insert({ ...args, edit: false });
         break;
       case "edit":
-        args["edit"] = true;
-        client.insert(args);
+        client.insert({ ...args, edit: true });
         break;
       case "summary":
         client.summary();

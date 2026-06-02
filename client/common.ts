@@ -3,7 +3,7 @@ import fs from "fs";
 import { connect } from "../app/utils.ts";
 
 interface InsertArgs {
-  id: number;
+  id?: number;
   edit?: boolean;
   reputation?: number;
   creationDate?: string;
@@ -93,7 +93,7 @@ export class Client {
     }
   }
 
-  async lookup(args: { id: number }) {
+  async lookup(args: { id?: number }) {
     if (!args.id) {
       console.log("lookup requires an ID");
       process.exit();
@@ -186,7 +186,7 @@ export class Client {
     }
   }
 
-  async bulkInsert(args: { path: string }) {
+  async bulkInsert(args: { path?: string }) {
     if (!args.path) {
       console.log("bulkInsert requires a path to a JSON file");
       process.exit();
@@ -204,7 +204,7 @@ export class Client {
     }
   }
 
-  async remove(args: { id: number }) {
+  async remove(args: { id?: number }) {
     if (!args.id) {
       console.log("remove requires an ID");
       process.exit();
