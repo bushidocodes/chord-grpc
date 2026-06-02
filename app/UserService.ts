@@ -8,6 +8,7 @@ import {
   connect,
   handleGRPCErrors,
   isInModuloRange,
+  loadTlsCredentials,
   NULL_NODE,
   computeIntegerHash,
 } from "./utils.ts";
@@ -84,18 +85,25 @@ export class UserService extends ChordNode {
       destructor: this.destructor.bind(this),
     });
 
+    const tls = loadTlsCredentials();
+    const serverCredentials = tls
+      ? grpc.ServerCredentials.createSsl(
+          null,
+          [{ private_key: tls.key, cert_chain: tls.cert }],
+          false,
+        )
+      : grpc.ServerCredentials.createInsecure();
+
     // We assume that binding to 0.0.0.0 indeed makes us accessible at this.host
-    this.logger.info(`Serving on ${this.host}:${this.port}`);
-    server.bindAsync(
-      `0.0.0.0:${this.port}`,
-      grpc.ServerCredentials.createInsecure(),
-      (err) => {
-        if (err) {
-          this.logger.error({ err }, `Failed to bind server: ${err.message}`);
-          process.exit(1);
-        }
-      },
+    this.logger.info(
+      `Serving on ${this.host}:${this.port} (${tls ? "TLS" : "insecure"})`,
     );
+    server.bindAsync(`0.0.0.0:${this.port}`, serverCredentials, (err) => {
+      if (err) {
+        this.logger.error({ err }, `Failed to bind server: ${err.message}`);
+        process.exit(1);
+      }
+    });
   }
 
   // Streams a List of User IDs stored by the Node
