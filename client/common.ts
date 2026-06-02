@@ -2,6 +2,23 @@ import path from "path";
 import fs from "fs";
 import { connect } from "../app/utils.ts";
 
+interface InsertArgs {
+  id?: number;
+  edit?: boolean;
+  reputation?: number;
+  creationDate?: string;
+  displayName?: string;
+  lastAccessDate?: string;
+  websiteUrl?: string;
+  location?: string;
+  aboutMe?: string;
+  views?: number;
+  upVotes?: number;
+  downVotes?: number;
+  profileImageUrl?: string;
+  accountId?: number;
+}
+
 export class Client {
   host: string;
   port: number;
@@ -76,15 +93,15 @@ export class Client {
     }
   }
 
-  async lookup({ _, ...rest }) {
-    if (!rest.id) {
+  async lookup(args: { id?: number }) {
+    if (!args.id) {
       console.log("lookup requires an ID");
       process.exit();
     }
 
-    await this.client.lookup({ id: rest.id }, (err: any, user: any) => {
+    await this.client.lookup({ id: args.id }, (err: any, user: any) => {
       if (err) {
-        console.error(`User with userId ${rest.id} not found`);
+        console.error(`User with userId ${args.id} not found`);
         console.error(err);
       } else {
         console.log("User found: ", user);
@@ -92,8 +109,8 @@ export class Client {
     });
   }
 
-  async insert({ _, ...rest }) {
-    if (!rest.id) {
+  async insert(args: InsertArgs) {
+    if (!args.id) {
       console.log("id is a mandatory field!");
       console.log("node client insert --id=42424242");
       console.log(
@@ -105,7 +122,7 @@ export class Client {
       process.exit();
     }
 
-    if (rest.edit) {
+    if (args.edit) {
       const editableFields = [
         "reputation",
         "creationDate",
@@ -119,17 +136,17 @@ export class Client {
         "downVotes",
         "profileImageUrl",
         "accountId",
-      ];
-      const paths = editableFields.filter((f) => rest[f] !== undefined);
+      ] as const;
+      const paths = editableFields.filter((f) => args[f] !== undefined);
       if (paths.length === 0) {
         console.log(
           'edit requires at least one field to update (e.g. --displayName="Alice")',
         );
         process.exit();
       }
-      const user: any = { id: rest.id };
+      const user: any = { id: args.id };
       for (const field of paths) {
-        user[field] = rest[field];
+        user[field] = args[field];
       }
       try {
         await this.client.insert({ user, edit: true, update_mask: { paths } });
@@ -141,19 +158,19 @@ export class Client {
     }
 
     const user = {
-      id: rest.id,
-      reputation: rest.reputation || 0,
-      creationDate: rest.creationDate || Date.now().toString(),
-      displayName: rest.displayName || "",
-      lastAccessDate: rest.lastAccessDate || "",
-      websiteUrl: rest.websiteUrl || "",
-      location: rest.location || "",
-      aboutMe: rest.aboutMe || "",
-      views: rest.views || 0,
-      upVotes: rest.upVotes || 0,
-      downVotes: rest.downVotes || 0,
-      profileImageUrl: rest.profileImageUrl || "",
-      accountId: rest.accountId || 0,
+      id: args.id,
+      reputation: args.reputation || 0,
+      creationDate: args.creationDate || Date.now().toString(),
+      displayName: args.displayName || "",
+      lastAccessDate: args.lastAccessDate || "",
+      websiteUrl: args.websiteUrl || "",
+      location: args.location || "",
+      aboutMe: args.aboutMe || "",
+      views: args.views || 0,
+      upVotes: args.upVotes || 0,
+      downVotes: args.downVotes || 0,
+      profileImageUrl: args.profileImageUrl || "",
+      accountId: args.accountId || 0,
     };
     try {
       await this.client.insert({ user, edit: false });
@@ -169,17 +186,17 @@ export class Client {
     }
   }
 
-  async bulkInsert({ _, ...rest }) {
-    if (!rest.path) {
+  async bulkInsert(args: { path?: string }) {
+    if (!args.path) {
       console.log("bulkInsert requires a path to a JSON file");
       process.exit();
     }
     try {
-      const jsonPath = path.resolve(import.meta.dirname, "..", rest.path);
+      const jsonPath = path.resolve(import.meta.dirname, "..", args.path);
       console.log(jsonPath);
       fs.readFile(jsonPath, "utf8", (err, rawData) => {
         const data = JSON.parse(rawData);
-        const users: { [x: string]: any; _: any }[] = Object.values(data);
+        const users: InsertArgs[] = Object.values(data);
         users.forEach((user) => this.insert(user));
       });
     } catch (err) {
@@ -187,14 +204,14 @@ export class Client {
     }
   }
 
-  async remove({ _, ...rest }) {
-    if (!rest.id) {
+  async remove(args: { id?: number }) {
+    if (!args.id) {
       console.log("remove requires an ID");
       process.exit();
     }
-    console.log("Beginning client-side remove: ", rest.id);
+    console.log("Beginning client-side remove: ", args.id);
 
-    await this.client.remove({ id: rest.id }, (err: any, _: any) => {
+    await this.client.remove({ id: args.id }, (err: any, _: any) => {
       if (err) {
         console.error("User not deleted");
         console.error(err);
