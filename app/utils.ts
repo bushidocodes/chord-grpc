@@ -17,7 +17,7 @@ const packageDefinition = loadSync(PROTO_PATH, {
 });
 const chordProto = grpc.loadPackageDefinition(packageDefinition).chord as any;
 
-export const HASH_BIT_LENGTH = 32; //TBD
+export const HASH_BIT_LENGTH = 52;
 export const FIBONACCI_ALPHA = 0.7;
 export const IS_FIBONACCI_CHORD: boolean = false;
 export const NULL_NODE = { id: null, host: null, port: null };
@@ -91,49 +91,51 @@ export function sha1(source: string): string {
   return crypto.createHash("sha1").update(source).digest("hex");
 }
 
-/** Compute a hash of desired length for the input string.
- * The function uses SHA-1 to compute an intermmediate string output,
- * then truncates to the user-specified size from the high-order bits.
+/**
+ * Compute an integer hash of at most HASH_BIT_LENGTH bits for the input string.
+ *
+ * 52 bits is the safe ceiling for JS double arithmetic: the maximum ring
+ * intermediate value, (2^52 - 1) + 2^51 = 3×2^51 - 1, stays below
+ * Number.MAX_SAFE_INTEGER (2^53 - 1).  At 53 bits the equivalent sum,
+ * (2^53 - 1) + 2^52 ≈ 1.35×10^16, would exceed MAX_SAFE_INTEGER and cause
+ * silent rounding errors in finger-table start values.
+ *
+ * JS bitwise operators (>>>, &) silently coerce their operands to 32-bit
+ * integers, so they cannot be used here.  The truncation is done with
+ * Math.floor and % instead.
  */
 export async function computeIntegerHash(
   stringForHashing: string,
   highOrderBits: boolean = true,
 ): Promise<number> {
-  const MAX_JS_INT_BIT_LENGTH = 32;
-  const BIT_PER_HEX_CHARACTER = 4;
-  if (HASH_BIT_LENGTH > MAX_JS_INT_BIT_LENGTH) {
+  const MAX_EXTRACTED_BITS = 52;
+  const BITS_PER_HEX_CHAR = 4;
+  const HEX_CHARS = MAX_EXTRACTED_BITS / BITS_PER_HEX_CHAR; // 13
+
+  if (HASH_BIT_LENGTH > MAX_EXTRACTED_BITS) {
     console.error(
-      `Warning. Requested ${HASH_BIT_LENGTH} bits `,
-      `but only ${MAX_JS_INT_BIT_LENGTH} bits available due to numerical simplification.`,
+      `HASH_BIT_LENGTH=${HASH_BIT_LENGTH} exceeds the safe ${MAX_EXTRACTED_BITS}-bit ceiling for JS double arithmetic.`,
     );
     process.exit(-9);
   }
-  let hashOutput = sha1(stringForHashing);
-  // truncate because JavaScript only does bitwise operations on 32-bit numbers
-  if (!highOrderBits) {
-    // keep the low-order bits
-    hashOutput = hashOutput.slice(
-      -MAX_JS_INT_BIT_LENGTH / BIT_PER_HEX_CHARACTER,
+
+  const sha1Hex = sha1(stringForHashing);
+
+  // Slice 13 hex chars (52 bits) from the high or low end of the digest.
+  // parseInt on 13 hex chars yields at most 2^52 - 1, safely below MAX_SAFE_INTEGER.
+  const hexSlice = highOrderBits
+    ? sha1Hex.slice(0, HEX_CHARS)
+    : sha1Hex.slice(-HEX_CHARS);
+
+  let integerHash = parseInt("0x" + hexSlice);
+
+  // Trim to exactly HASH_BIT_LENGTH bits using arithmetic (not bitwise ops).
+  if (highOrderBits) {
+    integerHash = Math.floor(
+      integerHash / 2 ** (MAX_EXTRACTED_BITS - HASH_BIT_LENGTH),
     );
   } else {
-    // keep the high-order bits
-    hashOutput = hashOutput.slice(
-      0,
-      MAX_JS_INT_BIT_LENGTH / BIT_PER_HEX_CHARACTER,
-    );
-  }
-
-  let integerHash: number;
-  // convert from hexadecimal to decimal
-  integerHash = parseInt("0x" + hashOutput);
-
-  // truncate the hash to the desired number of bits
-  if (!highOrderBits) {
-    // by picking the low-order bits
-    integerHash = (integerHash & (2 ** HASH_BIT_LENGTH - 1)) >>> 0;
-  } else {
-    // by picking the high-order bits
-    integerHash = integerHash >>> (MAX_JS_INT_BIT_LENGTH - HASH_BIT_LENGTH);
+    integerHash = integerHash % 2 ** HASH_BIT_LENGTH;
   }
 
   return integerHash;
