@@ -108,32 +108,26 @@ export async function computeIntegerHash(
   stringForHashing: string,
   highOrderBits: boolean = true,
 ): Promise<number> {
-  const MAX_EXTRACTED_BITS = 52;
-  const BITS_PER_HEX_CHAR = 4;
-  const HEX_CHARS = MAX_EXTRACTED_BITS / BITS_PER_HEX_CHAR; // 13
-
-  if (HASH_BIT_LENGTH > MAX_EXTRACTED_BITS) {
+  // 52 is the architectural ceiling — do not raise it without reading the
+  // comment on this function.  HASH_BIT_LENGTH may be set to any value <= 52.
+  if (HASH_BIT_LENGTH > 52) {
     console.error(
-      `HASH_BIT_LENGTH=${HASH_BIT_LENGTH} exceeds the safe ${MAX_EXTRACTED_BITS}-bit ceiling for JS double arithmetic.`,
+      `HASH_BIT_LENGTH=${HASH_BIT_LENGTH} exceeds the safe 52-bit ceiling for JS double arithmetic.`,
     );
     process.exit(-9);
   }
 
   const sha1Hex = sha1(stringForHashing);
 
-  // Slice 13 hex chars (52 bits) from the high or low end of the digest.
-  // parseInt on 13 hex chars yields at most 2^52 - 1, safely below MAX_SAFE_INTEGER.
-  const hexSlice = highOrderBits
-    ? sha1Hex.slice(0, HEX_CHARS)
-    : sha1Hex.slice(-HEX_CHARS);
+  // 13 hex chars = 52 bits; parseInt on 13 hex chars yields at most
+  // 2^52 - 1, safely below Number.MAX_SAFE_INTEGER.
+  const hexSlice = highOrderBits ? sha1Hex.slice(0, 13) : sha1Hex.slice(-13);
 
   let integerHash = parseInt("0x" + hexSlice);
 
   // Trim to exactly HASH_BIT_LENGTH bits using arithmetic (not bitwise ops).
   if (highOrderBits) {
-    integerHash = Math.floor(
-      integerHash / 2 ** (MAX_EXTRACTED_BITS - HASH_BIT_LENGTH),
-    );
+    integerHash = Math.floor(integerHash / 2 ** (52 - HASH_BIT_LENGTH));
   } else {
     integerHash = integerHash % 2 ** HASH_BIT_LENGTH;
   }
