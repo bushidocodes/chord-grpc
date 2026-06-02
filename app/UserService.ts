@@ -49,7 +49,7 @@ interface User {
 }
 
 export class UserService extends ChordNode {
-  userMap: { [key: string]: User };
+  userMap: { [key: string]: User[] };
 
   constructor({ id, host = os.hostname(), port = 1337 }) {
     super({ id, host, port });
@@ -111,7 +111,7 @@ export class UserService extends ChordNode {
     write: (arg0: { id: number; metadata: Metadata }) => void;
     end: () => void;
   }) {
-    const users = Object.values(this.userMap);
+    const users = Object.values(this.userMap).flat();
     users.forEach((user) => {
       call.write({
         id: user.id,
@@ -121,25 +121,40 @@ export class UserService extends ChordNode {
     call.end();
   }
 
-  // Removes a User from local state matching the hash
-  removeUser(hashedUserId: string | number) {
-    if (this.userMap[hashedUserId]) {
-      delete this.userMap[hashedUserId];
-      this.logger.info(`removeUser: user removed at hash ${hashedUserId}`);
-      return null;
-    } else {
-      this.logger.warn(`removeUser: user not found at hash ${hashedUserId}`);
+  // Removes a User from local state matching both the hash bucket and the user ID
+  removeUser(hashedUserId: string | number, userId: number) {
+    const bucket = this.userMap[hashedUserId];
+    if (!bucket) {
+      this.logger.warn(
+        `removeUser: user ${userId} not found at hash ${hashedUserId}`,
+      );
       return { code: 5 };
     }
+    const newBucket = bucket.filter((u) => u.id !== userId);
+    if (newBucket.length === bucket.length) {
+      this.logger.warn(
+        `removeUser: user ${userId} not found at hash ${hashedUserId}`,
+      );
+      return { code: 5 };
+    }
+    if (newBucket.length === 0) {
+      delete this.userMap[hashedUserId];
+    } else {
+      this.userMap[hashedUserId] = newBucket;
+    }
+    this.logger.info(
+      `removeUser: user ${userId} removed at hash ${hashedUserId}`,
+    );
+    return null;
   }
 
   // gRPC Handler to allow other nodes to remove users from our local state
   async removeUserRemoteHelper(
-    message: { request: { id: any } },
+    message: { request: { id: any; userId: number } },
     callback: (call: { code: number }, arg1: {}) => void,
   ) {
     this.logger.debug({ message }, "removeUserRemoteHelper");
-    const err = this.removeUser(message.request.id);
+    const err = this.removeUser(message.request.id, message.request.userId);
     callback(err, {});
   }
 
@@ -182,14 +197,14 @@ export class UserService extends ChordNode {
 
     if (this.iAmTheNode(successor)) {
       this.logger.debug("remove: removing user from local node");
-      const err = this.removeUser(lookupKey);
+      const err = this.removeUser(lookupKey, userId);
       return err;
     } else {
       try {
         this.logger.debug("remove: removing user from remote node");
         const successorClient = connect(successor);
         await successorClient.removeUserRemoteHelper(
-          { id: lookupKey },
+          { id: lookupKey, userId },
           (err: any, _: any) => {
             return err;
           },
@@ -220,27 +235,39 @@ export class UserService extends ChordNode {
     const { user, edit, update_mask } = clonedUserEdit;
     const paths: string[] = update_mask?.paths ?? [];
 
-    if (this.userMap[key] && !edit) {
-      this.logger.warn(`insertUser: user already exists at hash ${key}`);
+    const bucket = this.userMap[key] ?? [];
+    const existingIndex = bucket.findIndex((u) => u.id === user.id);
+    const exists = existingIndex !== -1;
+
+    if (exists && !edit) {
+      this.logger.warn(
+        `insertUser: user ${user.id} already exists at hash ${key}`,
+      );
       return { code: 6 };
     }
 
     if (edit && paths.length > 0) {
       // Partial update: merge only the fields named in the mask
-      if (!this.userMap[key]) {
+      if (!exists) {
         this.logger.warn(
-          `insertUser: user not found at hash ${key} for partial edit`,
+          `insertUser: user ${user.id} not found at hash ${key} for partial edit`,
         );
         return { code: 5 };
       }
       for (const field of paths) {
-        (this.userMap[key] as any)[field] = user[field];
+        (bucket[existingIndex] as any)[field] = user[field];
       }
+      this.userMap[key] = bucket;
       this.logger.info(
         `insertUser: Partially edited User ${user.id} at hash ${key} (fields: ${paths.join(", ")})`,
       );
     } else {
-      this.userMap[key] = user;
+      if (exists) {
+        bucket[existingIndex] = user;
+      } else {
+        bucket.push(user);
+      }
+      this.userMap[key] = bucket;
       this.logger.info(
         `insertUser: ${edit ? "Edited" : "Inserted"} User ${user.id} at hash ${key}`,
       );
@@ -333,43 +360,47 @@ export class UserService extends ChordNode {
     }
   }
 
-  // gRPC handler that returns a user locally from this node
+  // gRPC handler that returns a user locally from this node (hash in id, user ID in userId)
   fetch(
-    message: { request: { id: any } },
+    message: { request: { id: any; userId: number } },
     callback: (call: { code: number }, arg1: User) => void,
   ) {
-    const {
-      request: { id },
-    } = message;
-    this.logger.info(`fetch: Requested User ${id}`);
-    if (!this.userMap[id]) {
-      callback({ code: 5 }, null); // NOT_FOUND error
-    } else {
-      callback(null, this.userMap[id]);
-    }
+    const { id, userId } = message.request;
+    this.logger.info(`fetch: Requested User ${userId} at hash ${id}`);
+    const { err, user } = this.lookupUser(id, userId);
+    callback(err, user);
   }
 
-  // Look up user by hash
-  lookupUser(hashedUserId: number) {
-    if (this.userMap[hashedUserId]) {
-      const user = this.userMap[hashedUserId];
-      this.logger.debug(`lookupUser: User ${user.id} found at ${hashedUserId}`);
-      return { err: null, user };
-    } else {
-      this.logger.debug(`lookupUser: User not found at ${hashedUserId}`);
-      return { err: { code: 5 }, user: null };
+  // Look up user by hash bucket and user ID (supports chained collision buckets)
+  lookupUser(hashedUserId: number, userId: number) {
+    const bucket = this.userMap[hashedUserId];
+    if (bucket) {
+      const user = bucket.find((u) => u.id === userId);
+      if (user) {
+        this.logger.debug(
+          `lookupUser: User ${userId} found at ${hashedUserId}`,
+        );
+        return { err: null, user };
+      }
     }
+    this.logger.debug(
+      `lookupUser: User ${userId} not found at ${hashedUserId}`,
+    );
+    return { err: { code: 5 }, user: null };
   }
 
   async lookupUserRemoteHelper(
-    message: { request: { id: any } },
+    message: { request: { id: any; userId: number } },
     callback: (call: any, arg1: any) => void,
   ) {
     this.logger.debug(
       { id: message.request.id },
       "beginning lookupUserRemoteHelper",
     );
-    const { err, user } = this.lookupUser(message.request.id);
+    const { err, user } = this.lookupUser(
+      message.request.id,
+      message.request.userId,
+    );
     this.logger.debug({ user }, "finishing lookupUserRemoteHelper");
     callback(err, user);
   }
@@ -415,7 +446,7 @@ export class UserService extends ChordNode {
 
     if (this.iAmTheNode(successor)) {
       this.logger.debug("lookup: looking up user on local node");
-      const { err, user } = this.lookupUser(lookupKey);
+      const { err, user } = this.lookupUser(lookupKey, userId);
       this.logger.debug({ err, user }, "lookup: finished server-side lookup");
       return { err, user };
     } else {
@@ -424,6 +455,7 @@ export class UserService extends ChordNode {
         const successorClient = connect(successor);
         const user = await successorClient.lookupUserRemoteHelper({
           id: lookupKey,
+          userId,
         });
         return { err: null, user };
       } catch (err) {
@@ -491,21 +523,20 @@ export class UserService extends ChordNode {
     );
 
     for (const hashedKey of keysToMigrate) {
-      try {
-        await client.insertUserRemoteHelper({
-          user: this.userMap[hashedKey],
-          edit: false,
-        });
-        this.removeUser(hashedKey);
-      } catch (error) {
-        handleGRPCErrors(
-          this.logger,
-          "migrateUsersToPredecessor",
-          "insertUserRemoteHelper",
-          this.predecessor.host,
-          this.predecessor.port,
-          error,
-        );
+      for (const user of this.userMap[hashedKey] ?? []) {
+        try {
+          await client.insertUserRemoteHelper({ user, edit: false });
+          this.removeUser(hashedKey, user.id);
+        } catch (error) {
+          handleGRPCErrors(
+            this.logger,
+            "migrateUsersToPredecessor",
+            "insertUserRemoteHelper",
+            this.predecessor.host,
+            this.predecessor.port,
+            error,
+          );
+        }
       }
     }
     return null;
@@ -517,21 +548,20 @@ export class UserService extends ChordNode {
     const client = connect(this.fingerTable[0].successor);
 
     for (const hashedKey of Object.keys(this.userMap)) {
-      try {
-        await client.insertUserRemoteHelper({
-          user: this.userMap[hashedKey],
-          edit: false,
-        });
-        this.removeUser(hashedKey);
-      } catch (error) {
-        handleGRPCErrors(
-          this.logger,
-          "migrateUsersToSuccessor",
-          "insertUserRemoteHelper",
-          this.predecessor.host,
-          this.predecessor.port,
-          error,
-        );
+      for (const user of this.userMap[hashedKey] ?? []) {
+        try {
+          await client.insertUserRemoteHelper({ user, edit: false });
+          this.removeUser(hashedKey, user.id);
+        } catch (error) {
+          handleGRPCErrors(
+            this.logger,
+            "migrateUsersToSuccessor",
+            "insertUserRemoteHelper",
+            this.predecessor.host,
+            this.predecessor.port,
+            error,
+          );
+        }
       }
     }
     return null;
