@@ -3,6 +3,7 @@ syntax = "proto3";
 package chord;
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
 
 service Node {
   // Chord Library Level RPC Calls
@@ -90,5 +91,6 @@ message User {
 
 message UserEdit {
   User user = 1;
-  bool edit = 2; 
+  bool edit = 2;
+  google.protobuf.FieldMask update_mask = 3;
 }
