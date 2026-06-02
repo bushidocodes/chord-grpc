@@ -293,7 +293,8 @@ export function loadTlsCredentials(): {
 
 /**
  * Creates a gRPC client for the Node service with promisified unary methods.
- * Streaming methods (getFingerTableEntries, getUserIds) remain unchanged.
+ * Server-streaming methods (getFingerTableEntries, getUserIds) and
+ * client-streaming methods (bulkInsertUsersRemoteHelper) remain unwrapped.
  *
  * Uses TLS when certs/ca.crt exists; falls back to insecure transport
  * (useful for environments where certs have not been generated yet).
@@ -315,14 +316,20 @@ export function connect({ host, port }: { host: string; port: number }) {
 }
 
 function promisifyClient(client: any) {
-  const streamMethods = new Set(["getFingerTableEntries", "getUserIds"]);
+  // server-streaming: client sends one request, server sends a stream back
+  const serverStreamMethods = new Set(["getFingerTableEntries", "getUserIds"]);
+  // client-streaming: client sends a stream, server sends one response back
+  const clientStreamMethods = new Set(["bulkInsertUsersRemoteHelper"]);
   const proto = Object.getPrototypeOf(client);
 
   for (const method of Object.keys(proto)) {
     if (method.startsWith("$") || method.startsWith("_")) continue;
     const original = proto[method];
     if (typeof original !== "function") continue;
-    if (streamMethods.has(method)) {
+    if (clientStreamMethods.has(method)) {
+      // Bind only — callers get the raw writable stream and provide their own callback
+      client[method] = client[method].bind(client);
+    } else if (serverStreamMethods.has(method)) {
       // Wrap streaming calls to allow zero-arg invocation
       const origMethod = client[method].bind(client);
       client[method] = (req?: any) => origMethod(req || {});
