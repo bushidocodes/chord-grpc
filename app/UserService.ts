@@ -10,7 +10,8 @@ import {
   isInModuloRange,
   loadTlsCredentials,
   NULL_NODE,
-  computeIntegerHash,
+  computeHashHighBits,
+  computeHashLowBits,
 } from "./utils.ts";
 
 const packageDefinition = loadSync(
@@ -583,22 +584,10 @@ export class UserService extends ChordNode {
   }
 
   async computeUserIdHashPrimary(userId: number): Promise<number> {
-    const highOrderBits = true;
-    let userIdString: string = userId.toString().toLowerCase();
-    let hashedUserId: number = await computeIntegerHash(
-      userIdString,
-      highOrderBits,
-    );
-    return hashedUserId;
+    return computeHashHighBits(userId.toString());
   }
 
   async computeUserIdHashSecondary(userId: number): Promise<number> {
-    const highOrderBits = false;
-    let userIdString: string = userId.toString().toLowerCase();
-    let hashedUserId: number = await computeIntegerHash(
-      userIdString,
-      highOrderBits,
-    );
-    return hashedUserId;
+    return computeHashLowBits(userId.toString());
   }
 }

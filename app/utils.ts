@@ -92,54 +92,42 @@ export function sha1(source: string): string {
 }
 
 /**
- * Compute an integer hash of at most HASH_BIT_LENGTH bits for the input string.
+ * Hash helpers — 52-bit ceiling for JS double arithmetic.
  *
- * 52 bits is the safe ceiling for JS double arithmetic: the maximum ring
- * intermediate value, (2^52 - 1) + 2^51 = 3×2^51 - 1, stays below
- * Number.MAX_SAFE_INTEGER (2^53 - 1).  At 53 bits the equivalent sum,
- * (2^53 - 1) + 2^52 ≈ 1.35×10^16, would exceed MAX_SAFE_INTEGER and cause
- * silent rounding errors in finger-table start values.
- *
- * JS bitwise operators (>>>, &) silently coerce their operands to 32-bit
- * integers, so they cannot be used here.  The truncation is done with
- * Math.floor and % instead.
+ * Ring arithmetic intermediates: (2^52 - 1) + 2^51 = 3×2^51 - 1 < MAX_SAFE_INTEGER.
+ * At 53 bits that sum would exceed MAX_SAFE_INTEGER and silently corrupt
+ * finger-table start values.  JS bitwise ops (>>>, &) are not used because
+ * they truncate to 32 bits; Math.floor and % are used instead.
  */
-export async function computeIntegerHash(
-  stringForHashing: string,
-  highOrderBits: boolean = true,
-): Promise<number> {
-  // 52 is the architectural ceiling — do not raise it without reading the
-  // comment on this function.  HASH_BIT_LENGTH may be set to any value <= 52.
+function guardHashBitLength() {
   if (HASH_BIT_LENGTH > 52) {
     console.error(
       `HASH_BIT_LENGTH=${HASH_BIT_LENGTH} exceeds the safe 52-bit ceiling for JS double arithmetic.`,
     );
     process.exit(-9);
   }
+}
 
-  const sha1Hex = sha1(stringForHashing);
+/** Hash using the most-significant 52 bits of SHA-1. Used for node IDs and primary user keys. */
+export async function computeHashHighBits(str: string): Promise<number> {
+  guardHashBitLength();
+  // 13 hex chars = 52 bits; at most 2^52 - 1, safely below MAX_SAFE_INTEGER.
+  const raw = parseInt("0x" + sha1(str).slice(0, 13));
+  return Math.floor(raw / 2 ** (52 - HASH_BIT_LENGTH));
+}
 
-  // 13 hex chars = 52 bits; parseInt on 13 hex chars yields at most
-  // 2^52 - 1, safely below Number.MAX_SAFE_INTEGER.
-  const hexSlice = highOrderBits ? sha1Hex.slice(0, 13) : sha1Hex.slice(-13);
-
-  let integerHash = parseInt("0x" + hexSlice);
-
-  // Trim to exactly HASH_BIT_LENGTH bits using arithmetic (not bitwise ops).
-  if (highOrderBits) {
-    integerHash = Math.floor(integerHash / 2 ** (52 - HASH_BIT_LENGTH));
-  } else {
-    integerHash = integerHash % 2 ** HASH_BIT_LENGTH;
-  }
-
-  return integerHash;
+/** Hash using the least-significant 52 bits of SHA-1. Used for secondary user keys. */
+export async function computeHashLowBits(str: string): Promise<number> {
+  guardHashBitLength();
+  const raw = parseInt("0x" + sha1(str).slice(-13));
+  return raw % 2 ** HASH_BIT_LENGTH;
 }
 
 export async function computeHostPortHash(
   host: string,
   port: number,
 ): Promise<number> {
-  return computeIntegerHash(`${host}:${port}`.toLowerCase());
+  return computeHashHighBits(`${host}:${port}`.toLowerCase());
 }
 
 interface GRPCError {

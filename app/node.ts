@@ -3,11 +3,11 @@ import minimist from "minimist";
 import { UserService } from "./UserService.ts";
 import readline from "readline";
 
-import { computeIntegerHash, HASH_BIT_LENGTH } from "./utils.ts";
+import { computeHashHighBits, HASH_BIT_LENGTH } from "./utils.ts";
 
 async function hashDryRun(sourceValue: string) {
   try {
-    const integerHash = await computeIntegerHash(sourceValue);
+    const integerHash = await computeHashHighBits(sourceValue);
     console.log(`ID {${integerHash}} computed from hash of {${sourceValue}}`);
   } catch (err) {
     console.error(
