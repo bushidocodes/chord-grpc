@@ -96,7 +96,6 @@ export class Client {
     if (!rest.id) {
       console.log("id is a mandatory field!");
       console.log("node client insert --id=42424242");
-
       console.log(
         "optional fields include reputation, creationDate, displayName, lastAccessDate, websiteUrl, location, aboutMe, views, upVotes, downVotes, profileImageUrl, accountId",
       );
@@ -105,10 +104,46 @@ export class Client {
       );
       process.exit();
     }
+
+    if (rest.edit) {
+      const editableFields = [
+        "reputation",
+        "creationDate",
+        "displayName",
+        "lastAccessDate",
+        "websiteUrl",
+        "location",
+        "aboutMe",
+        "views",
+        "upVotes",
+        "downVotes",
+        "profileImageUrl",
+        "accountId",
+      ];
+      const paths = editableFields.filter((f) => rest[f] !== undefined);
+      if (paths.length === 0) {
+        console.log(
+          'edit requires at least one field to update (e.g. --displayName="Alice")',
+        );
+        process.exit();
+      }
+      const user: any = { id: rest.id };
+      for (const field of paths) {
+        user[field] = rest[field];
+      }
+      try {
+        await this.client.insert({ user, edit: true, update_mask: { paths } });
+        console.log("User edited successfully");
+      } catch (err) {
+        console.log("User edit error:", err);
+      }
+      return;
+    }
+
     const user = {
       id: rest.id,
       reputation: rest.reputation || 0,
-      creationDate: rest.creationDate || Date.now().toString(), // Not the right format, but whatever...
+      creationDate: rest.creationDate || Date.now().toString(),
       displayName: rest.displayName || "",
       lastAccessDate: rest.lastAccessDate || "",
       websiteUrl: rest.websiteUrl || "",
@@ -117,28 +152,19 @@ export class Client {
       views: rest.views || 0,
       upVotes: rest.upVotes || 0,
       downVotes: rest.downVotes || 0,
-      profileImageUrl: rest.profileImageUrl || 0,
-      accountId: rest.accoutId || 0,
+      profileImageUrl: rest.profileImageUrl || "",
+      accountId: rest.accountId || 0,
     };
     try {
-      const _ = await this.client.insert({ user, edit: rest.edit });
-      if (rest.edit) {
-        console.log("User edited successfully");
-      } else {
-        console.log("User inserted successfully");
-      }
+      await this.client.insert({ user, edit: false });
+      console.log("User inserted successfully");
     } catch (err) {
-      if (rest.edit) {
-        console.log(err);
-        console.log("User edit error:", err);
-      } else {
-        switch (err.code) {
-          case 6:
-            console.log("User already exists!");
-            break;
-          default:
-            console.log("User insertion error:", err);
-        }
+      switch (err.code) {
+        case 6:
+          console.log("User already exists!");
+          break;
+        default:
+          console.log("User insertion error:", err);
       }
     }
   }

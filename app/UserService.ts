@@ -217,20 +217,35 @@ export class UserService extends ChordNode {
       : clonedUserEdit.user.metadata.secondaryHash;
 
     this.logger.debug({ clonedUserEdit }, "insertUser");
-    const { user, edit } = clonedUserEdit;
+    const { user, edit, update_mask } = clonedUserEdit;
+    const paths: string[] = update_mask?.paths ?? [];
 
     if (this.userMap[key] && !edit) {
       this.logger.warn(`insertUser: user already exists at hash ${key}`);
       return { code: 6 };
+    }
+
+    if (edit && paths.length > 0) {
+      // Partial update: merge only the fields named in the mask
+      if (!this.userMap[key]) {
+        this.logger.warn(
+          `insertUser: user not found at hash ${key} for partial edit`,
+        );
+        return { code: 5 };
+      }
+      for (const field of paths) {
+        (this.userMap[key] as any)[field] = user[field];
+      }
+      this.logger.info(
+        `insertUser: Partially edited User ${user.id} at hash ${key} (fields: ${paths.join(", ")})`,
+      );
     } else {
       this.userMap[key] = user;
-      if (edit) {
-        this.logger.info(`insertUser: Edited User ${user.id} at hash ${key}`);
-      } else {
-        this.logger.info(`insertUser: Inserted User ${user.id} at hash ${key}`);
-      }
-      return null;
+      this.logger.info(
+        `insertUser: ${edit ? "Edited" : "Inserted"} User ${user.id} at hash ${key}`,
+      );
     }
+    return null;
   }
 
   // gRPC Handler to allow other nodes to insert users into our local state
