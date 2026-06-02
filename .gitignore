@@ -1,3 +1,4 @@
 node_modules
 .claude/
 web/public/vendor/
+certs/ca.key

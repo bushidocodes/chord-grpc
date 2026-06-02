@@ -1,3 +1,4 @@
+import fs from "fs";
 import path from "path";
 import process from "process";
 import crypto from "crypto";
@@ -266,14 +267,49 @@ export function handleGRPCErrors(
   }
 }
 
+// Canonical name used in ssl_target_name_override — must match a SAN in certs/server.crt.
+const TLS_TARGET_NAME = "chord-node";
+
+/**
+ * Loads TLS credentials from the certs directory (GRPC_CERTS_DIR env var, or
+ * <project-root>/certs by default). Returns null when certs are absent so
+ * callers can fall back to insecure transport.
+ */
+export function loadTlsCredentials(): {
+  ca: Buffer;
+  cert: Buffer;
+  key: Buffer;
+} | null {
+  const certsDir =
+    process.env.GRPC_CERTS_DIR ?? path.resolve(import.meta.dirname, "../certs");
+  const caCert = path.join(certsDir, "ca.crt");
+  if (!fs.existsSync(caCert)) return null;
+  return {
+    ca: fs.readFileSync(caCert),
+    cert: fs.readFileSync(path.join(certsDir, "server.crt")),
+    key: fs.readFileSync(path.join(certsDir, "server.key")),
+  };
+}
+
 /**
  * Creates a gRPC client for the Node service with promisified unary methods.
  * Streaming methods (getFingerTableEntries, getUserIds) remain unchanged.
+ *
+ * Uses TLS when certs/ca.crt exists; falls back to insecure transport
+ * (useful for environments where certs have not been generated yet).
  */
 export function connect({ host, port }: { host: string; port: number }) {
+  const tls = loadTlsCredentials();
+  const credentials = tls
+    ? grpc.credentials.createSsl(tls.ca)
+    : grpc.credentials.createInsecure();
+  const channelOptions = tls
+    ? { "grpc.ssl_target_name_override": TLS_TARGET_NAME }
+    : {};
   const raw = new chordProto.Node(
     `${host}:${port}`,
-    grpc.credentials.createInsecure(),
+    credentials,
+    channelOptions,
   );
   return promisifyClient(raw);
 }
