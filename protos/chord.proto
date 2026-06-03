@@ -28,6 +28,7 @@ service Node {
   rpc remove(UserId) returns (google.protobuf.Empty){}
   rpc removeUserRemoteHelper(UserId) returns (google.protobuf.Empty){}
   rpc migrateUsersToPredecessorRemoteHelper(google.protobuf.Empty) returns (google.protobuf.Empty){}
+  rpc bulkInsertUsersRemoteHelper(stream User) returns (google.protobuf.Empty) {}
   rpc getUserIds (NodeAddress) returns (stream UserIdWithMetadata) {}
 }
 

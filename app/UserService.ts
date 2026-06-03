@@ -70,6 +70,7 @@ export class UserService extends ChordNode {
       lookupUserRemoteHelper: this.lookupUserRemoteHelper.bind(this),
       migrateUsersToPredecessorRemoteHelper:
         this.migrateUsersToPredecessorRemoteHelper.bind(this),
+      bulkInsertUsersRemoteHelper: this.bulkInsertUsersRemoteHelper.bind(this),
       getNodeIdRemoteHelper: this.getNodeIdRemoteHelper.bind(this),
       findSuccessorRemoteHelper: this.findSuccessorRemoteHelper.bind(this),
       getSuccessorRemoteHelper: this.getSuccessorRemoteHelper.bind(this),
@@ -283,6 +284,24 @@ export class UserService extends ChordNode {
     this.logger.debug({ message }, "insertUserRemoteHelper");
     const err = this.insertUser(message.request);
     callback(err, {});
+  }
+
+  // Client-streaming gRPC handler: receives a stream of User messages and inserts each locally
+  bulkInsertUsersRemoteHelper(
+    call: any,
+    callback: (err: any, response: {}) => void,
+  ) {
+    call.on("data", (user: User) => {
+      const err = this.insertUser({ user, edit: false });
+      if (err) {
+        this.logger.warn(
+          { err, userId: user.id },
+          "bulkInsertUsersRemoteHelper: insertUser failed",
+        );
+      }
+    });
+    call.on("end", () => callback(null, {}));
+    call.on("error", (err: any) => callback(err, {}));
   }
 
   // Inserts a User regardless of location in cluster
@@ -508,9 +527,7 @@ export class UserService extends ChordNode {
   }
 
   async migrateUsersToPredecessor() {
-    if (this.userMapIsEmpty()) return null;
-
-    const client = connect(this.predecessor);
+    if (this.userMapIsEmpty()) return;
 
     const keysToMigrate = Object.keys(this.userMap).filter((hashedKey) =>
       isInModuloRange(
@@ -522,56 +539,59 @@ export class UserService extends ChordNode {
       ),
     );
 
-    for (const hashedKey of keysToMigrate) {
-      for (const user of this.userMap[hashedKey] ?? []) {
-        try {
-          await client.insertUserRemoteHelper({ user, edit: false });
-          this.removeUser(hashedKey, user.id);
-        } catch (error) {
-          handleGRPCErrors(
-            this.logger,
-            "migrateUsersToPredecessor",
-            "insertUserRemoteHelper",
-            this.predecessor.host,
-            this.predecessor.port,
-            error,
-          );
+    if (keysToMigrate.length === 0) return;
+
+    const client = connect(this.predecessor);
+
+    await new Promise<void>((resolve, reject) => {
+      const call = client.bulkInsertUsersRemoteHelper((err: any) => {
+        if (err) reject(err);
+        else resolve();
+      });
+      for (const hashedKey of keysToMigrate) {
+        for (const user of this.userMap[hashedKey] ?? []) {
+          call.write(user);
         }
       }
+      call.end();
+    });
+
+    for (const hashedKey of keysToMigrate) {
+      delete this.userMap[hashedKey];
     }
-    return null;
   }
 
   async migrateUsersToSuccessor() {
-    if (this.userMapIsEmpty()) return null;
+    if (this.userMapIsEmpty()) return;
 
     const client = connect(this.fingerTable[0].successor);
 
-    for (const hashedKey of Object.keys(this.userMap)) {
-      for (const user of this.userMap[hashedKey] ?? []) {
-        try {
-          await client.insertUserRemoteHelper({ user, edit: false });
-          this.removeUser(hashedKey, user.id);
-        } catch (error) {
-          handleGRPCErrors(
-            this.logger,
-            "migrateUsersToSuccessor",
-            "insertUserRemoteHelper",
-            this.predecessor.host,
-            this.predecessor.port,
-            error,
-          );
+    await new Promise<void>((resolve, reject) => {
+      const call = client.bulkInsertUsersRemoteHelper((err: any) => {
+        if (err) reject(err);
+        else resolve();
+      });
+      for (const hashedKey of Object.keys(this.userMap)) {
+        for (const user of this.userMap[hashedKey] ?? []) {
+          call.write(user);
         }
       }
-    }
-    return null;
+      call.end();
+    });
+
+    this.userMap = {};
   }
 
   async migrateUsersToPredecessorRemoteHelper(
     _: any,
-    callback: (call: any, arg1: {}) => void,
+    callback: (err: any, response: {}) => void,
   ) {
-    callback(await this.migrateUsersToPredecessor(), {});
+    try {
+      await this.migrateUsersToPredecessor();
+      callback(null, {});
+    } catch (error) {
+      callback(error, {});
+    }
   }
 
   // Checks if the local this.userMap is an empty object
