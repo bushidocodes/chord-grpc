@@ -20,7 +20,14 @@ const chordProto = grpc.loadPackageDefinition(packageDefinition).chord as any;
 export const HASH_BIT_LENGTH = 32; //TBD
 export const FIBONACCI_ALPHA = 0.7;
 export const IS_FIBONACCI_CHORD: boolean = false;
-export const NULL_NODE = { id: null, host: null, port: null };
+
+export interface Node {
+  id: number | null;
+  host: string | null;
+  port: number | null;
+}
+
+export const NULL_NODE: Node = { id: null, host: null, port: null };
 export const SUCCESSOR_TABLE_MAX_LENGTH = Math.max(
   Math.ceil(HASH_BIT_LENGTH / 4),
   1,
@@ -45,12 +52,14 @@ export function createLogger(host: string, port: number) {
  * returns true if the input value is in - modulo - bounds; false otherwise
  */
 export function isInModuloRange(
-  inputValue: number,
-  lowerBound: number,
+  inputValue: number | null,
+  lowerBound: number | null,
   includeLower: boolean = true,
-  upperBound: number,
+  upperBound: number | null,
   includeUpper: boolean = false,
 ): boolean {
+  if (inputValue === null || lowerBound === null || upperBound === null)
+    return false;
   if (includeLower && includeUpper) {
     if (lowerBound > upperBound) {
       //looping through 0
@@ -154,12 +163,13 @@ export function handleGRPCErrors(
   logger: pino.Logger,
   scope: string,
   call: string,
-  host: string,
-  port: number,
-  err: GRPCError,
+  host: string | null,
+  port: number | null,
+  err: unknown,
 ) {
+  const grpcErr = err as GRPCError;
   const target = `${host}:${port}`;
-  switch (err.code) {
+  switch (grpcErr.code) {
     case 0:
       logger.warn(
         { scope, call, target },
@@ -210,25 +220,25 @@ export function handleGRPCErrors(
       break;
     case 8:
       logger.error(
-        { scope, call, target, err },
+        { scope, call, target, err: grpcErr },
         `${scope}: call to ${call} on ${target} failed because a resource is exhausted`,
       );
       break;
     case 9:
       logger.error(
-        { scope, call, target, err },
+        { scope, call, target, err: grpcErr },
         `${scope}: call to ${call} on ${target} failed due to failed precondition`,
       );
       break;
     case 10:
       logger.error(
-        { scope, call, target, err },
+        { scope, call, target, err: grpcErr },
         `${scope}: call to ${call} on ${target} was aborted`,
       );
       break;
     case 11:
       logger.error(
-        { scope, call, target, err },
+        { scope, call, target, err: grpcErr },
         `${scope}: call to ${call} on ${target} rejected because out of range`,
       );
       break;
@@ -240,7 +250,7 @@ export function handleGRPCErrors(
       break;
     case 13:
       logger.error(
-        { scope, call, target, err },
+        { scope, call, target, err: grpcErr },
         `${scope}: call to ${call} on ${target} caused Internal Error`,
       );
       break;
@@ -263,7 +273,7 @@ export function handleGRPCErrors(
       );
       break;
     default:
-      logger.error({ scope, err }, `${scope}: unexpected gRPC error`);
+      logger.error({ scope, err: grpcErr }, `${scope}: unexpected gRPC error`);
   }
 }
 
@@ -299,7 +309,15 @@ export function loadTlsCredentials(): {
  * Uses TLS when certs/ca.crt exists; falls back to insecure transport
  * (useful for environments where certs have not been generated yet).
  */
-export function connect({ host, port }: { host: string; port: number }) {
+export function connect({
+  host,
+  port,
+}: {
+  host: string | null;
+  port: number | null;
+}) {
+  if (!host || !port)
+    throw new Error(`Cannot connect: null node (host=${host}, port=${port})`);
   const tls = loadTlsCredentials();
   const credentials = tls
     ? grpc.credentials.createSsl(tls.ca)

@@ -176,7 +176,8 @@ export class Client {
       await this.client.insert({ user, edit: false });
       console.log("User inserted successfully");
     } catch (err) {
-      switch (err.code) {
+      const grpcErr = err as { code?: number };
+      switch (grpcErr.code) {
         case 6:
           console.log("User already exists!");
           break;

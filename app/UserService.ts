@@ -51,7 +51,15 @@ interface User {
 export class UserService extends ChordNode {
   userMap: { [key: string]: User[] };
 
-  constructor({ id, host = os.hostname(), port = 1337 }) {
+  constructor({
+    id,
+    host = os.hostname(),
+    port = 1337,
+  }: {
+    id?: number;
+    host?: string;
+    port?: number;
+  }) {
     super({ id, host, port });
     this.userMap = {};
   }
@@ -152,7 +160,7 @@ export class UserService extends ChordNode {
   // gRPC Handler to allow other nodes to remove users from our local state
   async removeUserRemoteHelper(
     message: { request: { id: any; userId: number } },
-    callback: (call: { code: number }, arg1: {}) => void,
+    callback: (call: { code: number } | null, arg1: {}) => void,
   ) {
     this.logger.debug({ message }, "removeUserRemoteHelper");
     const err = this.removeUser(message.request.id, message.request.userId);
@@ -174,8 +182,8 @@ export class UserService extends ChordNode {
 
   async removeWithHash(userId: number, isPrimaryHash: boolean) {
     let successor = NULL_NODE;
-    let lookupKey: number = null;
-    let errorString: string = null;
+    let lookupKey: number | null = null;
+    let errorString: string | null = null;
     this.logger.info(`remove: Attempting to remove user ${userId}`);
 
     //compute primary user ID from hash
@@ -279,7 +287,7 @@ export class UserService extends ChordNode {
   // gRPC Handler to allow other nodes to insert users into our local state
   async insertUserRemoteHelper(
     message: { request: any },
-    callback: (call: { code: number }, arg1: {}) => void,
+    callback: (call: { code: number } | null, arg1: {}) => void,
   ) {
     this.logger.debug({ message }, "insertUserRemoteHelper");
     const err = this.insertUser(message.request);
@@ -382,7 +390,7 @@ export class UserService extends ChordNode {
   // gRPC handler that returns a user locally from this node (hash in id, user ID in userId)
   fetch(
     message: { request: { id: any; userId: number } },
-    callback: (call: { code: number }, arg1: User) => void,
+    callback: (call: { code: number } | null, arg1: User | null) => void,
   ) {
     const { id, userId } = message.request;
     this.logger.info(`fetch: Requested User ${userId} at hash ${id}`);
@@ -441,8 +449,8 @@ export class UserService extends ChordNode {
   }
 
   async lookupWithHash(userId: number, isPrimaryHash: boolean) {
-    let lookupKey: number = null;
-    let errorString: string = null;
+    let lookupKey: number | null = null;
+    let errorString: string | null = null;
     let successor = NULL_NODE;
 
     //compute primary user ID from hash

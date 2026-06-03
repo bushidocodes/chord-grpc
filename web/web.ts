@@ -5,6 +5,18 @@ import path from "path";
 import { connect } from "../app/utils.ts";
 const PUBLIC_PATH = path.resolve(import.meta.dirname, "./public");
 
+interface NodeSnapshot {
+  host?: string;
+  port?: number;
+  id?: number;
+  fingerTable?: Record<number, unknown>;
+  userIds?: unknown[];
+  predecessor?: unknown;
+  successor?: { host?: string; port?: number };
+}
+
+type NetworkState = Record<string, NodeSnapshot>;
+
 const DEFAULT_HOST_NAME = os.hostname();
 const CRAWLER_INTERVAL_MS = 3000;
 
@@ -14,8 +26,8 @@ class ChordCrawler {
   #seedHost: string;
   #seedPort: number;
   #client: any;
-  #state: object = {};
-  #walk: Set<any> = new Set([]);
+  #state: NetworkState = {};
+  #walk: Set<string> = new Set([]);
   #canAdvance: boolean = true;
 
   get state() {
@@ -52,8 +64,8 @@ class ChordCrawler {
       let foundDangling = false;
       for (const storedConnectionString of Object.keys(this.#state)) {
         if (!this.#walk.has(storedConnectionString)) {
-          this.#host = this.#state[storedConnectionString].host;
-          this.#port = this.#state[storedConnectionString].port;
+          this.#host = this.#state[storedConnectionString].host!;
+          this.#port = this.#state[storedConnectionString].port!;
           foundDangling = true;
           break;
         }
@@ -89,8 +101,8 @@ class ChordCrawler {
     const randomNode =
       otherNodes[Math.floor(Math.random() * otherNodes.length)];
 
-    this.#host = randomNode.host;
-    this.#port = randomNode.port;
+    this.#host = randomNode.host!;
+    this.#port = randomNode.port!;
 
     // And we have to invalidate the current walk to avoid accidental pruning
     this.#walk.clear();
@@ -127,9 +139,12 @@ class ChordCrawler {
         const fingerTableStream = await this.#client.getFingerTableEntries();
         this.#state[connectionString].fingerTable = {};
         await new Promise<void>((resolve, reject) => {
-          fingerTableStream.on("data", ({ index, node }) => {
-            this.#state[connectionString].fingerTable[index] = node;
-          });
+          fingerTableStream.on(
+            "data",
+            ({ index, node }: { index: number; node: unknown }) => {
+              this.#state[connectionString].fingerTable![index] = node;
+            },
+          );
           fingerTableStream.on("end", resolve);
           fingerTableStream.on("error", reject);
         });
@@ -139,7 +154,7 @@ class ChordCrawler {
         this.#state[connectionString].userIds = [];
         await new Promise<void>((resolve, reject) => {
           userIdStream.on("data", (idWithMetadata: any) => {
-            this.#state[connectionString].userIds.push(idWithMetadata);
+            this.#state[connectionString].userIds!.push(idWithMetadata);
           });
           userIdStream.on("end", resolve);
           userIdStream.on("error", reject);
@@ -165,7 +180,7 @@ class ChordCrawler {
         // Advance to the successor or a known node in a partition
         this.#advance();
       } catch (err) {
-        if (err.code == 14) {
+        if ((err as { code?: number }).code == 14) {
           console.error(
             `Node ${connectionString} is unreachable — pruning and resetting to seed`,
           );

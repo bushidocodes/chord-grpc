@@ -5,6 +5,7 @@
   "main": "app/node.ts",
   "type": "module",
   "scripts": {
+    "typecheck": "tsc",
     "test": "node --test \"test/**/*.test.ts\"",
     "cleanData": "node ./data/cleanData.ts",
     "server": "node ./app/node.ts",
