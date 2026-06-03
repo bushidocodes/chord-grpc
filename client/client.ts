@@ -1,23 +1,22 @@
 import minimist from "minimist";
-import os from "os";
 import { Client } from "./common.ts";
 
 const VALID_COMMANDS =
   "lookup, insert, edit, remove, bulkInsert, summary, fingerTable, predecessor, successor";
 
 function main() {
-  if (process.argv.length < 3) {
+  const args = minimist(process.argv.slice(2));
+  const command = args._[0];
+
+  if (!command) {
     console.error("Usage: node client.ts <command> [options]");
     console.error(`Valid commands: ${VALID_COMMANDS}`);
     process.exit(1);
   }
 
-  const args = minimist(process.argv.slice(3));
-  const host = args.host || os.hostname();
-  const port = args.port || 8440;
-  let client = new Client(host, port);
-
-  const command = process.argv[2];
+  const host: string = args.host || "localhost";
+  const port: number = args.port || 8440;
+  const client = new Client(host, port);
 
   switch (command) {
     case "lookup":
