@@ -11,7 +11,7 @@ import {
   IS_FIBONACCI_CHORD,
   SUCCESSOR_TABLE_MAX_LENGTH,
   NULL_NODE,
-  Node,
+  type Node,
 } from "./utils.ts";
 const phi = (1 + Math.sqrt(5)) / 2;
 
