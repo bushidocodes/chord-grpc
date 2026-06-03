@@ -21,7 +21,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Type-check
-        run: pnpm exec tsc --noEmit
+        run: pnpm typecheck
 
       - name: Format check
         run: pnpm exec prettier --check .
