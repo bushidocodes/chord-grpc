@@ -75,7 +75,7 @@ async function main() {
     await userServiceNode.joinCluster(knownNode);
   } catch (err) {
     console.error(err);
-    process.exit();
+    process.exit(1);
   }
 
   if (process.platform === "win32") {
