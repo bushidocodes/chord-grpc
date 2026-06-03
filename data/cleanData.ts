@@ -23,8 +23,8 @@ interface XMLGeneratedPerson {
 // Quick and dirty script to convert the StackOverflow data from XML to JSON
 fs.readFile(`${import.meta.dirname}/users.xml`, (_err, data) => {
   parseString(data, (_err, rawData) => {
-    const result = {};
-    const tinyResult = {};
+    const result: Record<string | number, unknown> = {};
+    const tinyResult: Record<string | number, unknown> = {};
     rawData.users.row
       .map((person: { [x: string]: any }) => person["$"])
       .map((person: XMLGeneratedPerson) => ({

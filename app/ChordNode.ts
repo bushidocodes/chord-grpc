@@ -11,17 +11,12 @@ import {
   IS_FIBONACCI_CHORD,
   SUCCESSOR_TABLE_MAX_LENGTH,
   NULL_NODE,
+  Node,
 } from "./utils.ts";
 const phi = (1 + Math.sqrt(5)) / 2;
 
-interface Node {
-  id: number;
-  host: string;
-  port: number;
-}
-
 interface FingerTableEntry {
-  start: number;
+  start: number | null;
   successor: Node;
 }
 
@@ -43,14 +38,22 @@ export abstract class ChordNode {
   fingerToFix: number = 0;
   checkPredecessorIsLocked: boolean = false;
 
-  constructor({ id, host, port }) {
+  constructor({
+    id,
+    host,
+    port,
+  }: {
+    id?: number;
+    host?: string;
+    port?: number;
+  }) {
     if (!host || !port) {
       console.error(
         "ChordNode constructor did not receive host or port as expected",
       );
       process.exit(-9);
     }
-    this.id = id;
+    this.id = id ?? 0;
     this.host = host;
     this.port = port;
     this.logger = createLogger(host, port);
@@ -409,7 +412,7 @@ export abstract class ChordNode {
   }) {
     this.fingerTable.forEach((fingerTableEntry) => {
       call.write({
-        index: fingerTableEntry.start,
+        index: fingerTableEntry.start!,
         node: fingerTableEntry.successor,
       });
     });
@@ -504,7 +507,7 @@ export abstract class ChordNode {
       try {
         possibleCollidingNode = await this.findSuccessor(this.id, knownNode);
       } catch (err) {
-        possibleCollidingNode = null;
+        possibleCollidingNode = NULL_NODE;
       }
       if (this.iAmTheNode(possibleCollidingNode)) {
         // node collision
@@ -576,7 +579,7 @@ export abstract class ChordNode {
    * Returns a node's ID, making an RPC if necessary.
    * @returns - node's ID, or null if error
    */
-  async getNodeId(knownNode: Node): Promise<number> {
+  async getNodeId(knownNode: Node): Promise<number | null> {
     let nodeId = null;
     let knownNodeObject = NULL_NODE;
     let selfNodeString = (this.host + ":" + this.port).toLowerCase();
@@ -626,7 +629,7 @@ export abstract class ChordNode {
     let nPrimeSuccessor = NULL_NODE;
     try {
       nPrimeSuccessor = await this.findSuccessor(
-        this.fingerTable[0].start,
+        this.fingerTable[0].start!,
         nPrime,
       );
     } catch (err) {
@@ -688,7 +691,7 @@ export abstract class ChordNode {
       } else {
         try {
           this.fingerTable[i + 1].successor = await this.findSuccessor(
-            this.fingerTable[i + 1].start,
+            this.fingerTable[i + 1].start!,
             nPrime,
           );
         } catch (err) {
@@ -1118,7 +1121,7 @@ export abstract class ChordNode {
       let nSuccessor = NULL_NODE;
       try {
         nSuccessor = await this.findSuccessor(
-          this.fingerTable[this.fingerToFix].start,
+          this.fingerTable[this.fingerToFix].start!,
           this.encapsulateSelf(),
         );
         if (nSuccessor.id !== null) {
@@ -1142,7 +1145,7 @@ export abstract class ChordNode {
   /**
    * Checks to make sure that the predecessor is still responsive
    */
-  async checkPredecessor() {
+  async checkPredecessor(): Promise<boolean> {
     if (!this.checkPredecessorIsLocked) {
       this.checkPredecessorIsLocked = true;
       if (this.predecessor.id !== null && !this.iAmMyOwnPredecessor()) {
@@ -1159,7 +1162,7 @@ export abstract class ChordNode {
             err,
           );
           // Wipe out the predecessor if it doesn't respond
-          this.predecessor = { id: null, host: null, port: null };
+          this.predecessor = NULL_NODE;
           this.checkPredecessorIsLocked = false;
           return false;
         }
@@ -1167,6 +1170,7 @@ export abstract class ChordNode {
       this.checkPredecessorIsLocked = false;
       return true;
     }
+    return false;
   }
 
   /**
