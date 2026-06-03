@@ -197,22 +197,18 @@ class ChordCrawler {
 }
 
 function main() {
-  if (process.argv.length >= 2) {
-    const args = minimist(process.argv.slice(2));
-    const crawler = new ChordCrawler(
-      args.host || DEFAULT_HOST_NAME,
-      args.port,
-      args.interval || CRAWLER_INTERVAL_MS,
-    );
+  const args = minimist(process.argv.slice(2));
+  const crawler = new ChordCrawler(
+    args.host || DEFAULT_HOST_NAME,
+    args.port || 8440,
+    args.interval || CRAWLER_INTERVAL_MS,
+  );
 
-    const app = express();
-    const port = args.webPort || 1337;
-    app.use(express.static(PUBLIC_PATH));
-    app.get("/data", (_, res) => res.json(crawler.state));
-    app.listen(port, () =>
-      console.log(`Example app listening on port ${port}!`),
-    );
-  }
+  const app = express();
+  const port = args.webPort || 1337;
+  app.use(express.static(PUBLIC_PATH));
+  app.get("/data", (_, res) => res.json(crawler.state));
+  app.listen(port, () => console.log(`Example app listening on port ${port}!`));
 }
 
 main();
