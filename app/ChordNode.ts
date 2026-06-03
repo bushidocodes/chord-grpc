@@ -455,7 +455,7 @@ export abstract class ChordNode {
 
     // Generate the ID for this node from the host connection strings if not already forced by user
     if (!this.id) {
-      this.id = await computeHostPortHash(this.host, this.port);
+      this.id = computeHostPortHash(this.host, this.port);
     }
 
     // initialize finger table with reasonable values

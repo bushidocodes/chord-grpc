@@ -189,10 +189,10 @@ export class UserService extends ChordNode {
     //compute primary user ID from hash
     if (userId && userId !== null) {
       lookupKey = isPrimaryHash
-        ? await this.computeUserIdHashPrimary(userId)
-        : await this.computeUserIdHashSecondary(userId);
+        ? this.computeUserIdHashPrimary(userId)
+        : this.computeUserIdHashSecondary(userId);
     } else {
-      errorString = `insert: error computing hash of ${userId}.`;
+      errorString = `remove: error computing hash of ${userId}.`;
       this.logger.error(errorString);
       throw new RangeError(errorString);
     }
@@ -322,11 +322,12 @@ export class UserService extends ChordNode {
 
     // Add Metadata
     userEdit.user.metadata = {};
-    userEdit.user.metadata.primaryHash = await this.computeUserIdHashPrimary(
+    userEdit.user.metadata.primaryHash = this.computeUserIdHashPrimary(
       userEdit.user.id,
     );
-    userEdit.user.metadata.secondaryHash =
-      await this.computeUserIdHashSecondary(userEdit.user.id);
+    userEdit.user.metadata.secondaryHash = this.computeUserIdHashSecondary(
+      userEdit.user.id,
+    );
 
     // Execute Insert or Edit at primary and secondary hash
     const err1 = await this.insertWithHash(userEdit, true);
@@ -456,8 +457,8 @@ export class UserService extends ChordNode {
     //compute primary user ID from hash
     if (userId && userId !== null) {
       lookupKey = isPrimaryHash
-        ? await this.computeUserIdHashPrimary(userId)
-        : await this.computeUserIdHashSecondary(userId);
+        ? this.computeUserIdHashPrimary(userId)
+        : this.computeUserIdHashSecondary(userId);
     } else {
       errorString = `lookup: error computing hash of ${userId}.`;
       this.logger.error(errorString);
@@ -610,23 +611,17 @@ export class UserService extends ChordNode {
     );
   }
 
-  async computeUserIdHashPrimary(userId: number): Promise<number> {
+  computeUserIdHashPrimary(userId: number): number {
     const highOrderBits = true;
     let userIdString: string = userId.toString().toLowerCase();
-    let hashedUserId: number = await computeIntegerHash(
-      userIdString,
-      highOrderBits,
-    );
+    let hashedUserId: number = computeIntegerHash(userIdString, highOrderBits);
     return hashedUserId;
   }
 
-  async computeUserIdHashSecondary(userId: number): Promise<number> {
+  computeUserIdHashSecondary(userId: number): number {
     const highOrderBits = false;
     let userIdString: string = userId.toString().toLowerCase();
-    let hashedUserId: number = await computeIntegerHash(
-      userIdString,
-      highOrderBits,
-    );
+    let hashedUserId: number = computeIntegerHash(userIdString, highOrderBits);
     return hashedUserId;
   }
 }
