@@ -104,10 +104,10 @@ export function sha1(source: string): string {
  * The function uses SHA-1 to compute an intermmediate string output,
  * then truncates to the user-specified size from the high-order bits.
  */
-export async function computeIntegerHash(
+export function computeIntegerHash(
   stringForHashing: string,
   highOrderBits: boolean = true,
-): Promise<number> {
+): number {
   const MAX_JS_INT_BIT_LENGTH = 32;
   const BIT_PER_HEX_CHARACTER = 4;
   if (HASH_BIT_LENGTH > MAX_JS_INT_BIT_LENGTH) {
@@ -148,10 +148,7 @@ export async function computeIntegerHash(
   return integerHash;
 }
 
-export async function computeHostPortHash(
-  host: string,
-  port: number,
-): Promise<number> {
+export function computeHostPortHash(host: string, port: number): number {
   return computeIntegerHash(`${host}:${port}`.toLowerCase());
 }
 
