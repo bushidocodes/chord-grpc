@@ -192,7 +192,7 @@ export class UserService extends ChordNode {
         ? await this.computeUserIdHashPrimary(userId)
         : await this.computeUserIdHashSecondary(userId);
     } else {
-      errorString = `insert: error computing hash of ${userId}.`;
+      errorString = `remove: error computing hash of ${userId}.`;
       this.logger.error(errorString);
       throw new RangeError(errorString);
     }
