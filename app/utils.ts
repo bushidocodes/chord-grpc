@@ -252,6 +252,8 @@ export function handleGRPCErrors(
       );
       break;
     case 14:
+      // Drop the dead node's cached channel so the next connect() rebuilds it.
+      channelCache.delete(`${host}:${port}`);
       logger.warn(
         { scope, call, target },
         `${scope}: Unable to connect to ${target}`,
@@ -317,10 +319,18 @@ export function loadTlsCredentials(): {
   };
 }
 
+// Reuse one promisified gRPC client per host:port. Creating a client opens a
+// TCP (and, with certs, TLS) connection, and connect() runs before every
+// outbound RPC — in a multi-node ring that is dozens of new channels per
+// second. Entries are evicted by handleGRPCErrors on an UNAVAILABLE (code 14)
+// result so a dead node doesn't linger in the cache (issue #172).
+const channelCache = new Map<string, ReturnType<typeof promisifyClient>>();
+
 /**
  * Creates a gRPC client for the Node service with promisified unary methods.
  * Server-streaming methods (getFingerTableEntries, getUserIds) and
  * client-streaming methods (bulkInsertUsersRemoteHelper) remain unwrapped.
+ * Clients are cached per host:port and reused (see channelCache above).
  *
  * Uses TLS when certs/ca.crt exists; falls back to insecure transport
  * (useful for environments where certs have not been generated yet).
@@ -334,6 +344,10 @@ export function connect({
 }) {
   if (!host || !port)
     throw new Error(`Cannot connect: null node (host=${host}, port=${port})`);
+  const key = `${host}:${port}`;
+  const cached = channelCache.get(key);
+  if (cached) return cached;
+
   const tls = loadTlsCredentials();
   const credentials = tls
     ? grpc.credentials.createSsl(tls.ca)
@@ -341,12 +355,10 @@ export function connect({
   const channelOptions = tls
     ? { "grpc.ssl_target_name_override": TLS_TARGET_NAME }
     : {};
-  const raw = new chordProto.Node(
-    `${host}:${port}`,
-    credentials,
-    channelOptions,
-  );
-  return promisifyClient(raw);
+  const raw = new chordProto.Node(key, credentials, channelOptions);
+  const client = promisifyClient(raw);
+  channelCache.set(key, client);
+  return client;
 }
 
 function promisifyClient(client: any) {
