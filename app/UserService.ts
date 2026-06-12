@@ -212,12 +212,10 @@ export class UserService extends ChordNode {
       try {
         this.logger.debug("remove: removing user from remote node");
         const successorClient = connect(successor);
-        await successorClient.removeUserRemoteHelper(
-          { id: lookupKey, userId },
-          (err: any, _: any) => {
-            return err;
-          },
-        );
+        // Promise form: promisifyClient rejects with the remote gRPC error so a
+        // remote remove failure surfaces to the caller instead of being
+        // swallowed by an inline callback. See #181.
+        await successorClient.removeUserRemoteHelper({ id: lookupKey, userId });
       } catch (err) {
         handleGRPCErrors(
           this.logger,
@@ -367,13 +365,10 @@ export class UserService extends ChordNode {
           "insert: inserting user to remote node",
         );
         const successorClient = connect(successor);
-        await successorClient.insertUserRemoteHelper(
-          userEdit,
-          (err: any, _: any) => {
-            this.logger.debug("insert finishing");
-            return err;
-          },
-        );
+        // Promise form: promisifyClient rejects with the remote gRPC error
+        // (e.g. code 6 ALREADY_EXISTS) so duplicate inserts surface to the
+        // caller instead of being swallowed by an inline callback. See #181.
+        await successorClient.insertUserRemoteHelper(userEdit);
       } catch (err) {
         handleGRPCErrors(
           this.logger,
