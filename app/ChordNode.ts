@@ -1301,8 +1301,8 @@ export abstract class ChordNode {
           this.logger,
           "destructor",
           "setSuccessor",
-          this.fingerTable[0].successor.host,
-          this.fingerTable[0].successor.port,
+          this.predecessor.host,
+          this.predecessor.port,
           err,
         );
       }
