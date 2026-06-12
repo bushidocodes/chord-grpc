@@ -3,7 +3,7 @@ import minimist from "minimist";
 import { UserService } from "./UserService.ts";
 import readline from "readline";
 
-import { computeIntegerHash, HASH_BIT_LENGTH } from "./utils.ts";
+import { computeIntegerHash, HASH_BIT_LENGTH, withTimeout } from "./utils.ts";
 
 async function hashDryRun(sourceValue: string) {
   try {
@@ -94,20 +94,29 @@ async function main() {
     process.on("SIGTERM", () => process.kill(process.pid, "SIGINT"));
   }
 
-  // handle "ctrl + c" as a graceful exit
-  process.on("SIGINT", async function () {
-    console.log("\n\nUser issued ctrl+c");
-    await userServiceNode.destructor();
+  // Migrate keys on shutdown, but never hang forever: destructor() makes
+  // deadline-less gRPC calls to peers, so if a successor/predecessor is
+  // unreachable it would block past docker's 10s SIGKILL window. Bound it with
+  // a timeout and force-exit regardless of outcome (issue #176).
+  const SHUTDOWN_TIMEOUT_MS = 5000;
+  const gracefulShutdown = async (signal: string) => {
+    console.log(`\n\n${signal} caught`);
+    try {
+      await withTimeout(
+        userServiceNode.destructor(),
+        SHUTDOWN_TIMEOUT_MS,
+        "Graceful shutdown timed out",
+      );
+    } catch (err) {
+      console.error("Shutdown error:", err);
+    }
     console.log(`Exiting process ${process.pid}`);
-    process.exit();
-  });
+    process.exit(0);
+  };
 
-  process.on("SIGTERM", async function () {
-    console.log("\n\nSIGTERM caught");
-    await userServiceNode.destructor();
-    console.log(`Exiting process ${process.pid}`);
-    process.exit();
-  });
+  // handle "ctrl + c" as a graceful exit
+  process.on("SIGINT", () => gracefulShutdown("User issued ctrl+c (SIGINT)"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 }
 
 main();

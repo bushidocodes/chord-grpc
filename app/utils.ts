@@ -274,6 +274,25 @@ export function handleGRPCErrors(
   }
 }
 
+/**
+ * Races a promise against a timeout. Rejects with `new Error(message)` if the
+ * promise has not settled within `ms`; otherwise resolves/rejects with the
+ * promise's own outcome. Used to bound graceful shutdown so an unreachable
+ * peer can't block process exit forever (see #176). The timer is always
+ * cleared so it never keeps the event loop alive after the race settles.
+ */
+export function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  message: string,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 // Canonical name used in ssl_target_name_override — must match a SAN in certs/server.crt.
 const TLS_TARGET_NAME = "chord-node";
 
