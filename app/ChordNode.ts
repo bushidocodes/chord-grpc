@@ -37,6 +37,11 @@ export abstract class ChordNode {
   fixFingersIsLocked: boolean = false;
   fingerToFix: number = 0;
   checkPredecessorIsLocked: boolean = false;
+  // Periodic maintenance timers started in joinCluster(); cancelled in
+  // destructor() so they can't race the teardown sequence (see issue #187).
+  stabilizeTimer?: ReturnType<typeof setInterval>;
+  fixFingersTimer?: ReturnType<typeof setInterval>;
+  checkPredecessorTimer?: ReturnType<typeof setInterval>;
 
   constructor({
     id,
@@ -538,9 +543,12 @@ export abstract class ChordNode {
     // And now that we've joined a cluster, we need maintain our state
     // There might be some "critical section" type issues
     // we need to use a gate to protect in these functions
-    setInterval(this.stabilize.bind(this), 1000);
-    setInterval(this.fixFingers.bind(this), 3000);
-    setInterval(this.checkPredecessor.bind(this), 1000);
+    this.stabilizeTimer = setInterval(this.stabilize.bind(this), 1000);
+    this.fixFingersTimer = setInterval(this.fixFingers.bind(this), 3000);
+    this.checkPredecessorTimer = setInterval(
+      this.checkPredecessor.bind(this),
+      1000,
+    );
 
     this.logger.debug(
       {
@@ -1207,6 +1215,13 @@ export abstract class ChordNode {
    * Remove node from the chord gracefully by migrating keys to the remaining nodes.
    */
   async destructor() {
+    // Stop periodic maintenance before tearing down so stabilize/fixFingers/
+    // checkPredecessor can't race the migration: mutate successor/predecessor
+    // mid-flight or fire gRPC calls at departing nodes (issue #187).
+    clearInterval(this.stabilizeTimer);
+    clearInterval(this.fixFingersTimer);
+    clearInterval(this.checkPredecessorTimer);
+
     let migrationSeemsOK = false;
     let successor = NULL_NODE;
     let successorSeemsOK = false;
