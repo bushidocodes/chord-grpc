@@ -264,8 +264,7 @@ export abstract class ChordNode {
       // use remote value
       const nodeQueriedClient = connect(nodeQueried);
       try {
-        nSuccessor =
-          await nodeQueriedClient.getSuccessorRemoteHelper(nodeQueried);
+        nSuccessor = await nodeQueriedClient.getSuccessorRemoteHelper();
       } catch (err) {
         nSuccessor = { id: null, host: null, port: null };
         handleGRPCErrors(
@@ -653,9 +652,7 @@ export abstract class ChordNode {
 
     let successorClient = connect(this.fingerTable[0].successor);
     try {
-      this.predecessor = await successorClient.getPredecessor(
-        this.fingerTable[0].successor,
-      );
+      this.predecessor = await successorClient.getPredecessor();
     } catch (err) {
       this.predecessor = NULL_NODE;
       handleGRPCErrors(
@@ -978,7 +975,7 @@ export abstract class ChordNode {
     if (!this.stabilizeIsLocked) {
       this.stabilizeIsLocked = true;
       let successorClient: {
-          getPredecessor: (arg0: Node) => any;
+          getPredecessor: () => any;
           notify: (arg0: Node) => any;
         },
         x: Node;
@@ -999,9 +996,7 @@ export abstract class ChordNode {
           return false;
         }
         try {
-          x = await successorClient.getPredecessor(
-            this.fingerTable[0].successor,
-          );
+          x = await successorClient.getPredecessor();
         } catch (err) {
           x = this.encapsulateSelf();
           handleGRPCErrors(
@@ -1159,7 +1154,7 @@ export abstract class ChordNode {
       if (this.predecessor.id !== null && !this.iAmMyOwnPredecessor()) {
         const predecessorClient = connect(this.predecessor);
         try {
-          const _ = await predecessorClient.getPredecessor(this.id);
+          const _ = await predecessorClient.getPredecessor();
         } catch (err) {
           handleGRPCErrors(
             this.logger,

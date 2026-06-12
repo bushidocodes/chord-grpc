@@ -9,17 +9,17 @@ service Node {
   // Chord Library Level RPC Calls
   rpc getNodeIdRemoteHelper (NodeAddress) returns (NodeAddress) {}
   rpc findSuccessorRemoteHelper (RemoteId) returns (NodeAddress) {}
-  rpc getSuccessorRemoteHelper (NodeAddress) returns (NodeAddress) {}
+  rpc getSuccessorRemoteHelper (google.protobuf.Empty) returns (NodeAddress) {}
   rpc setSuccessor (NodeAddress) returns (google.protobuf.Empty) {}
-  rpc getPredecessor (NodeAddress) returns (NodeAddress) {}
+  rpc getPredecessor (google.protobuf.Empty) returns (NodeAddress) {}
   rpc setPredecessor (NodeAddress) returns (google.protobuf.Empty) {}
   rpc getFingerTableEntries (NodeAddress) returns (stream FingerTableEntry) {}
   rpc closestPrecedingFingerRemoteHelper (RemoteId) returns (NodeAddress) {}
   rpc notify (NodeAddress) returns (google.protobuf.Empty) {}
-  rpc updateFingerTable (FingerTableEntry) returns (NodeAddress) {}
+  rpc updateFingerTable (FingerTableEntry) returns (google.protobuf.Empty) {}
 
   // Application Level RPC Calls
-  rpc summary(Trash) returns (NodeAddress) {}
+  rpc summary(google.protobuf.Empty) returns (NodeAddress) {}
   rpc fetch (UserId) returns (User) {}
   rpc insert (UserEdit) returns (google.protobuf.Empty) {}
   rpc insertUserRemoteHelper (UserEdit) returns (google.protobuf.Empty) {}
@@ -47,10 +47,6 @@ message FingerTableEntry {
   NodeAddress node = 1;
   uint32 index = 2;
  }
-
-message Trash{
-  uint32 id = 1;
-}
 
 message UserId {
   uint32 id = 1;

@@ -43,7 +43,7 @@ export class Client {
   async summary() {
     console.log("Client requesting summary:");
     try {
-      const node = await this.client.summary({ id: 1 });
+      const node = await this.client.summary();
       console.log(
         `The node returned id: ${node.id}, host: ${node.host}, port: ${node.port}`,
       );
@@ -54,7 +54,7 @@ export class Client {
 
   async fingerTable() {
     try {
-      const summary = await this.client.summary({ id: 1 });
+      const summary = await this.client.summary();
       console.log(
         `Finger table for node ${summary.id} (${summary.host}:${summary.port}):`,
       );
