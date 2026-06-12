@@ -2,22 +2,33 @@ import path from "path";
 import fs from "fs";
 import { connect } from "../app/utils.ts";
 
-interface InsertArgs {
-  id?: number;
-  edit?: boolean;
-  reputation?: number;
-  creationDate?: string;
-  displayName?: string;
-  lastAccessDate?: string;
-  websiteUrl?: string;
-  location?: string;
-  aboutMe?: string;
-  views?: number;
-  upVotes?: number;
-  downVotes?: number;
-  profileImageUrl?: string;
-  accountId?: number;
+// Fields a caller may set on insert or change on edit. The server defaults any
+// omitted field on insert and leaves it untouched on a partial edit.
+interface EditableFields {
+  reputation: number;
+  creationDate: string;
+  displayName: string;
+  lastAccessDate: string;
+  websiteUrl: string;
+  location: string;
+  aboutMe: string;
+  views: number;
+  upVotes: number;
+  downVotes: number;
+  profileImageUrl: string;
+  accountId: number;
 }
+
+// Requires at least one key of T to be present (the rest stay optional).
+type AtLeastOne<T> = {
+  [K in keyof T]-?: Pick<T, K> & Partial<Omit<T, K>>;
+}[keyof T];
+
+// Insert needs an id; every user field is optional and defaulted server-side.
+export type InsertArgs = { id: number } & Partial<EditableFields>;
+
+// Edit needs an id plus at least one editable field to patch.
+export type EditArgs = { id: number } & AtLeastOne<EditableFields>;
 
 export class Client {
   host: string;
@@ -110,6 +121,8 @@ export class Client {
   }
 
   async insert(args: InsertArgs) {
+    // The CLI dispatches untyped minimist args, so guard `id` at runtime even
+    // though the type marks it required for programmatic callers.
     if (!args.id) {
       console.log("id is a mandatory field!");
       console.log("node client insert --id=42424242");
@@ -120,41 +133,6 @@ export class Client {
         'node client insert --id=42424242 --displayName="Sean McBride" --reputation=3 --website="https://www.bushido.codes"',
       );
       process.exit();
-    }
-
-    if (args.edit) {
-      const editableFields = [
-        "reputation",
-        "creationDate",
-        "displayName",
-        "lastAccessDate",
-        "websiteUrl",
-        "location",
-        "aboutMe",
-        "views",
-        "upVotes",
-        "downVotes",
-        "profileImageUrl",
-        "accountId",
-      ] as const;
-      const paths = editableFields.filter((f) => args[f] !== undefined);
-      if (paths.length === 0) {
-        console.log(
-          'edit requires at least one field to update (e.g. --displayName="Alice")',
-        );
-        process.exit();
-      }
-      const user: any = { id: args.id };
-      for (const field of paths) {
-        user[field] = args[field];
-      }
-      try {
-        await this.client.insert({ user, edit: true, update_mask: { paths } });
-        console.log("User edited successfully");
-      } catch (err) {
-        console.log("User edit error:", err);
-      }
-      return;
     }
 
     const user = {
@@ -184,6 +162,52 @@ export class Client {
         default:
           console.log("User insertion error:", err);
       }
+    }
+  }
+
+  async edit(args: EditArgs) {
+    // The CLI dispatches untyped minimist args, so re-check `id` and the
+    // at-least-one-field rule at runtime; `EditArgs` enforces them for typed
+    // callers. A no-field edit would otherwise overwrite the user with a
+    // bare { id }, wiping every other field server-side.
+    if (!args.id) {
+      console.log("id is a mandatory field!");
+      console.log(
+        'node client edit --id=42424242 --displayName="Sean McBride"',
+      );
+      process.exit();
+    }
+
+    const editableFields = [
+      "reputation",
+      "creationDate",
+      "displayName",
+      "lastAccessDate",
+      "websiteUrl",
+      "location",
+      "aboutMe",
+      "views",
+      "upVotes",
+      "downVotes",
+      "profileImageUrl",
+      "accountId",
+    ] as const;
+    const paths = editableFields.filter((f) => args[f] !== undefined);
+    if (paths.length === 0) {
+      console.log(
+        'edit requires at least one field to update (e.g. --displayName="Alice")',
+      );
+      process.exit();
+    }
+    const user: any = { id: args.id };
+    for (const field of paths) {
+      user[field] = args[field];
+    }
+    try {
+      await this.client.insert({ user, edit: true, update_mask: { paths } });
+      console.log("User edited successfully");
+    } catch (err) {
+      console.log("User edit error:", err);
     }
   }
 

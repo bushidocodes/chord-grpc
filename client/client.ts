@@ -1,5 +1,5 @@
 import minimist from "minimist";
-import { Client } from "./common.ts";
+import { Client, type InsertArgs, type EditArgs } from "./common.ts";
 
 const VALID_COMMANDS =
   "lookup, insert, edit, remove, bulkInsert, summary, fingerTable, predecessor, successor";
@@ -28,11 +28,13 @@ function main() {
     case "bulkInsert":
       client.bulkInsert({ path: args.path });
       break;
+    // minimist yields untyped args, so cast at this boundary; insert()/edit()
+    // validate id and (for edit) the at-least-one-field rule at runtime.
     case "insert":
-      client.insert({ ...args, edit: false });
+      client.insert(args as unknown as InsertArgs);
       break;
     case "edit":
-      client.insert({ ...args, edit: true });
+      client.edit(args as unknown as EditArgs);
       break;
     case "summary":
       client.summary();
