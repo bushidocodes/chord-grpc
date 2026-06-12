@@ -219,11 +219,16 @@ export class Client {
     try {
       const jsonPath = path.resolve(import.meta.dirname, "..", args.path);
       console.log(jsonPath);
-      fs.readFile(jsonPath, "utf8", (err, rawData) => {
-        const data = JSON.parse(rawData);
-        const users: InsertArgs[] = Object.values(data);
-        users.forEach((user) => this.insert(user));
-      });
+      const rawData = await fs.promises.readFile(jsonPath, "utf8");
+      const data = JSON.parse(rawData);
+      const users: InsertArgs[] = Object.values(data);
+      // Await each insert sequentially so every user lands before the client
+      // exits — the old forEach fired the async inserts and returned, tearing
+      // down the process first. Sequential (vs Promise.all) also avoids firing
+      // tens of thousands of concurrent inserts at the cluster for users.json.
+      for (const user of users) {
+        await this.insert(user);
+      }
     } catch (err) {
       console.error(err);
     }
