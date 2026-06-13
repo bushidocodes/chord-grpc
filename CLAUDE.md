@@ -11,15 +11,15 @@ Chord-gRPC is a peer-to-peer distributed hash table (DHT) implementing the Chord
 ### Running with Docker (preferred)
 
 ```bash
-npm install
-npm run gen-certs                                  # generate local TLS certs (see TLS note below)
+pnpm install
+pnpm run gen-certs                                  # generate local TLS certs (see TLS note below)
 docker-compose up --scale node_secondary=5 -d    # Start cluster
 docker-compose up --scale node_secondary=8 -d     # Scale out
 docker-compose down                                # Stop cluster
 ```
 
 **TLS:** The `certs/` directory is developer-local and gitignored (#185) — never
-commit keys. Run `npm run gen-certs` (`scripts/gen-certs.sh`, needs OpenSSL 3.x)
+commit keys. Run `pnpm run gen-certs` (`scripts/gen-certs.sh`, needs OpenSSL 3.x)
 to create a fresh CA + server cert. When `certs/ca.crt` is absent,
 `loadTlsCredentials()` in `app/utils.ts` returns `null` and nodes/clients fall
 back to insecure transport, so the cluster still runs without certs.
