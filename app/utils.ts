@@ -298,25 +298,37 @@ export function withTimeout<T>(
 // Canonical name used in ssl_target_name_override — must match a SAN in certs/server.crt.
 const TLS_TARGET_NAME = "chord-node";
 
+// Cache the loaded credentials: the cert files don't change while a process
+// runs, so re-reading three files on every channel (re)creation is wasted disk
+// I/O — connect() reads them on every cache miss / post-eviction reconnect, and
+// connectHealth() reads them on every call (#171). Only the positive result is
+// cached; while certs are absent we keep returning null (a cheap existsSync) so
+// a later `gen-certs` is still picked up without restarting the process.
+let cachedTlsCredentials: { ca: Buffer; cert: Buffer; key: Buffer } | null =
+  null;
+
 /**
  * Loads TLS credentials from the certs directory (GRPC_CERTS_DIR env var, or
  * <project-root>/certs by default). Returns null when certs are absent so
- * callers can fall back to insecure transport.
+ * callers can fall back to insecure transport. The loaded result is memoized
+ * (see cachedTlsCredentials above).
  */
 export function loadTlsCredentials(): {
   ca: Buffer;
   cert: Buffer;
   key: Buffer;
 } | null {
+  if (cachedTlsCredentials) return cachedTlsCredentials;
   const certsDir =
     process.env.GRPC_CERTS_DIR ?? path.resolve(import.meta.dirname, "../certs");
   const caCert = path.join(certsDir, "ca.crt");
   if (!fs.existsSync(caCert)) return null;
-  return {
+  cachedTlsCredentials = {
     ca: fs.readFileSync(caCert),
     cert: fs.readFileSync(path.join(certsDir, "server.crt")),
     key: fs.readFileSync(path.join(certsDir, "server.key")),
   };
+  return cachedTlsCredentials;
 }
 
 // Reuse one promisified gRPC client per host:port. Creating a client opens a
