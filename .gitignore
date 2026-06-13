@@ -1,4 +1,8 @@
 node_modules
 .claude/
 web/public/vendor/
-certs/ca.key
+
+# TLS certs & keys are developer-local and must never be committed (#185).
+# Generate them with `npm run gen-certs` (scripts/gen-certs.sh). Without them
+# the cluster falls back to insecure transport.
+certs/

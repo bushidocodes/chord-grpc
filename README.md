@@ -19,10 +19,21 @@ We assume that you have Node.js, Docker, and Docker-Compose installed. You can c
 git clone git@github.com:bushidocodes/chord-grpc.git
 cd chord-grpc
 npm install
+npm run gen-certs   # generate developer-local TLS certs (optional, see below)
 docker-compose up --scale node_secondary=5 -d
 ```
 
 Then open localhost:1337 in a browser
+
+### TLS certificates
+
+Inter-node gRPC traffic is encrypted with TLS when certificates are present in
+`certs/`. These are **developer-local and are not committed to the repo** — run
+`npm run gen-certs` (a thin wrapper around `scripts/gen-certs.sh`, which needs
+OpenSSL 3.x) to generate a fresh CA and server certificate. If `certs/` is empty
+the cluster still runs, but over **insecure** transport — fine for local
+experimentation, not for anything exposed. Regenerate certs on every machine
+that builds or runs the cluster.
 
 Then run the following command in a separate tab to seed the sample StackOverflow data:
 
