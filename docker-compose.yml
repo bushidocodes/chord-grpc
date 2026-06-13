@@ -7,14 +7,38 @@ services:
       - "8440:1337"
     environment:
       - LOG_LEVEL=info
-    command: "pnpm run devServer --host node_primary --knownHost node_primary --knownPort 1337"
+    # Run the node process directly (exec form) under an init, NOT via
+    # `pnpm run devServer` (= `node --watch ./app/node.ts`). pnpm-as-PID-1 and
+    # node --watch's child both swallow SIGTERM, so `docker stop` never reached
+    # the app's graceful-shutdown handler — keys weren't migrated and health
+    # never flipped to NOT_SERVING (#208). init: true reaps + forwards signals.
+    # --watch is also pointless here: the source is baked in, not mounted.
+    init: true
+    command:
+      - node
+      - ./app/node.ts
+      - --host
+      - node_primary
+      - --knownHost
+      - node_primary
+      - --knownPort
+      - "1337"
   node_secondary:
     build:
       context: .
       dockerfile: NodeDockerfile
     environment:
       - LOG_LEVEL=info
-    command: "pnpm run devServer --knownHost node_primary --knownPort 1337"
+    # See node_primary: run the app directly under an init so SIGTERM reaches
+    # the graceful-shutdown handler (#208).
+    init: true
+    command:
+      - node
+      - ./app/node.ts
+      - --knownHost
+      - node_primary
+      - --knownPort
+      - "1337"
     depends_on:
       - node_primary
   web:
