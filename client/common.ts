@@ -31,6 +31,15 @@ export type InsertArgs = { id: number } & Partial<EditableFields>;
 // Edit needs an id plus at least one editable field to patch.
 export type EditArgs = { id: number } & AtLeastOne<EditableFields>;
 
+// True when the node is unreachable: gRPC UNAVAILABLE (14) or a raw
+// ECONNREFUSED bubbling up. Used by bulkInsert to fail fast instead of
+// re-attempting every record against a node that won't recover (issue #206).
+export function isConnectionError(err: unknown): boolean {
+  if ((err as { code?: number })?.code === 14) return true;
+  const message = String((err as { message?: unknown })?.message ?? "");
+  return /ECONNREFUSED|No connection established/i.test(message);
+}
+
 export class Client {
   host: string;
   port: number;
@@ -160,7 +169,25 @@ export class Client {
       process.exit();
     }
 
-    const user = {
+    try {
+      await this.client.insert({ user: this.buildUser(args), edit: false });
+      console.log("User inserted successfully");
+    } catch (err) {
+      const grpcErr = err as { code?: number };
+      switch (grpcErr.code) {
+        case 6:
+          console.log("User already exists!");
+          break;
+        default:
+          console.log("User insertion error:", err);
+      }
+    }
+  }
+
+  // Builds the wire User from CLI args, applying defaults for omitted fields.
+  // Shared by insert() and bulkInsert().
+  private buildUser(args: InsertArgs) {
+    return {
       id: args.id,
       reputation: args.reputation || 0,
       creationDate: args.creationDate || Date.now().toString(),
@@ -175,19 +202,6 @@ export class Client {
       profileImageUrl: args.profileImageUrl || "",
       accountId: args.accountId || 0,
     };
-    try {
-      await this.client.insert({ user, edit: false });
-      console.log("User inserted successfully");
-    } catch (err) {
-      const grpcErr = err as { code?: number };
-      switch (grpcErr.code) {
-        case 6:
-          console.log("User already exists!");
-          break;
-        default:
-          console.log("User insertion error:", err);
-      }
-    }
   }
 
   async edit(args: EditArgs) {
@@ -241,22 +255,56 @@ export class Client {
       console.log("bulkInsert requires a path to a JSON file");
       process.exit();
     }
+
+    let users: InsertArgs[];
     try {
       const jsonPath = path.resolve(import.meta.dirname, "..", args.path);
-      console.log(jsonPath);
       const rawData = await fs.promises.readFile(jsonPath, "utf8");
-      const data = JSON.parse(rawData);
-      const users: InsertArgs[] = Object.values(data);
-      // Await each insert sequentially so every user lands before the client
-      // exits — the old forEach fired the async inserts and returned, tearing
-      // down the process first. Sequential (vs Promise.all) also avoids firing
-      // tens of thousands of concurrent inserts at the cluster for users.json.
-      for (const user of users) {
-        await this.insert(user);
-      }
+      users = Object.values(JSON.parse(rawData));
     } catch (err) {
+      console.error(`bulkInsert: could not read users from ${args.path}`);
       console.error(err);
+      process.exitCode = 1;
+      return;
     }
+
+    // Insert sequentially (not Promise.all) so we don't fire tens of thousands
+    // of concurrent inserts at the cluster and so the process doesn't exit
+    // before they land. On the first connection failure, fail fast: a dead node
+    // won't recover mid-loop, so attempting the remaining records would just
+    // print one identical stack trace per record (issue #206).
+    let inserted = 0;
+    let duplicates = 0;
+    for (const user of users) {
+      if (!user.id) {
+        console.warn("bulkInsert: skipping a record with no id");
+        continue;
+      }
+      try {
+        await this.client.insert({ user: this.buildUser(user), edit: false });
+        inserted++;
+      } catch (err) {
+        if (isConnectionError(err)) {
+          console.error(
+            `bulkInsert: could not connect to node at ${this.host}:${this.port} — aborting after ${inserted} insert(s).`,
+          );
+          process.exitCode = 1;
+          return;
+        }
+        const code = (err as { code?: number }).code;
+        // ALREADY_EXISTS (6) is an expected per-record outcome, not a failure.
+        if (code === 6) {
+          duplicates++;
+          continue;
+        }
+        console.error(
+          `bulkInsert: failed to insert user ${user.id} (gRPC code ${code ?? "unknown"})`,
+        );
+      }
+    }
+    console.log(
+      `bulkInsert: ${inserted} inserted, ${duplicates} already existed, ${users.length} total`,
+    );
   }
 
   async remove(args: { id?: number }) {
