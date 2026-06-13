@@ -1,6 +1,7 @@
 import path from "path";
 import fs from "fs";
 import { connect } from "../app/utils.ts";
+import { connectHealth } from "../app/health.ts";
 
 // Fields a caller may set on insert or change on edit. The server defaults any
 // omitted field on insert and leaves it untouched on a partial edit.
@@ -34,18 +35,42 @@ export class Client {
   host: string;
   port: number;
   client: any;
+  healthClient: ReturnType<typeof connectHealth>;
   constructor(host: string, port: number) {
     this.host = host;
     this.port = port;
     this.client = connect({ host: this.host, port: this.port });
+    this.healthClient = connectHealth({ host: this.host, port: this.port });
   }
 
+  // Standard gRPC health check (grpc.health.v1.Health/Check). Exits non-zero on
+  // a non-SERVING status or error so it doubles as a liveness probe.
+  async health() {
+    try {
+      const { status } = await this.healthClient.check();
+      console.log(`Health of ${this.host}:${this.port}: ${status}`);
+      if (status !== "SERVING") process.exitCode = 1;
+    } catch (err) {
+      console.error(`Health check failed for ${this.host}:${this.port}`);
+      console.error(err);
+      process.exitCode = 1;
+    }
+  }
+
+  // Identity (via getNodeIdRemoteHelper) plus liveness (via Health/Check). The
+  // bespoke `summary` RPC that previously returned identity was removed in #97.
   async summary() {
     console.log("Client requesting summary:");
     try {
-      const node = await this.client.summary();
+      const node = await this.client.getNodeIdRemoteHelper();
+      let status = "UNKNOWN";
+      try {
+        ({ status } = await this.healthClient.check());
+      } catch {
+        status = "UNREACHABLE";
+      }
       console.log(
-        `The node returned id: ${node.id}, host: ${node.host}, port: ${node.port}`,
+        `The node returned id: ${node.id}, host: ${node.host}, port: ${node.port}, health: ${status}`,
       );
     } catch (err) {
       console.error(err);
@@ -54,9 +79,9 @@ export class Client {
 
   async fingerTable() {
     try {
-      const summary = await this.client.summary();
+      const node = await this.client.getNodeIdRemoteHelper();
       console.log(
-        `Finger table for node ${summary.id} (${summary.host}:${summary.port}):`,
+        `Finger table for node ${node.id} (${node.host}:${node.port}):`,
       );
       const stream = this.client.getFingerTableEntries();
       let i = 0;

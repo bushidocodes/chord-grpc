@@ -19,7 +19,9 @@ service Node {
   rpc updateFingerTable (FingerTableEntry) returns (google.protobuf.Empty) {}
 
   // Application Level RPC Calls
-  rpc summary(google.protobuf.Empty) returns (NodeAddress) {}
+  // Node liveness is served by the standard grpc.health.v1.Health service
+  // (protos/health.proto); node identity is available via
+  // getNodeIdRemoteHelper. The bespoke `summary` RPC was removed in #97.
   rpc fetch (UserId) returns (User) {}
   rpc insert (UserEdit) returns (google.protobuf.Empty) {}
   rpc insertUserRemoteHelper (UserEdit) returns (google.protobuf.Empty) {}

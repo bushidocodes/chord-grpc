@@ -2,7 +2,7 @@ import minimist from "minimist";
 import { Client, type InsertArgs, type EditArgs } from "./common.ts";
 
 const VALID_COMMANDS =
-  "lookup, insert, edit, remove, bulkInsert, summary, fingerTable, predecessor, successor";
+  "lookup, insert, edit, remove, bulkInsert, summary, health, fingerTable, predecessor, successor";
 
 function main() {
   const args = minimist(process.argv.slice(2));
@@ -38,6 +38,9 @@ function main() {
       break;
     case "summary":
       client.summary();
+      break;
+    case "health":
+      client.health();
       break;
     case "fingerTable":
       client.fingerTable();

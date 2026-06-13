@@ -13,6 +13,7 @@ import {
   NULL_NODE,
   type Node,
 } from "./utils.ts";
+import { OVERALL_HEALTH, type HealthImplementation } from "./health.ts";
 const phi = (1 + Math.sqrt(5)) / 2;
 
 interface FingerTableEntry {
@@ -42,6 +43,9 @@ export abstract class ChordNode {
   stabilizeTimer?: ReturnType<typeof setInterval>;
   fixFingersTimer?: ReturnType<typeof setInterval>;
   checkPredecessorTimer?: ReturnType<typeof setInterval>;
+  // Standard gRPC health reporter; set in UserService.serve() and flipped to
+  // NOT_SERVING in destructor() so probes observe departure (issue #97).
+  health?: HealthImplementation;
 
   constructor({
     id,
@@ -82,15 +86,6 @@ export abstract class ChordNode {
       host: this.host,
       port: this.port,
     };
-  }
-
-  /**
-   * Print Summary of state of node
-   */
-  summary(_: any, callback: (arg0: any, arg1: Node) => void) {
-    this.logger.info({ fingerTable: this.fingerTable }, "Summary: fingerTable");
-    this.logger.info({ predecessor: this.predecessor }, "Summary: Predecessor");
-    callback(null, this.encapsulateSelf());
   }
 
   /**
@@ -1210,6 +1205,10 @@ export abstract class ChordNode {
    * Remove node from the chord gracefully by migrating keys to the remaining nodes.
    */
   async destructor() {
+    // Advertise NOT_SERVING up front so health probes and live Watch streams
+    // see the node leaving before key migration / peer notification begins
+    // (issue #97).
+    this.health?.setStatus(OVERALL_HEALTH, "NOT_SERVING");
     // Stop periodic maintenance before tearing down so stabilize/fixFingers/
     // checkPredecessor can't race the migration: mutate successor/predecessor
     // mid-flight or fire gRPC calls at departing nodes (issue #187).

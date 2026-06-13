@@ -42,7 +42,8 @@ npm run client -- lookup --port 8440 --id 2
 npm run client -- edit --port 8440 --id 5 --displayName "Name" --reputation 99
 npm run client -- remove --port 8440 --id 5
 npm run client -- bulkInsert --path ./data/tinyUsers.json
-npm run client -- summary --port 8440
+npm run client -- summary --port 8440   # node identity + health status
+npm run client -- health --port 8440    # standard gRPC health check (exits non-zero if not SERVING)
 
 # Ring topology inspection (useful for debugging ring formation / stale routing)
 npm run client -- fingerTable --port 8440   # print all finger table entries
@@ -90,7 +91,7 @@ The `npm test` script is a placeholder that exits with an error.
 
 ### Protocol definition
 
-`protos/chord.proto` defines 19 RPC methods split between library-level (Chord protocol: findSuccessor, stabilize, notify, etc.) and application-level (User CRUD: fetch, insert, lookup, remove, migrate).
+`protos/chord.proto` defines 18 RPC methods split between library-level (Chord protocol: findSuccessor, stabilize, notify, etc.) and application-level (User CRUD: fetch, insert, lookup, remove, migrate). Node liveness is served separately by the standard gRPC Health Checking Protocol in `protos/health.proto` (`grpc.health.v1.Health/Check` + `Watch`, implemented in `app/health.ts`), which interoperates with `grpc_health_probe`, Kubernetes gRPC probes, etc. Node identity (id/host/port) is available via `getNodeIdRemoteHelper`.
 
 ### Entry points
 
