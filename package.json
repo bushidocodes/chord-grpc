@@ -7,6 +7,7 @@
   "scripts": {
     "typecheck": "tsc",
     "test": "node --test \"test/**/*.test.ts\"",
+    "gen-certs": "bash scripts/gen-certs.sh",
     "cleanData": "node ./data/cleanData.ts",
     "server": "node ./app/node.ts",
     "debugPrimary": "node --nolazy --inspect-brk=9229 --watch ./app/node.ts -- --port 8440",
