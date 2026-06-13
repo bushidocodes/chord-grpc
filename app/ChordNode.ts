@@ -891,9 +891,15 @@ export abstract class ChordNode {
       this.logger.debug(
         `updateSuccessorTable: Short successorTable[]: [ current length ${this.successorTable.length} ] < [ ${SUCCESSOR_TABLE_MAX_LENGTH} preferred length ]`,
       );
+      // Bound on the table length, not on `i`: each iteration appends at most
+      // one entry, so stopping when the table reaches its max keeps it from
+      // overshooting and issuing wasted getSuccessor() RPCs. (A simple
+      // `i < MAX` still overshoots to MAX+1, since the table grows as i does —
+      // see #167.) The `i < length` term guards the table[i] read.
       for (
         let i = 0;
-        i < this.successorTable.length && i <= SUCCESSOR_TABLE_MAX_LENGTH;
+        i < this.successorTable.length &&
+        this.successorTable.length < SUCCESSOR_TABLE_MAX_LENGTH;
         i++
       ) {
         try {
