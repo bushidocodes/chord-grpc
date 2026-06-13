@@ -4,6 +4,7 @@ import * as grpc from "@grpc/grpc-js";
 import { loadSync } from "@grpc/proto-loader";
 
 import { ChordNode } from "./ChordNode.ts";
+import { HealthImplementation } from "./health.ts";
 import {
   connect,
   handleGRPCErrors,
@@ -68,7 +69,6 @@ export class UserService extends ChordNode {
   serve() {
     const server = new grpc.Server();
     server.addService((chord as any).Node.service, {
-      summary: this.summary.bind(this),
       fetch: this.fetch.bind(this),
       remove: this.remove.bind(this),
       removeUserRemoteHelper: this.removeUserRemoteHelper.bind(this),
@@ -93,6 +93,12 @@ export class UserService extends ChordNode {
       notify: this.notify.bind(this),
       destructor: this.destructor.bind(this),
     });
+
+    // Standard gRPC Health Checking Protocol (issue #97). Advertises SERVING
+    // for the whole server so grpc_health_probe / k8s probes work out of the
+    // box; destructor() flips it to NOT_SERVING on graceful shutdown.
+    this.health = new HealthImplementation();
+    server.addService(this.health.service, this.health.handlers);
 
     const tls = loadTlsCredentials();
     const serverCredentials = tls
