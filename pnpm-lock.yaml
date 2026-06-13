@@ -12,8 +12,8 @@ importers:
         specifier: ^1.12.5
         version: 1.14.4
       '@grpc/proto-loader':
-        specifier: ^0.7.0
-        version: 0.7.15
+        specifier: ^0.8.1
+        version: 0.8.1
       express:
         specifier: ^4.21.0
         version: 4.22.2
@@ -67,11 +67,6 @@ packages:
   '@grpc/grpc-js@1.14.4':
     resolution: {integrity: sha512-k9Dj3DV/itK9D06Y8f190Qgop7/Ui+D0njFV3LHMPwPT75DpXLQohE9Wmz0QElrJnzsjB7KPWiKJbOl7IPDArQ==}
     engines: {node: '>=12.10.0'}
-
-  '@grpc/proto-loader@0.7.15':
-    resolution: {integrity: sha512-tMXdRCfYVixjuFK+Hk0Q1s38gV9zDiDJfWL3h1rv4Qc39oILCu1TRTDt7+fGUI8K4G1Fj125Hx/ru3azECWTyQ==}
-    engines: {node: '>=6'}
-    hasBin: true
 
   '@grpc/proto-loader@0.8.1':
     resolution: {integrity: sha512-wtF6h+DY6M3YaDBPAmvuuA6jV8Sif9MjtOI5euKFWRgCDl5PeDpPsHR9u2l6St5ceY8AZgoNDww5+HvEsXFsGg==}
@@ -141,6 +136,9 @@ packages:
 
   '@types/node@25.9.1':
     resolution: {integrity: sha512-xfrlY7UD5rMJk3ZVJP8BNzS28J36YJg+xp+LPXV1TdWxr8uMH5A860QNxYDGQe/ylDSgjxE52Q9VnO7p75tJxg==}
+
+  '@types/node@25.9.3':
+    resolution: {integrity: sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg==}
 
   '@types/qs@6.15.1':
     resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
@@ -462,8 +460,8 @@ packages:
   process-warning@5.0.0:
     resolution: {integrity: sha512-a39t9ApHNx2L4+HBnQKqxxHNs1r7KF+Intd8Q/g1bUh6q0WIp9voPXJ/x0j+ZL45KF1pJd9+q2jLIRMfvEshkA==}
 
-  protobufjs@7.6.1:
-    resolution: {integrity: sha512-4K0myLaWL5EteuSAro91EGFgcfVgxb64Jx+7oDAY6GOkXD4M69yuSEljNcInGVCA5sOPxmZ/EqDLj2x0Q0+Ygg==}
+  protobufjs@7.6.3:
+    resolution: {integrity: sha512-+k0vdJKNdW+Vu+dYe8tZA/VvQb6XKNWexC6URwBFXxNnjLJz9nQJCemGyNgRAWD+B7+nGNc9qMPGwcD7s4nzUw==}
     engines: {node: '>=12.0.0'}
 
   proxy-addr@2.0.7:
@@ -656,18 +654,11 @@ snapshots:
       '@grpc/proto-loader': 0.8.1
       '@js-sdsl/ordered-map': 4.4.2
 
-  '@grpc/proto-loader@0.7.15':
-    dependencies:
-      lodash.camelcase: 4.3.0
-      long: 5.3.2
-      protobufjs: 7.6.1
-      yargs: 17.7.2
-
   '@grpc/proto-loader@0.8.1':
     dependencies:
       lodash.camelcase: 4.3.0
       long: 5.3.2
-      protobufjs: 7.6.1
+      protobufjs: 7.6.3
       yargs: 17.7.2
 
   '@js-sdsl/ordered-map@4.4.2': {}
@@ -727,6 +718,10 @@ snapshots:
   '@types/minimist@1.2.5': {}
 
   '@types/node@25.9.1':
+    dependencies:
+      undici-types: 7.24.6
+
+  '@types/node@25.9.3':
     dependencies:
       undici-types: 7.24.6
 
@@ -1044,7 +1039,7 @@ snapshots:
 
   process-warning@5.0.0: {}
 
-  protobufjs@7.6.1:
+  protobufjs@7.6.3:
     dependencies:
       '@protobufjs/aspromise': 1.1.2
       '@protobufjs/base64': 1.1.2
@@ -1056,7 +1051,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       long: 5.3.2
 
   proxy-addr@2.0.7:
