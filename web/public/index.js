@@ -1,9 +1,11 @@
+import { Network, DataSet } from "./vendor/vis-network.min.js";
+
 const CRAWLER_INTERVAL_MS = 1000;
 const HASH_SPACE = 2 ** 32;
 
 let network;
-const nodeSet = new vis.DataSet();
-const edgeSet = new vis.DataSet();
+const nodeSet = new DataSet();
+const edgeSet = new DataSet();
 
 function hashCode(str) {
   let hash = 0;
@@ -121,7 +123,7 @@ async function loadData() {
 
   const updatedNodes = nodeSet.update(nodes);
   const allNodes = nodeSet.getIds();
-  const nodesToRemove = _.difference(allNodes, updatedNodes);
+  const nodesToRemove = allNodes.filter((id) => !updatedNodes.includes(id));
   nodesToRemove.forEach((val) => nodeSet.remove(val));
 
   const updatedEdges = edgeSet.update(edges);
@@ -181,7 +183,7 @@ async function loadData() {
   };
 
   if (!network) {
-    network = new vis.Network(container, data, options);
+    network = new Network(container, data, options);
     network.on("click", function (params) {
       if (params.nodes.length > 0) {
         const nodeContent = document.getElementById("nodeContent");

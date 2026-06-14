@@ -10,14 +10,9 @@ mkdirSync(dest, { recursive: true });
 cpSync(
   resolve(
     __dirname,
-    "../node_modules/vis-network/standalone/umd/vis-network.min.js",
+    "../node_modules/vis-network/standalone/esm/vis-network.min.js",
   ),
   resolve(dest, "vis-network.min.js"),
-);
-
-cpSync(
-  resolve(__dirname, "../node_modules/lodash/lodash.min.js"),
-  resolve(dest, "lodash.min.js"),
 );
 
 console.log("Vendor files copied to web/public/vendor/");
