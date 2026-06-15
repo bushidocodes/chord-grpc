@@ -1,5 +1,5 @@
 import express from "express";
-import minimist from "minimist";
+import { parseArgs } from "node:util";
 import os from "os";
 import path from "path";
 import { connect } from "../app/utils.ts";
@@ -197,15 +197,23 @@ class ChordCrawler {
 }
 
 function main() {
-  const args = minimist(process.argv.slice(2));
+  const { values } = parseArgs({
+    args: process.argv.slice(2),
+    options: {
+      host: { type: "string" },
+      port: { type: "string" },
+      webPort: { type: "string" },
+      interval: { type: "string" },
+    },
+  });
   const crawler = new ChordCrawler(
-    args.host || DEFAULT_HOST_NAME,
-    args.port || 8440,
-    args.interval || CRAWLER_INTERVAL_MS,
+    values.host || DEFAULT_HOST_NAME,
+    values.port ? Number(values.port) : 8440,
+    values.interval ? Number(values.interval) : CRAWLER_INTERVAL_MS,
   );
 
   const app = express();
-  const port = args.webPort || 1337;
+  const port = values.webPort ? Number(values.webPort) : 1337;
   app.use(express.static(PUBLIC_PATH));
   app.get("/data", (_, res) => res.json(crawler.state));
   app.listen(port, () => console.log(`Example app listening on port ${port}!`));

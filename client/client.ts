@@ -1,12 +1,33 @@
-import minimist from "minimist";
+import { parseArgs } from "node:util";
 import { Client, type InsertArgs, type EditArgs } from "./common.ts";
 
 const VALID_COMMANDS =
   "lookup, insert, edit, remove, bulkInsert, summary, health, fingerTable, predecessor, successor";
 
 function main() {
-  const args = minimist(process.argv.slice(2));
-  const command = args._[0];
+  const { values, positionals } = parseArgs({
+    args: process.argv.slice(2),
+    options: {
+      host: { type: "string" },
+      port: { type: "string" },
+      id: { type: "string" },
+      path: { type: "string" },
+      reputation: { type: "string" },
+      creationDate: { type: "string" },
+      displayName: { type: "string" },
+      lastAccessDate: { type: "string" },
+      websiteUrl: { type: "string" },
+      location: { type: "string" },
+      aboutMe: { type: "string" },
+      views: { type: "string" },
+      upVotes: { type: "string" },
+      downVotes: { type: "string" },
+      profileImageUrl: { type: "string" },
+      accountId: { type: "string" },
+    },
+    allowPositionals: true,
+  });
+  const command = positionals[0];
 
   if (!command) {
     console.error("Usage: node client.ts <command> [options]");
@@ -14,27 +35,47 @@ function main() {
     process.exit(1);
   }
 
-  const host: string = args.host || "localhost";
-  const port: number = args.port || 8440;
+  const host: string = values.host || "localhost";
+  const port: number = values.port ? Number(values.port) : 8440;
   const client = new Client(host, port);
+
+  // parseArgs yields string values for all options; coerce numerics at this
+  // boundary. insert()/edit() validate id and (for edit) the at-least-one-field
+  // rule at runtime.
+  const num = (v: string | undefined) =>
+    v !== undefined ? Number(v) : undefined;
 
   switch (command) {
     case "lookup":
-      client.lookup({ id: args.id });
+      client.lookup({ id: num(values.id) });
       break;
     case "remove":
-      client.remove({ id: args.id });
+      client.remove({ id: num(values.id) });
       break;
     case "bulkInsert":
-      client.bulkInsert({ path: args.path });
+      client.bulkInsert({ path: values.path });
       break;
-    // minimist yields untyped args, so cast at this boundary; insert()/edit()
-    // validate id and (for edit) the at-least-one-field rule at runtime.
     case "insert":
-      client.insert(args as unknown as InsertArgs);
+      client.insert({
+        ...values,
+        id: Number(values.id),
+        reputation: num(values.reputation),
+        views: num(values.views),
+        upVotes: num(values.upVotes),
+        downVotes: num(values.downVotes),
+        accountId: num(values.accountId),
+      } as unknown as InsertArgs);
       break;
     case "edit":
-      client.edit(args as unknown as EditArgs);
+      client.edit({
+        ...values,
+        id: Number(values.id),
+        reputation: num(values.reputation),
+        views: num(values.views),
+        upVotes: num(values.upVotes),
+        downVotes: num(values.downVotes),
+        accountId: num(values.accountId),
+      } as unknown as EditArgs);
       break;
     case "summary":
       client.summary();

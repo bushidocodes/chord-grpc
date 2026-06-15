@@ -155,8 +155,8 @@ export class Client {
   }
 
   async insert(args: InsertArgs) {
-    // The CLI dispatches untyped minimist args, so guard `id` at runtime even
-    // though the type marks it required for programmatic callers.
+    // Guard `id` at runtime even though the type marks it required for
+    // programmatic callers — the CLI passes parsed-but-untyped args here.
     if (!args.id) {
       console.log("id is a mandatory field!");
       console.log("node client insert --id=42424242");
@@ -205,8 +205,8 @@ export class Client {
   }
 
   async edit(args: EditArgs) {
-    // The CLI dispatches untyped minimist args, so re-check `id` and the
-    // at-least-one-field rule at runtime; `EditArgs` enforces them for typed
+    // Re-check `id` and the at-least-one-field rule at runtime — the CLI
+    // passes parsed-but-untyped args here; `EditArgs` enforces them for typed
     // callers. A no-field edit would otherwise overwrite the user with a
     // bare { id }, wiping every other field server-side.
     if (!args.id) {

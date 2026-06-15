@@ -1,5 +1,5 @@
 import process from "process";
-import minimist from "minimist";
+import { parseArgs } from "node:util";
 import { UserService } from "./UserService.ts";
 import readline from "readline";
 
@@ -34,26 +34,37 @@ async function hashDryRun(sourceValue: string) {
  */
 async function main() {
   console.log("This process is your pid " + process.pid);
-  const args = minimist(process.argv.slice(2), {
-    string: ["host", "knownHost"],
-    number: ["port", "knownPort", "id"],
-  } as minimist.Opts);
+  const { values } = parseArgs({
+    args: process.argv.slice(2),
+    options: {
+      host: { type: "string" },
+      port: { type: "string" },
+      knownHost: { type: "string" },
+      knownPort: { type: "string" },
+      id: { type: "string" },
+      hashOnly: { type: "string" },
+    },
+  });
 
-  if (args.hashOnly) {
-    const rc = await hashDryRun(args.hashOnly);
+  if (values.hashOnly) {
+    const rc = await hashDryRun(values.hashOnly);
     process.exit(rc);
   }
+
+  const port = values.port !== undefined ? Number(values.port) : undefined;
+  const id = values.id !== undefined ? Number(values.id) : undefined;
 
   // sanitize parameters corresponding to known node
   // + if no known host or port were provided, it is assumed that they are self's
   // + such as when starting a new chord; ie, joining itself
-  let knownNodeHost = args.knownHost ? args.knownHost : args.host;
-  let knownNodePort = args.knownPort ? args.knownPort : args.port;
+  const knownNodeHost = values.knownHost ?? values.host ?? null;
+  const knownNodePort =
+    values.knownPort !== undefined ? Number(values.knownPort) : (port ?? null);
 
   // protect against bad ID inputs
-  if (args.id && args.id > 2 ** HASH_BIT_LENGTH - 1) {
+  if (id !== undefined && id > 2 ** HASH_BIT_LENGTH - 1) {
     console.error(
-      `Error. Bad ID {${args.id}} > 2^m-1 {${
+      `Error. Bad ID {${id}} > 2^m-1 {${
         2 ** HASH_BIT_LENGTH - 1
       }}. Terminating...\n`,
     );
@@ -61,13 +72,13 @@ async function main() {
   }
 
   let userServiceNode = new UserService({
-    id: args.id,
-    host: args.host,
-    port: args.port,
+    id,
+    host: values.host,
+    port,
   });
   try {
     userServiceNode.serve();
-    let knownNode = {
+    const knownNode = {
       id: null,
       host: knownNodeHost,
       port: knownNodePort,
