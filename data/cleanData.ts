@@ -1,6 +1,5 @@
 import fs from "fs";
-
-import { parseString } from "xml2js";
+import { XMLParser } from "fast-xml-parser";
 
 const COUNT_OF_USERS_IN_TINY_USERS = 100;
 
@@ -21,40 +20,41 @@ interface XMLGeneratedPerson {
 }
 
 // Quick and dirty script to convert the StackOverflow data from XML to JSON
-fs.readFile(`${import.meta.dirname}/users.xml`, (_err, data) => {
-  parseString(data, (_err, rawData) => {
-    const result: Record<string | number, unknown> = {};
-    const tinyResult: Record<string | number, unknown> = {};
-    rawData.users.row
-      .map((person: { [x: string]: any }) => person["$"])
-      .map((person: XMLGeneratedPerson) => ({
-        id: parseInt(person.Id, 10),
-        reputation: parseInt(person.Reputation, 10),
-        creationDate: person.CreationDate,
-        displayName: person.DisplayName,
-        lastAccessDate: person.LastAccessDate,
-        websiteUrl: person.WebsiteUrl,
-        location: person.Location,
-        aboutMe: person.AboutMe,
-        views: parseInt(person.Views, 10),
-        upVotes: parseInt(person.UpVotes, 10),
-        downVotes: parseInt(person.DownVotes, 10),
-        profileImageUrl: person.ProfileImageUrl,
-        accountId: parseInt(person.AccountId, 10),
-      }))
-      .forEach((person: { id: string | number }, idx: number) => {
-        if (idx < COUNT_OF_USERS_IN_TINY_USERS) {
-          tinyResult[person.id] = person;
-        }
-        result[person.id] = person;
-      });
-    fs.writeFileSync(
-      `${import.meta.dirname}/users.json`,
-      JSON.stringify(result),
-    );
-    fs.writeFileSync(
-      `${import.meta.dirname}/tinyUsers.json`,
-      JSON.stringify(tinyResult),
-    );
+const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
+const rawData = parser.parse(
+  fs.readFileSync(`${import.meta.dirname}/users.xml`, "utf8"),
+);
+
+const result: Record<string | number, unknown> = {};
+const tinyResult: Record<string | number, unknown> = {};
+rawData.users.row
+  .map((person: XMLGeneratedPerson) => ({
+    id: parseInt(person.Id, 10),
+    reputation: parseInt(person.Reputation, 10),
+    creationDate: person.CreationDate,
+    displayName: person.DisplayName,
+    lastAccessDate: person.LastAccessDate,
+    websiteUrl: person.WebsiteUrl,
+    location: person.Location,
+    aboutMe: person.AboutMe,
+    views: parseInt(person.Views, 10),
+    upVotes: parseInt(person.UpVotes, 10),
+    downVotes: parseInt(person.DownVotes, 10),
+    profileImageUrl: person.ProfileImageUrl,
+    accountId: parseInt(person.AccountId, 10),
+  }))
+  .forEach((person: { id: string | number }, idx: number) => {
+    if (idx < COUNT_OF_USERS_IN_TINY_USERS) {
+      tinyResult[person.id] = person;
+    }
+    result[person.id] = person;
   });
-});
+
+fs.writeFileSync(
+  `${import.meta.dirname}/users.json`,
+  JSON.stringify(result),
+);
+fs.writeFileSync(
+  `${import.meta.dirname}/tinyUsers.json`,
+  JSON.stringify(tinyResult),
+);
