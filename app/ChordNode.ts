@@ -184,8 +184,15 @@ export abstract class ChordNode {
   }
 
   /**
-   * This function directly implements the pseudocode's findPredecessor() method,
-   *  with the exception of the limits on the while loop.
+   * This function directly implements the pseudocode's findPredecessor() method.
+   *
+   * The Chord paper (Stoica et al., SIGCOMM '01, §4.2 and Theorem IV.2) proves
+   * that findPredecessor converges in O(log N) hops with high probability, where
+   * N <= 2 ** HASH_BIT_LENGTH, so log N is bounded above by HASH_BIT_LENGTH. The
+   * while loop therefore needs only a small multiple of HASH_BIT_LENGTH as a
+   * safety valve: enough headroom to absorb transient routing inconsistencies
+   * during churn, but small enough that a genuinely non-converging loop bails
+   * quickly rather than spinning through billions of remote round trips.
    * @param {number} id the key sought
    */
   async findPredecessor(id: number) {
@@ -204,11 +211,15 @@ export abstract class ChordNode {
       `findPredecessor: before while: nPrime = ${nPrime.id}; nPrimeSuccessor = ${nPrimeSuccessor.id}`,
     );
 
-    let iterationCounter = 2 ** HASH_BIT_LENGTH * HASH_BIT_LENGTH;
+    // Worst-case hop count is O(log N) <= HASH_BIT_LENGTH; the 4x multiplier is
+    // generous headroom for routing inconsistencies during churn. If we ever
+    // exhaust this budget, the ring is inconsistent and we stop rather than spin.
+    const maxIterations = HASH_BIT_LENGTH * 4;
+    let iterationCounter = maxIterations;
     while (
       !isInModuloRange(id, nPrime.id, false, nPrimeSuccessor.id, true) &&
       nPrime.id !== nPrimeSuccessor.id &&
-      iterationCounter >= 0
+      iterationCounter > 0
     ) {
       // loop should exit if n' and its successor are the same
       // loop should exit if the iterations are ridiculous
@@ -236,6 +247,12 @@ export abstract class ChordNode {
 
       this.logger.debug(
         `findPredecessor: nPrimeSuccessor = ${nPrimeSuccessor.id}`,
+      );
+    }
+
+    if (iterationCounter === 0) {
+      this.logger.warn(
+        `findPredecessor: exhausted iteration budget of ${maxIterations} hops for id = ${id}; ring is likely inconsistent, returning nPrime = ${nPrime.id}`,
       );
     }
 
