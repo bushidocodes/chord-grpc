@@ -735,8 +735,17 @@ export abstract class ChordNode {
     let pNode = NULL_NODE;
 
     for (let i = 0; i < this.fingerTable.length; i++) {
+      // Search for the predecessor of (this.id - offset_i), where offset_i is the
+      // actual offset used to build finger i in joinCluster (2**i normally, or a
+      // pruned phi exponent when IS_FIBONACCI_CHORD). Deriving it from .start keeps
+      // updateOthers in lockstep with joinCluster in every mode: recomputing 2**i
+      // (or even phi**i) is wrong once Fibonacci pruning de-aligns the slot index
+      // from the phi exponent (issue #168). Mirrors how initFingerTable reads .start.
+      const offset =
+        (this.fingerTable[i].start! - this.id + 2 ** HASH_BIT_LENGTH) %
+        2 ** HASH_BIT_LENGTH;
       pNodeSearchID =
-        (this.id - 2 ** i + 2 ** HASH_BIT_LENGTH) % 2 ** HASH_BIT_LENGTH;
+        (this.id - offset + 2 ** HASH_BIT_LENGTH) % 2 ** HASH_BIT_LENGTH;
       this.logger.debug(
         `updateOthers: i = ${i}; findPredecessor(${pNodeSearchID}) --> pNode`,
       );
