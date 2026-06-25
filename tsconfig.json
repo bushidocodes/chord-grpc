@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "target": "ES2025",
     "strict": true,
     "allowJs": false,
     "module": "nodenext",
