@@ -27,10 +27,7 @@ const healthProto = (grpc.loadPackageDefinition(packageDefinition) as any).grpc
 
 // Serving-status names as emitted/accepted by proto-loader (enums: String).
 export type ServingStatus =
-  | "UNKNOWN"
-  | "SERVING"
-  | "NOT_SERVING"
-  | "SERVICE_UNKNOWN";
+  "UNKNOWN" | "SERVING" | "NOT_SERVING" | "SERVICE_UNKNOWN";
 
 // The empty service name denotes the health of the whole server, per the spec.
 export const OVERALL_HEALTH = "";
