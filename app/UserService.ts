@@ -4,9 +4,11 @@ import * as grpc from "@grpc/grpc-js";
 import { ChordNode } from "./ChordNode.ts";
 import { HealthImplementation } from "./health.ts";
 import { chordProto } from "./proto.ts";
+import { GrpcTransport } from "./grpcTransport.ts";
+import { buildNodeServiceHandlers } from "./grpcServer.ts";
+import type { PeerTransport, UserTransport } from "./transport.ts";
 import {
-  connect,
-  handleGRPCErrors,
+  createLogger,
   isInModuloRange,
   loadTlsCredentials,
   computeIntegerHash,
@@ -36,52 +38,41 @@ interface User {
   metadata: Metadata;
 }
 
+// Outcomes of the replicated operations, shaped like gRPC status objects so
+// the server adapter can pass them straight to the RPC callback.
+type UserOpError = { code: number; details?: string } | Error | unknown;
+
 export class UserService extends ChordNode {
   userMap: { [key: string]: User[] };
+  userTransport: UserTransport;
 
   constructor({
     id,
     host = os.hostname(),
     port = 1337,
+    transport,
   }: {
     id?: number;
     host?: string;
     port?: number;
+    // Injectable for tests (e.g. an in-memory ring); defaults to gRPC.
+    transport?: PeerTransport & UserTransport;
   }) {
-    super({ id, host, port });
+    const resolvedTransport =
+      transport ?? new GrpcTransport(createLogger(host, port));
+    super({ id, host, port, transport: resolvedTransport });
+    this.userTransport = resolvedTransport;
     this.userMap = {};
   }
 
-  // Starts the gRPC Server
+  // Starts the gRPC Server (the inbound half of the transport adapter; the
+  // handlers themselves live in app/grpcServer.ts, #233)
   serve() {
     const server = new grpc.Server();
     // Kept on the instance so destructor() can drain in-flight RPCs before
     // the process exits (issue #243).
     this.server = server;
-    server.addService(chordProto.Node.service, {
-      fetch: this.fetch.bind(this),
-      remove: this.remove.bind(this),
-      removeUserRemoteHelper: this.removeUserRemoteHelper.bind(this),
-      insert: this.insert.bind(this),
-      insertUserRemoteHelper: this.insertUserRemoteHelper.bind(this),
-      lookup: this.lookup.bind(this),
-      lookupUserRemoteHelper: this.lookupUserRemoteHelper.bind(this),
-      migrateUsersToPredecessorRemoteHelper:
-        this.migrateUsersToPredecessorRemoteHelper.bind(this),
-      bulkInsertUsersRemoteHelper: this.bulkInsertUsersRemoteHelper.bind(this),
-      getNodeIdRemoteHelper: this.getNodeIdRemoteHelper.bind(this),
-      findSuccessorRemoteHelper: this.findSuccessorRemoteHelper.bind(this),
-      getSuccessorRemoteHelper: this.getSuccessorRemoteHelper.bind(this),
-      setSuccessor: this.setSuccessor.bind(this),
-      getPredecessor: this.getPredecessor.bind(this),
-      setPredecessor: this.setPredecessor.bind(this),
-      getUserIds: this.getUserIds.bind(this),
-      getFingerTableEntries: this.getFingerTableEntries.bind(this),
-      closestPrecedingFingerRemoteHelper:
-        this.closestPrecedingFingerRemoteHelper.bind(this),
-      notify: this.notify.bind(this),
-      destructor: this.destructor.bind(this),
-    });
+    server.addService(chordProto.Node.service, buildNodeServiceHandlers(this));
 
     // Standard gRPC Health Checking Protocol (issue #97). Advertises SERVING
     // for the whole server so grpc_health_probe / k8s probes work out of the
@@ -108,21 +99,6 @@ export class UserService extends ChordNode {
         process.exit(1);
       }
     });
-  }
-
-  // Streams a List of User IDs stored by the Node
-  getUserIds(call: {
-    write: (arg0: { id: number; metadata: Metadata }) => void;
-    end: () => void;
-  }) {
-    const users = Object.values(this.userMap).flat();
-    users.forEach((user) => {
-      call.write({
-        id: user.id,
-        metadata: user.metadata,
-      });
-    });
-    call.end();
   }
 
   // Removes a User from local state matching both the hash bucket and the user ID
@@ -152,30 +128,16 @@ export class UserService extends ChordNode {
     return null;
   }
 
-  // gRPC Handler to allow other nodes to remove users from our local state
-  async removeUserRemoteHelper(
-    message: { request: { id: any; userId: number } },
-    callback: (call: { code: number } | null, arg1: {}) => void,
-  ) {
-    this.logger.debug({ message }, "removeUserRemoteHelper");
-    const err = this.removeUser(message.request.id, message.request.userId);
-    callback(err, {});
-  }
-
   // Removes a User regardless of location in cluster.
   //
   // The user is stored at two hash locations (primary + secondary). A remove
   // that deletes only one copy is a correctness bug, not just degraded
-  // redundancy: lookup() falls back to the secondary hash, so the surviving
+  // redundancy: lookup falls back to the secondary hash, so the surviving
   // copy resurrects the "deleted" user. A failed leg is therefore retried
   // once, and a still half-applied remove is reported as an error (#238).
   // NOT_FOUND on a leg is not a failure — that hash location holds no copy,
   // which is the desired end state of a remove.
-  async remove(
-    message: { request: { id: any } },
-    callback: (call: any, arg1: {}) => void,
-  ) {
-    const userId = message.request.id;
+  async removeReplicated(userId: number): Promise<UserOpError | null> {
     const isNotFound = (err: any) =>
       Boolean(err) && err.code === grpc.status.NOT_FOUND;
     const isFailure = (err: any) => Boolean(err) && !isNotFound(err);
@@ -205,17 +167,19 @@ export class UserService extends ChordNode {
         { err: isFailure(err1) ? err1 : err2, userId, failedReplica },
         `remove: user ${userId} was removed from one hash location but the ${failedReplica} replica still failed — replicas have diverged`,
       );
-      callback(isFailure(err1) ? err1 : err2, {});
+      return isFailure(err1) ? err1 : err2;
     } else if (isNotFound(err1) && isNotFound(err2)) {
       // The user existed at neither hash location.
-      callback(err1, {});
-    } else {
-      // Every remaining combination leaves no surviving copy.
-      callback(null, {});
+      return err1;
     }
+    // Every remaining combination leaves no surviving copy.
+    return null;
   }
 
-  async removeWithHash(userId: number, isPrimaryHash: boolean) {
+  async removeWithHash(
+    userId: number,
+    isPrimaryHash: boolean,
+  ): Promise<UserOpError | null> {
     let successor: Node;
     let lookupKey: number | null = null;
     let errorString: string | null = null;
@@ -233,37 +197,26 @@ export class UserService extends ChordNode {
     }
 
     try {
-      successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
+      successor = await this.findSuccessor(lookupKey);
     } catch (err) {
       // Routing failed: report this leg as failed instead of proceeding with
-      // a sentinel value (#236); remove() combines the legs' outcomes (#238).
+      // a sentinel value (#236); removeReplicated combines the legs (#238).
       this.logger.error({ err }, "remove: findSuccessor failed");
       return err;
     }
 
     if (this.iAmTheNode(successor)) {
       this.logger.debug("remove: removing user from local node");
-      const err = this.removeUser(lookupKey, userId);
+      return this.removeUser(lookupKey, userId);
+    }
+    try {
+      this.logger.debug("remove: removing user from remote node");
+      // The transport rethrows the remote's original error so a remote
+      // remove failure (e.g. NOT_FOUND) surfaces to the caller. See #181.
+      await this.userTransport.removeUser(successor, lookupKey, userId);
+      return null;
+    } catch (err) {
       return err;
-    } else {
-      try {
-        this.logger.debug("remove: removing user from remote node");
-        const successorClient = connect(successor);
-        // Promise form: promisifyClient rejects with the remote gRPC error so a
-        // remote remove failure surfaces to the caller instead of being
-        // swallowed by an inline callback. See #181.
-        await successorClient.removeUserRemoteHelper({ id: lookupKey, userId });
-      } catch (err) {
-        handleGRPCErrors(
-          this.logger,
-          "remove",
-          "removeUserRemoteHelper",
-          successor.host,
-          successor.port,
-          err,
-        );
-        return err;
-      }
     }
   }
 
@@ -319,42 +272,8 @@ export class UserService extends ChordNode {
     return null;
   }
 
-  // gRPC Handler to allow other nodes to insert users into our local state
-  async insertUserRemoteHelper(
-    message: { request: any },
-    callback: (call: { code: number } | null, arg1: {}) => void,
-  ) {
-    this.logger.debug({ message }, "insertUserRemoteHelper");
-    const err = this.insertUser(message.request);
-    callback(err, {});
-  }
-
-  // Client-streaming gRPC handler: receives a stream of User messages and inserts each locally
-  bulkInsertUsersRemoteHelper(
-    call: any,
-    callback: (err: any, response: {}) => void,
-  ) {
-    call.on("data", (user: User) => {
-      const err = this.insertUser({ user, edit: false });
-      if (err) {
-        this.logger.warn(
-          { err, userId: user.id },
-          "bulkInsertUsersRemoteHelper: insertUser failed",
-        );
-      }
-    });
-    call.on("end", () => callback(null, {}));
-    call.on("error", (err: any) => callback(err, {}));
-  }
-
-  // Inserts a User regardless of location in cluster
-  async insert(
-    message: { request: any },
-    callback: (call: any, arg1: {}) => void,
-  ) {
-    // User and isEdit flag
-    const userEdit = message.request;
-
+  // Inserts a User regardless of location in cluster (both replicas)
+  async insertReplicated(userEdit: any): Promise<UserOpError | null> {
     // Add Metadata
     userEdit.user.metadata = {};
     userEdit.user.metadata.primaryHash = this.computeUserIdHashPrimary(
@@ -369,7 +288,7 @@ export class UserService extends ChordNode {
     const err2 = await this.insertWithHash(userEdit, false);
 
     if (err1 && err2) {
-      callback(err1, {});
+      return err1;
     } else if (err1 || err2) {
       // Exactly one replica write failed: the two hash locations have
       // diverged. Since the RPC response is Empty, a gRPC error with details
@@ -381,19 +300,18 @@ export class UserService extends ChordNode {
         { err: err1 ?? err2, userId: userEdit.user.id, failedReplica },
         `insert: degraded write for user ${userEdit.user.id}: ${failedReplica} replica failed; stored only at the ${storedReplica} hash location`,
       );
-      callback(
-        {
-          code: grpc.status.INTERNAL,
-          details: `degraded write: the ${failedReplica} replica failed; user ${userEdit.user.id} is stored only at the ${storedReplica} hash location`,
-        },
-        {},
-      );
-    } else {
-      callback(null, {});
+      return {
+        code: grpc.status.INTERNAL,
+        details: `degraded write: the ${failedReplica} replica failed; user ${userEdit.user.id} is stored only at the ${storedReplica} hash location`,
+      };
     }
+    return null;
   }
 
-  async insertWithHash(userEdit: any, isPrimaryHash: boolean) {
+  async insertWithHash(
+    userEdit: any,
+    isPrimaryHash: boolean,
+  ): Promise<UserOpError | null> {
     const user = userEdit.user;
     userEdit.user.metadata.isPrimaryHash = isPrimaryHash;
     let lookupKey: number = isPrimaryHash
@@ -406,52 +324,27 @@ export class UserService extends ChordNode {
       `insert: Attempting to insert user ${user.id} at ${lookupKey}`,
     );
     try {
-      successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
+      successor = await this.findSuccessor(lookupKey);
     } catch (err) {
       // Routing failed: report this leg as failed instead of proceeding with
-      // a sentinel value (#236); insert() combines the legs' outcomes (#238).
+      // a sentinel value (#236); insertReplicated combines the legs (#238).
       this.logger.error({ err }, "insert: findSuccessor failed");
       return err;
     }
 
     if (this.iAmTheNode(successor)) {
       this.logger.debug("insert: inserting user to local node");
-      const err = this.insertUser(userEdit);
-      return err;
-    } else {
-      try {
-        this.logger.debug(
-          { lookupKey },
-          "insert: inserting user to remote node",
-        );
-        const successorClient = connect(successor);
-        // Promise form: promisifyClient rejects with the remote gRPC error
-        // (e.g. code 6 ALREADY_EXISTS) so duplicate inserts surface to the
-        // caller instead of being swallowed by an inline callback. See #181.
-        await successorClient.insertUserRemoteHelper(userEdit);
-      } catch (err) {
-        handleGRPCErrors(
-          this.logger,
-          "insert",
-          "insertUser",
-          successor.host,
-          successor.port,
-          err,
-        );
-        return err;
-      }
+      return this.insertUser(userEdit);
     }
-  }
-
-  // gRPC handler that returns a user locally from this node (hash in id, user ID in userId)
-  fetch(
-    message: { request: { id: any; userId: number } },
-    callback: (call: { code: number } | null, arg1: User | null) => void,
-  ) {
-    const { id, userId } = message.request;
-    this.logger.info(`fetch: Requested User ${userId} at hash ${id}`);
-    const { err, user } = this.lookupUser(id, userId);
-    callback(err, user);
+    try {
+      this.logger.debug({ lookupKey }, "insert: inserting user to remote node");
+      // The transport rethrows the remote's original error (e.g. code 6
+      // ALREADY_EXISTS) so duplicate inserts surface to the caller. See #181.
+      await this.userTransport.insertUser(successor, userEdit);
+      return null;
+    } catch (err) {
+      return err;
+    }
   }
 
   // Look up user by hash bucket and user ID (supports chained collision buckets)
@@ -472,27 +365,11 @@ export class UserService extends ChordNode {
     return { err: { code: 5 }, user: null };
   }
 
-  async lookupUserRemoteHelper(
-    message: { request: { id: any; userId: number } },
-    callback: (call: any, arg1: any) => void,
-  ) {
-    this.logger.debug(
-      { id: message.request.id },
-      "beginning lookupUserRemoteHelper",
-    );
-    const { err, user } = this.lookupUser(
-      message.request.id,
-      message.request.userId,
-    );
-    this.logger.debug({ user }, "finishing lookupUserRemoteHelper");
-    callback(err, user);
-  }
-
-  async lookup(
-    message: { request: { id: number } },
-    callback: (call: any, arg1: any) => void,
-  ) {
-    const userId = message.request.id;
+  // Looks up a User regardless of location in cluster, trying the primary
+  // hash location first and falling back to the secondary replica.
+  async lookupReplicated(
+    userId: number,
+  ): Promise<{ err: UserOpError | null; user: unknown }> {
     this.logger.info(`lookup: Looking up user ${userId}`);
 
     // Try Primary Hash
@@ -501,10 +378,13 @@ export class UserService extends ChordNode {
       // Try Secondary Hash in case of failure
       userErrorResponse = await this.lookupWithHash(userId, false);
     }
-    callback(userErrorResponse.err, userErrorResponse.user);
+    return userErrorResponse;
   }
 
-  async lookupWithHash(userId: number, isPrimaryHash: boolean) {
+  async lookupWithHash(
+    userId: number,
+    isPrimaryHash: boolean,
+  ): Promise<{ err: UserOpError | null; user: unknown }> {
     let lookupKey: number | null = null;
     let errorString: string | null = null;
     let successor: Node;
@@ -521,10 +401,10 @@ export class UserService extends ChordNode {
     }
 
     try {
-      successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
+      successor = await this.findSuccessor(lookupKey);
     } catch (err) {
-      // Routing failed: fail this hash location so lookup() can fall back to
-      // the other one, instead of proceeding with a sentinel value (#236).
+      // Routing failed: fail this hash location so lookupReplicated can fall
+      // back to the other one, instead of proceeding with a sentinel (#236).
       this.logger.error({ err }, "lookup: findSuccessor failed");
       return { err, user: null };
     }
@@ -534,26 +414,17 @@ export class UserService extends ChordNode {
       const { err, user } = this.lookupUser(lookupKey, userId);
       this.logger.debug({ err, user }, "lookup: finished server-side lookup");
       return { err, user };
-    } else {
-      try {
-        this.logger.debug("lookup: looking up user on remote node");
-        const successorClient = connect(successor);
-        const user = await successorClient.lookupUserRemoteHelper({
-          id: lookupKey,
-          userId,
-        });
-        return { err: null, user };
-      } catch (err) {
-        handleGRPCErrors(
-          this.logger,
-          "lookup",
-          "lookupUserRemoteHelper",
-          successor.host,
-          successor.port,
-          err,
-        );
-        return { err, user: null };
-      }
+    }
+    try {
+      this.logger.debug("lookup: looking up user on remote node");
+      const user = await this.userTransport.lookupUser(
+        successor,
+        lookupKey,
+        userId,
+      );
+      return { err: null, user };
+    } catch (err) {
+      return { err, user: null };
     }
   }
 
@@ -562,13 +433,9 @@ export class UserService extends ChordNode {
       await this.migrateUsersToSuccessor();
       return true;
     } catch (error) {
-      handleGRPCErrors(
-        this.logger,
-        "migrateKeysBeforeDeparture",
-        "migrateUsersToSuccessor",
-        this.predecessor.host,
-        this.predecessor.port,
-        error,
+      this.logger.error(
+        { err: error },
+        "migrateKeysBeforeDeparture: migrateUsersToSuccessor failed",
       );
       return false;
     }
@@ -577,17 +444,14 @@ export class UserService extends ChordNode {
   async migrateKeysAfterJoining() {
     if (this.iAmMyOwnSuccessor()) return;
 
-    const successorClient = connect(this.fingerTable[0].successor);
     try {
-      await successorClient.migrateUsersToPredecessorRemoteHelper();
+      await this.userTransport.requestMigrationToPredecessor(
+        this.fingerTable[0].successor,
+      );
     } catch (error) {
-      handleGRPCErrors(
-        this.logger,
-        "migrateKeysAfterJoining",
-        "migrateUsersToPredecessorRemoteHelper",
-        this.predecessor.host,
-        this.predecessor.port,
-        error,
+      this.logger.error(
+        { err: error },
+        "migrateKeysAfterJoining: requestMigrationToPredecessor failed",
       );
     }
   }
@@ -607,20 +471,10 @@ export class UserService extends ChordNode {
 
     if (keysToMigrate.length === 0) return;
 
-    const client = connect(this.predecessor);
-
-    await new Promise<void>((resolve, reject) => {
-      const call = client.bulkInsertUsersRemoteHelper((err: any) => {
-        if (err) reject(err);
-        else resolve();
-      });
-      for (const hashedKey of keysToMigrate) {
-        for (const user of this.userMap[hashedKey] ?? []) {
-          call.write(user);
-        }
-      }
-      call.end();
-    });
+    const users = keysToMigrate.flatMap(
+      (hashedKey) => this.userMap[hashedKey] ?? [],
+    );
+    await this.userTransport.bulkInsertUsers(this.predecessor, users);
 
     for (const hashedKey of keysToMigrate) {
       delete this.userMap[hashedKey];
@@ -630,34 +484,13 @@ export class UserService extends ChordNode {
   async migrateUsersToSuccessor() {
     if (this.userMapIsEmpty()) return;
 
-    const client = connect(this.fingerTable[0].successor);
-
-    await new Promise<void>((resolve, reject) => {
-      const call = client.bulkInsertUsersRemoteHelper((err: any) => {
-        if (err) reject(err);
-        else resolve();
-      });
-      for (const hashedKey of Object.keys(this.userMap)) {
-        for (const user of this.userMap[hashedKey] ?? []) {
-          call.write(user);
-        }
-      }
-      call.end();
-    });
+    const users = Object.values(this.userMap).flat();
+    await this.userTransport.bulkInsertUsers(
+      this.fingerTable[0].successor,
+      users,
+    );
 
     this.userMap = {};
-  }
-
-  async migrateUsersToPredecessorRemoteHelper(
-    _: any,
-    callback: (err: any, response: {}) => void,
-  ) {
-    try {
-      await this.migrateUsersToPredecessor();
-      callback(null, {});
-    } catch (error) {
-      callback(error, {});
-    }
   }
 
   // Checks if the local this.userMap is an empty object
