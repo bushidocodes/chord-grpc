@@ -176,17 +176,57 @@ export class UserService extends ChordNode {
     callback(err, {});
   }
 
-  // Removes a User regardless of location in cluster
+  // Removes a User regardless of location in cluster.
+  //
+  // The user is stored at two hash locations (primary + secondary). A remove
+  // that deletes only one copy is a correctness bug, not just degraded
+  // redundancy: lookup() falls back to the secondary hash, so the surviving
+  // copy resurrects the "deleted" user. A failed leg is therefore retried
+  // once, and a still half-applied remove is reported as an error (#238).
+  // NOT_FOUND on a leg is not a failure — that hash location holds no copy,
+  // which is the desired end state of a remove.
   async remove(
     message: { request: { id: any } },
     callback: (call: any, arg1: {}) => void,
   ) {
     const userId = message.request.id;
-    const err1 = await this.removeWithHash(userId, true);
-    const err2 = await this.removeWithHash(userId, false);
+    const isNotFound = (err: any) =>
+      Boolean(err) && err.code === grpc.status.NOT_FOUND;
+    const isFailure = (err: any) => Boolean(err) && !isNotFound(err);
 
-    if (err1 && err2) callback(err1, {});
-    else callback(null, {});
+    let err1 = await this.removeWithHash(userId, true);
+    let err2 = await this.removeWithHash(userId, false);
+
+    // Exactly one leg failed: this attempt half-applied the remove. Retry the
+    // failed leg once before reporting divergence.
+    if (isFailure(err1) && !isFailure(err2)) {
+      this.logger.warn(
+        { err: err1, userId },
+        `remove: primary-hash replica failed for user ${userId}; retrying`,
+      );
+      err1 = await this.removeWithHash(userId, true);
+    } else if (isFailure(err2) && !isFailure(err1)) {
+      this.logger.warn(
+        { err: err2, userId },
+        `remove: secondary-hash replica failed for user ${userId}; retrying`,
+      );
+      err2 = await this.removeWithHash(userId, false);
+    }
+
+    if (isFailure(err1) || isFailure(err2)) {
+      const failedReplica = isFailure(err1) ? "primary" : "secondary";
+      this.logger.warn(
+        { err: isFailure(err1) ? err1 : err2, userId, failedReplica },
+        `remove: user ${userId} was removed from one hash location but the ${failedReplica} replica still failed — replicas have diverged`,
+      );
+      callback(isFailure(err1) ? err1 : err2, {});
+    } else if (isNotFound(err1) && isNotFound(err2)) {
+      // The user existed at neither hash location.
+      callback(err1, {});
+    } else {
+      // Every remaining combination leaves no surviving copy.
+      callback(null, {});
+    }
   }
 
   async removeWithHash(userId: number, isPrimaryHash: boolean) {
@@ -340,8 +380,29 @@ export class UserService extends ChordNode {
     const err1 = await this.insertWithHash(userEdit, true);
     const err2 = await this.insertWithHash(userEdit, false);
 
-    if (err1 && err2) callback(err1, {});
-    else callback(null, {});
+    if (err1 && err2) {
+      callback(err1, {});
+    } else if (err1 || err2) {
+      // Exactly one replica write failed: the two hash locations have
+      // diverged. Since the RPC response is Empty, a gRPC error with details
+      // is the only channel to report the degraded write honestly instead of
+      // claiming full success (#238).
+      const failedReplica = err1 ? "primary" : "secondary";
+      const storedReplica = err1 ? "secondary" : "primary";
+      this.logger.warn(
+        { err: err1 ?? err2, userId: userEdit.user.id, failedReplica },
+        `insert: degraded write for user ${userEdit.user.id}: ${failedReplica} replica failed; stored only at the ${storedReplica} hash location`,
+      );
+      callback(
+        {
+          code: grpc.status.INTERNAL,
+          details: `degraded write: the ${failedReplica} replica failed; user ${userEdit.user.id} is stored only at the ${storedReplica} hash location`,
+        },
+        {},
+      );
+    } else {
+      callback(null, {});
+    }
   }
 
   async insertWithHash(userEdit: any, isPrimaryHash: boolean) {
