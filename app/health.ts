@@ -1,30 +1,13 @@
-import path from "path";
 import * as grpc from "@grpc/grpc-js";
-import { loadSync } from "@grpc/proto-loader";
 import { loadTlsCredentials } from "./utils.ts";
 import { config } from "./config.ts";
+import { healthProto } from "./proto.ts";
 
 // Server-side implementation of and client factory for the standard gRPC
 // Health Checking Protocol (grpc.health.v1.Health). This replaces the bespoke
 // `summary` liveness RPC (issue #97) so nodes interoperate with standard
 // tooling (grpc_health_probe, k8s probes, etc.).
 // Spec: https://github.com/grpc/grpc/blob/master/doc/health-checking.md
-
-const HEALTH_PROTO_PATH = path.resolve(
-  import.meta.dirname,
-  "../protos/health.proto",
-);
-
-const packageDefinition = loadSync(HEALTH_PROTO_PATH, {
-  keepCase: true,
-  longs: String,
-  enums: String,
-  defaults: true,
-  oneofs: true,
-});
-
-const healthProto = (grpc.loadPackageDefinition(packageDefinition) as any).grpc
-  .health.v1;
 
 // Serving-status names as emitted/accepted by proto-loader (enums: String).
 export type ServingStatus =
