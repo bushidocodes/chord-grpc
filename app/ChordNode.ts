@@ -10,6 +10,7 @@ import {
   IS_FIBONACCI_CHORD,
   SUCCESSOR_TABLE_MAX_LENGTH,
   NULL_NODE,
+  withTimeout,
   type Node,
 } from "./utils.ts";
 import { OVERALL_HEALTH, type HealthImplementation } from "./health.ts";
@@ -45,6 +46,17 @@ export abstract class ChordNode {
   // Standard gRPC health reporter; set in UserService.serve() and flipped to
   // NOT_SERVING in destructor() so probes observe departure (issue #97).
   health?: HealthImplementation;
+  // The listening gRPC server; set in UserService.serve() and drained in
+  // destructor() so in-flight RPCs complete before exit (issue #243). Typed
+  // structurally so the domain class doesn't depend on grpc-js directly.
+  server?: {
+    tryShutdown(callback: (error?: Error) => void): void;
+    forceShutdown(): void;
+  };
+  // Bound on the drain: an unresponsive in-flight call (e.g. a wedged
+  // bulkInsert stream) must not stall shutdown past the entrypoint's own
+  // shutdown timeout. Instance field so tests can shorten it.
+  drainTimeoutMs: number = 2000;
 
   constructor({
     id,
@@ -1354,6 +1366,31 @@ export abstract class ChordNode {
         );
       }
     }
+    // Drain the gRPC server: stop accepting new calls and wait for in-flight
+    // ones to complete (issue #243). This runs after key migration and peer
+    // notification because those are outbound calls, not inbound; the drain
+    // only affects calls we serve. Bounded so a wedged in-flight call can't
+    // stall shutdown, with forceShutdown as the fallback.
+    if (this.server) {
+      const server = this.server;
+      try {
+        await withTimeout(
+          new Promise<void>((resolve, reject) =>
+            server.tryShutdown((err) => (err ? reject(err) : resolve())),
+          ),
+          this.drainTimeoutMs,
+          `gRPC server drain timed out after ${this.drainTimeoutMs}ms`,
+        );
+        this.logger.info("destructor: gRPC server drained");
+      } catch (err) {
+        this.logger.warn(
+          { err },
+          "destructor: graceful drain failed; forcing shutdown",
+        );
+        server.forceShutdown();
+      }
+    }
+
     // report what's up; the caller (entrypoint) owns process exit, so that
     // its shutdown timeout can actually observe the success path (#241)
     this.logger.info(
