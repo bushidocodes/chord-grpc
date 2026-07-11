@@ -16,7 +16,6 @@ service Node {
   rpc getFingerTableEntries (NodeAddress) returns (stream FingerTableEntry) {}
   rpc closestPrecedingFingerRemoteHelper (RemoteId) returns (NodeAddress) {}
   rpc notify (NodeAddress) returns (google.protobuf.Empty) {}
-  rpc updateFingerTable (FingerTableEntry) returns (google.protobuf.Empty) {}
 
   // Application Level RPC Calls
   // Node liveness is served by the standard grpc.health.v1.Health service

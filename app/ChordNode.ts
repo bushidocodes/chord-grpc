@@ -535,7 +535,10 @@ export abstract class ChordNode {
           err,
         );
       }
-      // then check for a collision between the ID intended for this new node and an existing node
+      // Ask the cluster for the successor of this node's ID. This doubles as
+      // the collision check (an existing node already owns the ID) and as the
+      // lazy join itself: successor(self.id) is exactly the node to sit in
+      // front of.
       try {
         possibleCollidingNode = await this.findSuccessor(this.id, knownNode);
       } catch (err) {
@@ -547,9 +550,28 @@ export abstract class ChordNode {
         this.logger.error(errorString);
         throw new RangeError(errorString);
       }
-      // now go ahead with the join
-      await this.initFingerTable(knownNode);
-      await this.updateOthers();
+      if (possibleCollidingNode.id == null) {
+        errorString = `Error joining node "${this.host}:${this.port}" to node "${knownNode.host}:${knownNode.port}" because the cluster could not resolve a successor for ID {${this.id}}.`;
+        this.logger.error(errorString);
+        throw new RangeError(errorString);
+      }
+      // Stabilization-based (lazy) join, per the TR revision of the Chord
+      // paper (§E.1): adopt the successor, leave the predecessor unset, and
+      // let stabilize/notify repair the ring while fixFingers converges the
+      // finger table. The aggressive initFingerTable/updateOthers join was
+      // removed in #237 — it had remote nodes mutating each other's finger
+      // tables mid-join with no coordination (see #168, #224, #156). Until
+      // fixFingers completes its first sweep, lookups from this node take
+      // more hops (successor-walking); that is the standard tradeoff.
+      this.predecessor = NULL_NODE;
+      for (const entry of this.fingerTable) {
+        entry.successor = possibleCollidingNode;
+      }
+      // Run one stabilization pass right away: its notify() tells the
+      // successor to adopt us as predecessor, which must happen before
+      // migrateKeysAfterJoining() — the successor scopes the key migration
+      // by its predecessor pointer.
+      await this.stabilize();
     } else {
       // the node doesn't exist so exit on error
       errorString = `Error joining node "${this.host}:${this.port}" to node "${knownNode.host}:${knownNode.port}" because the latter can't be confirmed to exist.`;
@@ -698,209 +720,6 @@ export abstract class ChordNode {
     callback: (arg0: any, arg1: Node) => void,
   ): Promise<void> {
     callback(null, { id: this.id, host: this.host, port: this.port });
-  }
-
-  /**
-   * Directly implement the pseudocode's initFingerTable() method.
-   */
-  async initFingerTable(nPrime: Node) {
-    this.logger.debug(
-      `initFingerTable: self = ${this.id}; self.successor = ${this.fingerTable[0].successor.id}; finger[0].start = ${this.fingerTable[0].start} n' = ${nPrime.id}`,
-    );
-
-    let nPrimeSuccessor = NULL_NODE;
-    try {
-      nPrimeSuccessor = await this.findSuccessor(
-        this.fingerTable[0].start!,
-        nPrime,
-      );
-    } catch (err) {
-      nPrimeSuccessor = NULL_NODE;
-      this.logger.error({ err }, "initFingerTable: findSuccessor failed");
-    }
-    this.fingerTable[0].successor = nPrimeSuccessor;
-
-    this.logger.debug(
-      { nPrimeSuccessor },
-      "initFingerTable: n'.successor (now self.successor)",
-    );
-
-    let successorClient = connect(this.fingerTable[0].successor);
-    try {
-      this.predecessor = await successorClient.getPredecessor();
-    } catch (err) {
-      this.predecessor = NULL_NODE;
-      handleGRPCErrors(
-        this.logger,
-        "initFingerTable",
-        "getPredecessor",
-        this.fingerTable[0].successor.host,
-        this.fingerTable[0].successor.port,
-        err,
-      );
-    }
-    try {
-      await successorClient.setPredecessor(this.encapsulateSelf());
-    } catch (err) {
-      handleGRPCErrors(
-        this.logger,
-        "initFingerTable",
-        "setPredecessor",
-        this.fingerTable[0].successor.host,
-        this.fingerTable[0].successor.port,
-        err,
-      );
-    }
-
-    this.logger.debug(
-      { predecessor: this.predecessor },
-      "initFingerTable: predecessor",
-    );
-
-    for (let i = 0; i < this.fingerTable.length - 1; i++) {
-      if (
-        isInModuloRange(
-          this.fingerTable[i + 1].start,
-          this.id,
-          true,
-          this.fingerTable[i].successor.id,
-          false,
-        )
-      ) {
-        this.fingerTable[i + 1].successor = this.fingerTable[i].successor;
-      } else {
-        try {
-          this.fingerTable[i + 1].successor = await this.findSuccessor(
-            this.fingerTable[i + 1].start!,
-            nPrime,
-          );
-        } catch (err) {
-          this.fingerTable[i + 1].successor = NULL_NODE;
-          this.logger.error({ err }, "initFingerTable: findSuccessor() failed");
-        }
-      }
-    }
-    this.logger.debug(
-      { fingerTable: this.fingerTable },
-      "initFingerTable: fingerTable[]",
-    );
-  }
-
-  /**
-   * Directly implement the pseudocode's updateOthers() method.
-   */
-  async updateOthers() {
-    this.logger.debug("updateOthers");
-    let pNodeSearchID: number,
-      pNodeClient: {
-        updateFingerTable: (arg0: { node: Node; index: number }) => any;
-      };
-    let pNode = NULL_NODE;
-
-    for (let i = 0; i < this.fingerTable.length; i++) {
-      // Search for the predecessor of (this.id - offset_i), where offset_i is the
-      // actual offset used to build finger i in joinCluster (2**i normally, or a
-      // pruned phi exponent when IS_FIBONACCI_CHORD). Deriving it from .start keeps
-      // updateOthers in lockstep with joinCluster in every mode: recomputing 2**i
-      // (or even phi**i) is wrong once Fibonacci pruning de-aligns the slot index
-      // from the phi exponent (issue #168). Mirrors how initFingerTable reads .start.
-      const offset =
-        (this.fingerTable[i].start! - this.id + 2 ** HASH_BIT_LENGTH) %
-        2 ** HASH_BIT_LENGTH;
-      pNodeSearchID =
-        (this.id - offset + 2 ** HASH_BIT_LENGTH) % 2 ** HASH_BIT_LENGTH;
-      this.logger.debug(
-        `updateOthers: i = ${i}; findPredecessor(${pNodeSearchID}) --> pNode`,
-      );
-
-      try {
-        pNode = await this.findPredecessor(pNodeSearchID);
-      } catch (err) {
-        pNode = NULL_NODE;
-        this.logger.error(
-          { err },
-          `updateOthers: Error from findPredecessor(${pNodeSearchID})`,
-        );
-      }
-
-      this.logger.debug(`updateOthers: pNode = ${pNode?.id}`);
-
-      if (this.id !== pNode.id) {
-        pNodeClient = connect(pNode);
-        try {
-          await pNodeClient.updateFingerTable({
-            node: this.encapsulateSelf(),
-            index: i,
-          });
-        } catch (err) {
-          handleGRPCErrors(
-            this.logger,
-            "updateOthers",
-            "updateFingerTable",
-            pNode.host,
-            pNode.port,
-            err,
-          );
-        }
-      }
-    }
-  }
-
-  /**
-   * RPC that directly implements the pseudocode's updateFingerTable() method.
-   */
-  async updateFingerTable(
-    message: { request: { node: Node; index: any } },
-    callback: (arg0: any, arg1: {}) => void,
-  ) {
-    const sNode = message.request.node;
-    const fingerIndex = message.request.index;
-
-    this.logger.debug(
-      {
-        fingerTable: this.fingerTable,
-        sNodeId: message.request.node.id,
-        fingerIndex,
-      },
-      "updateFingerTable",
-    );
-
-    if (
-      isInModuloRange(
-        sNode.id,
-        this.id,
-        true,
-        this.fingerTable[fingerIndex].successor.id,
-        false,
-      )
-    ) {
-      this.fingerTable[fingerIndex].successor = sNode;
-      const pClient = connect(this.predecessor);
-      try {
-        await pClient.updateFingerTable({
-          node: sNode,
-          index: fingerIndex,
-        });
-      } catch (err) {
-        handleGRPCErrors(
-          this.logger,
-          "updateFingerTable",
-          "updateFingerTable",
-          this.predecessor.host,
-          this.predecessor.port,
-          err,
-        );
-      }
-
-      this.logger.debug(
-        `updateFingerTable: Updated {${this.id}}.fingerTable[${fingerIndex}] to ${sNode?.id}`,
-      );
-
-      callback(null, {});
-      return;
-    }
-
-    callback(null, {});
   }
 
   /**
@@ -1185,6 +1004,12 @@ export abstract class ChordNode {
 
   /**
    * Directly implements the pseudocode's notify() method.
+   *
+   * A predecessor of self means "single-node ring" and counts as having no
+   * predecessor: the ring interval (n, n) is everything except n, so any
+   * notifier is a better predecessor. This matters since #237 — a node
+   * joining the very first node is adopted via this path, where the
+   * aggressive join used to force it with setPredecessor.
    */
   async notify(
     message: { request: any },
@@ -1193,6 +1018,7 @@ export abstract class ChordNode {
     const nPrime = message.request;
     if (
       this.predecessor.id == null ||
+      this.iAmMyOwnPredecessor() ||
       isInModuloRange(nPrime.id, this.predecessor.id, false, this.id, false)
     ) {
       this.predecessor = nPrime;
