@@ -91,6 +91,20 @@ export const config = {
     intFromEnv("CHORD_CHECK_PREDECESSOR_INTERVAL_MS", 1000),
   ),
 
+  // --- Outbound RPC deadlines (app/utils.ts, app/health.ts) ---
+  // Unary calls: how long a peer may take to answer before the call fails
+  // with DEADLINE_EXCEEDED instead of blocking the caller forever (#235).
+  rpcDeadlineMs: assertPositive(
+    "CHORD_RPC_DEADLINE_MS",
+    intFromEnv("CHORD_RPC_DEADLINE_MS", 3000),
+  ),
+  // Streaming calls (getFingerTableEntries, getUserIds, bulkInsert): sized
+  // for stream duration rather than a single round trip.
+  streamDeadlineMs: assertPositive(
+    "CHORD_STREAM_DEADLINE_MS",
+    intFromEnv("CHORD_STREAM_DEADLINE_MS", 30000),
+  ),
+
   // --- Shutdown (app/node.ts, app/ChordNode.ts) ---
   shutdownTimeoutMs: assertPositive(
     "CHORD_SHUTDOWN_TIMEOUT_MS",
