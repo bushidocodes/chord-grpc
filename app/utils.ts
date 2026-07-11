@@ -35,8 +35,35 @@ export interface Node {
   port: number | null;
 }
 
+// The one legitimate protocol meaning of NULL_NODE is "no predecessor yet"
+// (notify/checkPredecessor). It is no longer used as an error channel —
+// routing failures throw ChordRoutingError instead (#236).
 export const NULL_NODE: Node = { id: null, host: null, port: null };
 export const SUCCESSOR_TABLE_MAX_LENGTH = config.successorTableMaxLength;
+
+/**
+ * True when a node value cannot be used as an RPC target. Catches both the
+ * local NULL_NODE sentinel and its wire-mangled form: proto3 serializes
+ * null id/host/port as 0/""/0 (defaults: true), so a NULL_NODE returned by
+ * a remote arrives as { id: 0, host: "", port: 0 } and `id !== null` guards
+ * never catch it (#236).
+ */
+export function isNullNode(node: Node | null | undefined): boolean {
+  return !node || node.id == null || !node.host || !node.port;
+}
+
+/**
+ * Thrown when a routing operation (findSuccessor / findPredecessor /
+ * closestPrecedingFinger / getSuccessor) cannot produce a usable node.
+ * Replaces the NULL_NODE error sentinel, which every caller had to remember
+ * to check and several didn't (#236).
+ */
+export class ChordRoutingError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "ChordRoutingError";
+  }
+}
 
 export function createLogger(host: string, port: number) {
   return pino({ level: process.env.LOG_LEVEL ?? "info" }).child({
