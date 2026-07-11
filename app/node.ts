@@ -71,12 +71,15 @@ async function main() {
     return -13;
   }
 
-  let userServiceNode = new UserService({
-    id,
-    host: values.host,
-    port,
-  });
+  let userServiceNode: UserService;
   try {
+    // Construction can throw (missing host/port, #241); the entrypoint owns
+    // the catch-and-exit behavior for that, like it does for serve/join.
+    userServiceNode = new UserService({
+      id,
+      host: values.host,
+      port,
+    });
     userServiceNode.serve();
     const knownNode = {
       id: null,
