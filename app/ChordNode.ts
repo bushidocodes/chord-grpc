@@ -35,15 +35,12 @@ export abstract class ChordNode {
   ];
   successorTable: Array<Node> = [NULL_NODE];
   predecessor: Node = NULL_NODE;
-  stabilizeIsLocked: boolean = false;
-  fixFingersIsLocked: boolean = false;
   fingerToFix: number = 0;
-  checkPredecessorIsLocked: boolean = false;
-  // Periodic maintenance timers started in joinCluster(); cancelled in
-  // destructor() so they can't race the teardown sequence (see issue #187).
-  stabilizeTimer?: ReturnType<typeof setInterval>;
-  fixFingersTimer?: ReturnType<typeof setInterval>;
-  checkPredecessorTimer?: ReturnType<typeof setInterval>;
+  // Self-rescheduling maintenance loop timers, keyed by loop name; started in
+  // joinCluster() and cancelled in destructor() so they can't race the
+  // teardown sequence (see issues #187, #239).
+  maintenanceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  maintenanceStopped = false;
   // Standard gRPC health reporter; set in UserService.serve() and flipped to
   // NOT_SERVING in destructor() so probes observe departure (issue #97).
   health?: HealthImplementation;
@@ -570,19 +567,22 @@ export abstract class ChordNode {
       this.logger.error({ err: error }, "Migrate keys failed");
     }
 
-    // And now that we've joined a cluster, we need maintain our state
-    // There might be some "critical section" type issues
-    // we need to use a gate to protect in these functions
-    this.stabilizeTimer = setInterval(
-      this.stabilize.bind(this),
+    // And now that we've joined a cluster, we need to maintain our state.
+    // Each loop self-reschedules after its pass completes, so overlapping
+    // passes are impossible by construction (issue #239).
+    this.startMaintenanceLoop(
+      "stabilize",
+      () => this.stabilize(),
       this.stabilizeIntervalMs,
     );
-    this.fixFingersTimer = setInterval(
-      this.fixFingers.bind(this),
+    this.startMaintenanceLoop(
+      "fixFingers",
+      () => this.fixFingers(),
       this.fixFingersIntervalMs,
     );
-    this.checkPredecessorTimer = setInterval(
-      this.checkPredecessor.bind(this),
+    this.startMaintenanceLoop(
+      "checkPredecessor",
+      () => this.checkPredecessor(),
       this.checkPredecessorIntervalMs,
     );
 
@@ -593,6 +593,44 @@ export abstract class ChordNode {
       },
       `joinCluster: {${this.id}}.joinCluster(${knownNode.id}) complete`,
     );
+  }
+
+  /**
+   * Runs `work` and re-schedules it `intervalMs` after the pass settles.
+   * Because the next pass isn't scheduled until the current one finishes —
+   * even when it throws — overlapping passes are impossible by construction.
+   * This replaces the manually-cleared boolean locks, where one uncaught
+   * throw between set and clear silently disabled the loop forever, and also
+   * prevents setInterval pile-up when RPCs run slower than the cadence
+   * (issue #239).
+   */
+  startMaintenanceLoop(
+    name: string,
+    work: () => Promise<unknown>,
+    intervalMs: number,
+  ) {
+    const run = async () => {
+      try {
+        await work();
+      } catch (err) {
+        this.logger.error({ err }, `${name}: maintenance pass failed`);
+      } finally {
+        if (!this.maintenanceStopped) {
+          this.maintenanceTimers.set(name, setTimeout(run, intervalMs));
+        }
+      }
+    };
+    this.maintenanceTimers.set(name, setTimeout(run, intervalMs));
+  }
+
+  /**
+   * Cancels the maintenance loops and prevents in-flight passes from
+   * re-scheduling themselves.
+   */
+  stopMaintenance() {
+    this.maintenanceStopped = true;
+    for (const timer of this.maintenanceTimers.values()) clearTimeout(timer);
+    this.maintenanceTimers.clear();
   }
 
   /**
@@ -1024,94 +1062,89 @@ export abstract class ChordNode {
    *  2- additional step of updating the successor table as recommended by the IEEE paper.
    */
   async stabilize() {
-    if (!this.stabilizeIsLocked) {
-      this.stabilizeIsLocked = true;
-      let successorClient: {
-          getPredecessor: () => any;
-          notify: (arg0: Node) => any;
-        },
-        x: Node;
-      if (this.iAmMyOwnSuccessor()) {
-        // use local value
-        await this.stabilizeSelf();
-        x = this.encapsulateSelf();
-      } else {
-        // use remote value
-        try {
-          successorClient = connect(this.fingerTable[0].successor);
-        } catch (err) {
-          this.logger.error(
-            { err },
-            `stabilize: call to connect {${this.fingerTable[0].successor.id}} failed`,
-          );
-          this.stabilizeIsLocked = false;
-          return false;
-        }
-        try {
-          x = await successorClient.getPredecessor();
-        } catch (err) {
-          x = this.encapsulateSelf();
-          handleGRPCErrors(
-            this.logger,
-            "stabilize",
-            "getPredecessor",
-            this.fingerTable[0].successor.host,
-            this.fingerTable[0].successor.port,
-            err,
-          );
-        }
-      }
-
-      if (
-        isInModuloRange(
-          x.id,
-          this.id,
-          false,
-          this.fingerTable[0].successor.id,
-          false,
-        )
-      ) {
-        this.fingerTable[0].successor = x;
-      }
-
-      this.logger.debug(
-        {
-          predecessor: this.predecessor.id,
-          fingerTable: this.fingerTable,
-          successorTable: this.successorTable,
-        },
-        `stabilize: leaving stabilize()`,
-      );
-
-      if (!this.iAmMyOwnSuccessor()) {
-        try {
-          successorClient = connect(this.fingerTable[0].successor);
-          await successorClient.notify(this.encapsulateSelf());
-        } catch (err) {
-          handleGRPCErrors(
-            this.logger,
-            "stabilize",
-            "successorClient",
-            this.fingerTable[0].successor.host,
-            this.fingerTable[0].successor.port,
-            err,
-          );
-        }
-      }
-
-      // update successor table - deviates from SIGCOMM
+    let successorClient: {
+        getPredecessor: () => any;
+        notify: (arg0: Node) => any;
+      },
+      x: Node;
+    if (this.iAmMyOwnSuccessor()) {
+      // use local value
+      await this.stabilizeSelf();
+      x = this.encapsulateSelf();
+    } else {
+      // use remote value
       try {
-        await this.updateSuccessorTable();
+        successorClient = connect(this.fingerTable[0].successor);
       } catch (err) {
-        this.logger.error({ err }, `stabilize: updateSuccessorTable failed`);
+        this.logger.error(
+          { err },
+          `stabilize: call to connect {${this.fingerTable[0].successor.id}} failed`,
+        );
+        return false;
       }
-
-      this.logger.debug(
-        `stabilize: {${this.id}}.predecessor = ${this.predecessor.id}; successor = ${this.fingerTable[0].successor.id}`,
-      );
-      this.stabilizeIsLocked = false;
-      return true;
+      try {
+        x = await successorClient.getPredecessor();
+      } catch (err) {
+        x = this.encapsulateSelf();
+        handleGRPCErrors(
+          this.logger,
+          "stabilize",
+          "getPredecessor",
+          this.fingerTable[0].successor.host,
+          this.fingerTable[0].successor.port,
+          err,
+        );
+      }
     }
+
+    if (
+      isInModuloRange(
+        x.id,
+        this.id,
+        false,
+        this.fingerTable[0].successor.id,
+        false,
+      )
+    ) {
+      this.fingerTable[0].successor = x;
+    }
+
+    this.logger.debug(
+      {
+        predecessor: this.predecessor.id,
+        fingerTable: this.fingerTable,
+        successorTable: this.successorTable,
+      },
+      `stabilize: leaving stabilize()`,
+    );
+
+    if (!this.iAmMyOwnSuccessor()) {
+      try {
+        successorClient = connect(this.fingerTable[0].successor);
+        await successorClient.notify(this.encapsulateSelf());
+      } catch (err) {
+        handleGRPCErrors(
+          this.logger,
+          "stabilize",
+          "successorClient",
+          this.fingerTable[0].successor.host,
+          this.fingerTable[0].successor.port,
+          err,
+        );
+      }
+    }
+
+    // update successor table - deviates from SIGCOMM
+    try {
+      await this.updateSuccessorTable();
+    } catch (err) {
+      this.logger.error({ err }, `stabilize: updateSuccessorTable failed`);
+    }
+
+    this.logger.debug(
+      `stabilize: {${this.id}}.predecessor = ${this.predecessor.id}; successor = ${this.fingerTable[0].successor.id}`,
+    );
+    return true;
   }
 
   /**
@@ -1171,29 +1204,25 @@ export abstract class ChordNode {
    * Directly implements the pseudocode's fixFingers() method.
    */
   async fixFingers() {
-    if (!this.fixFingersIsLocked) {
-      this.fixFingersIsLocked = true;
-      let nSuccessor = NULL_NODE;
-      try {
-        nSuccessor = await this.findSuccessor(
-          this.fingerTable[this.fingerToFix].start!,
-          this.encapsulateSelf(),
-        );
-        if (nSuccessor.id !== null) {
-          this.fingerTable[this.fingerToFix].successor = nSuccessor;
-        }
-      } catch (err) {
-        this.logger.error({ err }, `fixFingers: findSuccessor failed`);
-      }
-      this.logger.debug(
-        `fixFingers: Fix {${this.id}}.fingerTable[${this.fingerToFix}], with start = ${this.fingerTable[this.fingerToFix].start}; successor = ${this.fingerTable[this.fingerToFix].successor?.id}`,
+    let nSuccessor = NULL_NODE;
+    try {
+      nSuccessor = await this.findSuccessor(
+        this.fingerTable[this.fingerToFix].start!,
+        this.encapsulateSelf(),
       );
-      if (this.fingerToFix < this.fingerTable.length - 1) {
-        this.fingerToFix++;
-      } else {
-        this.fingerToFix = 0;
+      if (nSuccessor.id !== null) {
+        this.fingerTable[this.fingerToFix].successor = nSuccessor;
       }
-      this.fixFingersIsLocked = false;
+    } catch (err) {
+      this.logger.error({ err }, `fixFingers: findSuccessor failed`);
+    }
+    this.logger.debug(
+      `fixFingers: Fix {${this.id}}.fingerTable[${this.fingerToFix}], with start = ${this.fingerTable[this.fingerToFix].start}; successor = ${this.fingerTable[this.fingerToFix].successor?.id}`,
+    );
+    if (this.fingerToFix < this.fingerTable.length - 1) {
+      this.fingerToFix++;
+    } else {
+      this.fingerToFix = 0;
     }
   }
 
@@ -1201,31 +1230,28 @@ export abstract class ChordNode {
    * Checks to make sure that the predecessor is still responsive
    */
   async checkPredecessor(): Promise<boolean> {
-    if (!this.checkPredecessorIsLocked) {
-      this.checkPredecessorIsLocked = true;
-      if (this.predecessor.id !== null && !this.iAmMyOwnPredecessor()) {
+    if (this.predecessor.id !== null && !this.iAmMyOwnPredecessor()) {
+      // connect() throws synchronously on a partially-null predecessor
+      // (id set, host null); keep it inside the try so one bad predecessor
+      // record can't take down the whole maintenance pass (#239).
+      try {
         const predecessorClient = connect(this.predecessor);
-        try {
-          const _ = await predecessorClient.getPredecessor();
-        } catch (err) {
-          handleGRPCErrors(
-            this.logger,
-            "checkPredecessor",
-            "getPredecessor",
-            this.predecessor.host,
-            this.predecessor.port,
-            err,
-          );
-          // Wipe out the predecessor if it doesn't respond
-          this.predecessor = NULL_NODE;
-          this.checkPredecessorIsLocked = false;
-          return false;
-        }
+        await predecessorClient.getPredecessor();
+      } catch (err) {
+        handleGRPCErrors(
+          this.logger,
+          "checkPredecessor",
+          "getPredecessor",
+          this.predecessor.host,
+          this.predecessor.port,
+          err,
+        );
+        // Wipe out the predecessor if it doesn't respond
+        this.predecessor = NULL_NODE;
+        return false;
       }
-      this.checkPredecessorIsLocked = false;
-      return true;
     }
-    return false;
+    return true;
   }
 
   /**
@@ -1269,9 +1295,7 @@ export abstract class ChordNode {
     // Stop periodic maintenance before tearing down so stabilize/fixFingers/
     // checkPredecessor can't race the migration: mutate successor/predecessor
     // mid-flight or fire gRPC calls at departing nodes (issue #187).
-    clearInterval(this.stabilizeTimer);
-    clearInterval(this.fixFingersTimer);
-    clearInterval(this.checkPredecessorTimer);
+    this.stopMaintenance();
 
     let migrationSeemsOK = false;
     let successor = NULL_NODE;
