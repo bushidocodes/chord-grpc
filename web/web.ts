@@ -3,6 +3,7 @@ import { parseArgs } from "node:util";
 import os from "os";
 import path from "path";
 import { connect } from "../app/utils.ts";
+import { config } from "../app/config.ts";
 const PUBLIC_PATH = path.resolve(import.meta.dirname, "./public");
 
 interface NodeSnapshot {
@@ -18,7 +19,7 @@ interface NodeSnapshot {
 type NetworkState = Record<string, NodeSnapshot>;
 
 const DEFAULT_HOST_NAME = os.hostname();
-const CRAWLER_INTERVAL_MS = 3000;
+const CRAWLER_INTERVAL_MS = config.crawlerIntervalMs;
 // Consecutive failures tolerated for the current crawl target before the
 // crawler gives up on it and moves elsewhere (issue #244).
 const MAX_CRAWL_FAILURES = 3;

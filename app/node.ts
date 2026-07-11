@@ -4,6 +4,7 @@ import { UserService } from "./UserService.ts";
 import readline from "readline";
 
 import { computeIntegerHash, HASH_BIT_LENGTH, withTimeout } from "./utils.ts";
+import { config } from "./config.ts";
 
 async function hashDryRun(sourceValue: string) {
   try {
@@ -112,7 +113,7 @@ async function main() {
   // deadline-less gRPC calls to peers, so if a successor/predecessor is
   // unreachable it would block past docker's 10s SIGKILL window. Bound it with
   // a timeout and force-exit regardless of outcome (issue #176).
-  const SHUTDOWN_TIMEOUT_MS = 5000;
+  const SHUTDOWN_TIMEOUT_MS = config.shutdownTimeoutMs;
   const gracefulShutdown = async (signal: string) => {
     console.log(`\n\n${signal} caught`);
     try {
