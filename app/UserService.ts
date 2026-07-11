@@ -68,6 +68,9 @@ export class UserService extends ChordNode {
   // Starts the gRPC Server
   serve() {
     const server = new grpc.Server();
+    // Kept on the instance so destructor() can drain in-flight RPCs before
+    // the process exits (issue #243).
+    this.server = server;
     server.addService((chord as any).Node.service, {
       fetch: this.fetch.bind(this),
       remove: this.remove.bind(this),
