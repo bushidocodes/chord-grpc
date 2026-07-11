@@ -225,17 +225,20 @@ export abstract class ChordNode {
   closestPrecedingFinger(id: number): Node {
     // skip unusable finger entries rather than routing toward them (#236)
     for (let i = this.fingerTable.length - 1; i >= 0; i--) {
-      if (
-        !isNullNode(this.fingerTable[i].successor) &&
-        isInModuloRange(
-          this.fingerTable[i].successor.id,
-          this.id,
-          false,
-          id,
-          false,
-        )
-      ) {
-        return this.fingerTable[i].successor;
+      const finger = this.fingerTable[i].successor;
+      if (isNullNode(finger)) continue;
+      // The scan interval is the ring interval (n, id). When id == n that is
+      // everything except n itself — but isInModuloRange treats (a, a) as
+      // empty (cf. notifiedBy), so without the special case a lookup for a
+      // key equal to this node's own id would return self forever, spin
+      // findPredecessor through its whole iteration budget, and come back
+      // with the wrong owner (found by the #234 convergence tests).
+      const precedes =
+        this.id === id
+          ? finger.id !== this.id
+          : isInModuloRange(finger.id, this.id, false, id, false);
+      if (precedes) {
+        return finger;
       }
     }
     return this.encapsulateSelf();
