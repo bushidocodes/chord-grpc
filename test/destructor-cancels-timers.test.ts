@@ -14,11 +14,6 @@ test("destructor() cancels the periodic maintenance timers", async () => {
   const node = new UserService({ id: 1, host: "localhost", port: 9999 });
   (node as any).logger = noopLogger;
 
-  // destructor() ends with process.exit(0); neutralize it so the assertions
-  // after the call still run (restored in finally).
-  const realExit = process.exit;
-  (process as any).exit = () => {};
-
   let stabilizeCalls = 0;
   let fixFingersCalls = 0;
   let checkPredecessorCalls = 0;
@@ -62,10 +57,9 @@ test("destructor() cancels the periodic maintenance timers", async () => {
       "no maintenance callback should fire after destructor()",
     );
   } finally {
-    // Clear timers (no-op once destructor cancelled them) and restore exit.
+    // Clear timers (no-op once destructor cancelled them).
     clearInterval(node.stabilizeTimer);
     clearInterval(node.fixFingersTimer);
     clearInterval(node.checkPredecessorTimer);
-    process.exit = realExit;
   }
 });

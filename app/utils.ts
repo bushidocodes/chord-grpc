@@ -21,6 +21,17 @@ export const HASH_BIT_LENGTH = 32; //TBD
 export const FIBONACCI_ALPHA = 0.7;
 export const IS_FIBONACCI_CHORD: boolean = false;
 
+// JavaScript bitwise operations only work on 32-bit numbers, so the hash
+// space cannot exceed 32 bits. HASH_BIT_LENGTH never changes at runtime, so
+// validate it once at module load instead of on every hash call — and throw
+// rather than process.exit() so the check is testable in-process (#241).
+const MAX_JS_INT_BIT_LENGTH = 32;
+if (HASH_BIT_LENGTH > MAX_JS_INT_BIT_LENGTH) {
+  throw new RangeError(
+    `HASH_BIT_LENGTH (${HASH_BIT_LENGTH}) exceeds the ${MAX_JS_INT_BIT_LENGTH} bits available due to numerical simplification`,
+  );
+}
+
 export interface Node {
   id: number | null;
   host: string | null;
@@ -108,15 +119,7 @@ export function computeIntegerHash(
   stringForHashing: string,
   highOrderBits: boolean = true,
 ): number {
-  const MAX_JS_INT_BIT_LENGTH = 32;
   const BIT_PER_HEX_CHARACTER = 4;
-  if (HASH_BIT_LENGTH > MAX_JS_INT_BIT_LENGTH) {
-    console.error(
-      `Warning. Requested ${HASH_BIT_LENGTH} bits `,
-      `but only ${MAX_JS_INT_BIT_LENGTH} bits available due to numerical simplification.`,
-    );
-    process.exit(-9);
-  }
   let hashOutput = sha1(stringForHashing);
   // truncate because JavaScript only does bitwise operations on 32-bit numbers
   if (!highOrderBits) {

@@ -1,4 +1,3 @@
-import process from "process";
 import pino from "pino";
 import {
   connect,
@@ -57,10 +56,11 @@ export abstract class ChordNode {
     port?: number;
   }) {
     if (!host || !port) {
-      console.error(
+      // Throw rather than exit: only the entrypoint owns process lifecycle
+      // (app/node.ts catches construction errors and exits non-zero, #175).
+      throw new Error(
         "ChordNode constructor did not receive host or port as expected",
       );
-      process.exit(-9);
     }
     this.id = id ?? 0;
     this.host = host;
@@ -1354,7 +1354,8 @@ export abstract class ChordNode {
         );
       }
     }
-    // report what's up and destroy the node by exiting the process
+    // report what's up; the caller (entrypoint) owns process exit, so that
+    // its shutdown timeout can actually observe the success path (#241)
     this.logger.info(
       `Node {${this.id}} at "${this.host}:${this.port}" is exiting the chord.`,
     );
@@ -1370,7 +1371,6 @@ export abstract class ChordNode {
         `Keys are not migrating because the migration failed.`,
       );
     }
-    process.exit(0);
   }
 
   abstract migrateKeysAfterJoining(): Promise<void>;
