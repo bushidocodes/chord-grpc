@@ -13,6 +13,7 @@ import {
   withTimeout,
   type Node,
 } from "./utils.ts";
+import { config } from "./config.ts";
 import { OVERALL_HEALTH, type HealthImplementation } from "./health.ts";
 const phi = (1 + Math.sqrt(5)) / 2;
 
@@ -56,7 +57,13 @@ export abstract class ChordNode {
   // Bound on the drain: an unresponsive in-flight call (e.g. a wedged
   // bulkInsert stream) must not stall shutdown past the entrypoint's own
   // shutdown timeout. Instance field so tests can shorten it.
-  drainTimeoutMs: number = 2000;
+  drainTimeoutMs: number = config.drainTimeoutMs;
+  // Maintenance cadences; instance fields (defaulting to the env-configurable
+  // values in app/config.ts, #242) so tests can shorten them per node before
+  // joinCluster() starts the timers.
+  stabilizeIntervalMs: number = config.stabilizeIntervalMs;
+  fixFingersIntervalMs: number = config.fixFingersIntervalMs;
+  checkPredecessorIntervalMs: number = config.checkPredecessorIntervalMs;
 
   constructor({
     id,
@@ -566,11 +573,17 @@ export abstract class ChordNode {
     // And now that we've joined a cluster, we need maintain our state
     // There might be some "critical section" type issues
     // we need to use a gate to protect in these functions
-    this.stabilizeTimer = setInterval(this.stabilize.bind(this), 1000);
-    this.fixFingersTimer = setInterval(this.fixFingers.bind(this), 3000);
+    this.stabilizeTimer = setInterval(
+      this.stabilize.bind(this),
+      this.stabilizeIntervalMs,
+    );
+    this.fixFingersTimer = setInterval(
+      this.fixFingers.bind(this),
+      this.fixFingersIntervalMs,
+    );
     this.checkPredecessorTimer = setInterval(
       this.checkPredecessor.bind(this),
-      1000,
+      this.checkPredecessorIntervalMs,
     );
 
     this.logger.debug(

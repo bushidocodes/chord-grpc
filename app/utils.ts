@@ -5,6 +5,7 @@ import crypto from "crypto";
 import * as grpc from "@grpc/grpc-js";
 import { loadSync } from "@grpc/proto-loader";
 import pino from "pino";
+import { config } from "./config.ts";
 
 const PROTO_PATH = path.resolve(import.meta.dirname, "../protos/chord.proto");
 
@@ -17,20 +18,16 @@ const packageDefinition = loadSync(PROTO_PATH, {
 });
 const chordProto = grpc.loadPackageDefinition(packageDefinition).chord as any;
 
-export const HASH_BIT_LENGTH = 32; //TBD
-export const FIBONACCI_ALPHA = 0.7;
-export const IS_FIBONACCI_CHORD: boolean = false;
-
-// JavaScript bitwise operations only work on 32-bit numbers, so the hash
-// space cannot exceed 32 bits. HASH_BIT_LENGTH never changes at runtime, so
-// validate it once at module load instead of on every hash call — and throw
-// rather than process.exit() so the check is testable in-process (#241).
+// JavaScript bitwise operations only work on 32-bit numbers; config.ts
+// validates hashBitLength against this bound at load (#241/#242).
 const MAX_JS_INT_BIT_LENGTH = 32;
-if (HASH_BIT_LENGTH > MAX_JS_INT_BIT_LENGTH) {
-  throw new RangeError(
-    `HASH_BIT_LENGTH (${HASH_BIT_LENGTH}) exceeds the ${MAX_JS_INT_BIT_LENGTH} bits available due to numerical simplification`,
-  );
-}
+
+// Operational tunables live in app/config.ts (env-configurable, validated at
+// load). Re-exported under their historical names for the many existing call
+// sites.
+export const HASH_BIT_LENGTH = config.hashBitLength;
+export const FIBONACCI_ALPHA = config.fibonacciAlpha;
+export const IS_FIBONACCI_CHORD: boolean = config.isFibonacciChord;
 
 export interface Node {
   id: number | null;
@@ -39,10 +36,7 @@ export interface Node {
 }
 
 export const NULL_NODE: Node = { id: null, host: null, port: null };
-export const SUCCESSOR_TABLE_MAX_LENGTH = Math.max(
-  Math.ceil(HASH_BIT_LENGTH / 4),
-  1,
-);
+export const SUCCESSOR_TABLE_MAX_LENGTH = config.successorTableMaxLength;
 
 export function createLogger(host: string, port: number) {
   return pino({ level: process.env.LOG_LEVEL ?? "info" }).child({
@@ -299,7 +293,7 @@ export function withTimeout<T>(
 }
 
 // Canonical name used in ssl_target_name_override — must match a SAN in certs/server.crt.
-const TLS_TARGET_NAME = "chord-node";
+const TLS_TARGET_NAME = config.tlsTargetName;
 
 // Cache the loaded credentials: the cert files don't change while a process
 // runs, so re-reading three files on every channel (re)creation is wasted disk

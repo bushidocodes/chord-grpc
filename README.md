@@ -57,6 +57,28 @@ When you are complete, be sure to stop the chord:
 docker-compose down
 ```
 
+## Configuration
+
+Operational tunables are centralized in `app/config.ts` and read from
+environment variables, with the defaults shown below (see also `LOG_LEVEL`
+for logging and `GRPC_CERTS_DIR` for TLS):
+
+| Variable                              | Default      | Purpose                                       |
+| ------------------------------------- | ------------ | --------------------------------------------- |
+| `CHORD_HASH_BIT_LENGTH`               | `32`         | Hash space size in bits (max 32)              |
+| `CHORD_IS_FIBONACCI`                  | `false`      | Use Fibonacci finger table spacing            |
+| `CHORD_FIBONACCI_ALPHA`               | `0.7`        | Fibonacci finger table pruning factor (0–1)   |
+| `CHORD_STABILIZE_INTERVAL_MS`         | `1000`       | Cadence of the stabilize maintenance loop     |
+| `CHORD_FIX_FINGERS_INTERVAL_MS`       | `3000`       | Cadence of the fixFingers maintenance loop    |
+| `CHORD_CHECK_PREDECESSOR_INTERVAL_MS` | `1000`       | Cadence of the checkPredecessor loop          |
+| `CHORD_SHUTDOWN_TIMEOUT_MS`           | `5000`       | Bound on graceful shutdown                    |
+| `CHORD_DRAIN_TIMEOUT_MS`              | `2000`       | Bound on draining in-flight RPCs at shutdown  |
+| `CHORD_CRAWLER_INTERVAL_MS`           | `3000`       | Web crawler step interval (`--interval` wins) |
+| `CHORD_TLS_TARGET_NAME`               | `chord-node` | TLS target name override; must match cert SAN |
+
+Values are validated at startup; a bad value fails fast rather than
+misbehaving at runtime.
+
 ## License
 
 The Stack Exchange Network data used in this licensed was released under the [cc-by-sa 4.0 license](https://creativecommons.org/licenses/by-sa/4.0/). It was downloaded from [archive.org](https://archive.org/details/stackexchange) as XML data, and subsequently converted to JSON. The derived Users.json file is thus also released under the [cc-by-sa 4.0 license](https://creativecommons.org/licenses/by-sa/4.0/) with identical conditions.
