@@ -92,7 +92,6 @@ export class UserService extends ChordNode {
       getFingerTableEntries: this.getFingerTableEntries.bind(this),
       closestPrecedingFingerRemoteHelper:
         this.closestPrecedingFingerRemoteHelper.bind(this),
-      updateFingerTable: this.updateFingerTable.bind(this),
       notify: this.notify.bind(this),
       destructor: this.destructor.bind(this),
     });

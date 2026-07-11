@@ -383,6 +383,19 @@ function streamCallOptions(): grpc.CallOptions {
   return { deadline: new Date(Date.now() + config.streamDeadlineMs) };
 }
 
+/**
+ * Closes every cached outbound channel and empties the cache. Intended for
+ * process teardown (tests, CLI): open client channels otherwise keep the
+ * Node event loop alive even after every server has shut down. Not called
+ * from destructor() because multiple in-process nodes share the cache.
+ */
+export function closeAllClients() {
+  for (const client of channelCache.values()) {
+    (client as { close?: () => void }).close?.();
+  }
+  channelCache.clear();
+}
+
 function promisifyClient(client: any) {
   // server-streaming: client sends one request, server sends a stream back
   const serverStreamMethods = new Set(["getFingerTableEntries", "getUserIds"]);
