@@ -19,15 +19,11 @@ function makeNode() {
 }
 
 function callInsert(node: UserService, user: { id: number }) {
-  return new Promise<any>((resolve) => {
-    node.insert({ request: { user, edit: false } }, (err: any) => resolve(err));
-  });
+  return node.insertReplicated({ user, edit: false }) as Promise<any>;
 }
 
 function callRemove(node: UserService, userId: number) {
-  return new Promise<any>((resolve) => {
-    node.remove({ request: { id: userId } }, (err: any) => resolve(err));
-  });
+  return node.removeReplicated(userId) as Promise<any>;
 }
 
 test("insert succeeds when both replica writes succeed", async () => {

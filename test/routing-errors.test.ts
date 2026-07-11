@@ -13,6 +13,7 @@ process.env.GRPC_CERTS_DIR = path.resolve(
 );
 
 const { UserService } = await import("../app/UserService.ts");
+const { GrpcTransport } = await import("../app/grpcTransport.ts");
 const { ChordRoutingError, isNullNode, NULL_NODE, closeAllClients } =
   await import("../app/utils.ts");
 
@@ -44,12 +45,12 @@ test("getSuccessor throws ChordRoutingError when the local successor is uninitia
   );
 });
 
-test("findSuccessor throws ChordRoutingError when the queried node is unreachable", async () => {
-  const node = makeNode();
+test("transport.findSuccessor throws ChordRoutingError when the peer is unreachable", async () => {
+  const transport = new GrpcTransport(noopLogger as any);
   try {
     await assert.rejects(
       // Port 1 on localhost: connection refused, surfacing as UNAVAILABLE.
-      node.findSuccessor(123, { id: 42, host: "localhost", port: 1 }),
+      transport.findSuccessor({ id: 42, host: "localhost", port: 1 }, 123),
       ChordRoutingError,
     );
   } finally {
@@ -63,10 +64,6 @@ test("a failed routing leg surfaces through insert instead of a sentinel write",
     throw new ChordRoutingError("no route");
   };
 
-  const err = await new Promise<any>((resolve) => {
-    node.insert({ request: { user: { id: 7 }, edit: false } }, (e: any) =>
-      resolve(e),
-    );
-  });
+  const err = await node.insertReplicated({ user: { id: 7 }, edit: false });
   assert.ok(err, "insert with no usable route must not report success");
 });
