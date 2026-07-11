@@ -19,6 +19,9 @@ type NetworkState = Record<string, NodeSnapshot>;
 
 const DEFAULT_HOST_NAME = os.hostname();
 const CRAWLER_INTERVAL_MS = 3000;
+// Consecutive failures tolerated for the current crawl target before the
+// crawler gives up on it and moves elsewhere (issue #244).
+const MAX_CRAWL_FAILURES = 3;
 
 class ChordCrawler {
   #host: string;
@@ -29,6 +32,10 @@ class ChordCrawler {
   #state: NetworkState = {};
   #walk: Set<string> = new Set([]);
   #canAdvance: boolean = true;
+  // Consecutive crawl failures for the current target. A failed crawl never
+  // advances, so this only ever counts failures against one node; it is reset
+  // on success and whenever the crawler moves to a different node.
+  #failureCount: number = 0;
 
   get state() {
     return this.#state;
@@ -177,6 +184,8 @@ class ChordCrawler {
         }
         this.#state[connectionString].successor = successorNode;
 
+        this.#failureCount = 0;
+
         // Advance to the successor or a known node in a partition
         this.#advance();
       } catch (err) {
@@ -184,10 +193,31 @@ class ChordCrawler {
           console.error(
             `Node ${connectionString} is unreachable — pruning and resetting to seed`,
           );
+          this.#failureCount = 0;
           delete this.#state[connectionString];
           this.#resetToSeed();
         } else {
-          console.error(`Unexpected error crawling ${connectionString}:`, err);
+          // Any other persistent error (stream error, DEADLINE_EXCEEDED,
+          // INTERNAL, ...) must not pin the crawler to this node forever: give
+          // it a few tries, then prune it and walk from somewhere else so the
+          // rest of the ring keeps getting visited (issue #244).
+          this.#failureCount++;
+          console.error(
+            `Error crawling ${connectionString} (attempt ${this.#failureCount}/${MAX_CRAWL_FAILURES}):`,
+            err,
+          );
+          if (this.#failureCount >= MAX_CRAWL_FAILURES) {
+            console.error(
+              `Node ${connectionString} failed ${MAX_CRAWL_FAILURES} consecutive crawls — pruning and moving on`,
+            );
+            this.#failureCount = 0;
+            delete this.#state[connectionString];
+            if (Object.keys(this.#state).length > 0) {
+              this.#shuffleCurrentNode();
+            } else {
+              this.#resetToSeed();
+            }
+          }
         }
       } finally {
         this.#canAdvance = true;
