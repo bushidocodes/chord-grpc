@@ -10,8 +10,8 @@ import {
   handleGRPCErrors,
   isInModuloRange,
   loadTlsCredentials,
-  NULL_NODE,
   computeIntegerHash,
+  type Node,
 } from "./utils.ts";
 
 const packageDefinition = loadSync(
@@ -229,7 +229,7 @@ export class UserService extends ChordNode {
   }
 
   async removeWithHash(userId: number, isPrimaryHash: boolean) {
-    let successor = NULL_NODE;
+    let successor: Node;
     let lookupKey: number | null = null;
     let errorString: string | null = null;
     this.logger.info(`remove: Attempting to remove user ${userId}`);
@@ -248,8 +248,10 @@ export class UserService extends ChordNode {
     try {
       successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
     } catch (err) {
-      successor = NULL_NODE;
+      // Routing failed: report this leg as failed instead of proceeding with
+      // a sentinel value (#236); remove() combines the legs' outcomes (#238).
       this.logger.error({ err }, "remove: findSuccessor failed");
+      return err;
     }
 
     if (this.iAmTheNode(successor)) {
@@ -410,7 +412,7 @@ export class UserService extends ChordNode {
     let lookupKey: number = isPrimaryHash
       ? userEdit.user.metadata.primaryHash
       : userEdit.user.metadata.secondaryHash;
-    let successor = NULL_NODE;
+    let successor: Node;
 
     this.logger.info(
       { userId: user.id, lookupKey },
@@ -419,8 +421,10 @@ export class UserService extends ChordNode {
     try {
       successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
     } catch (err) {
-      successor = NULL_NODE;
+      // Routing failed: report this leg as failed instead of proceeding with
+      // a sentinel value (#236); insert() combines the legs' outcomes (#238).
       this.logger.error({ err }, "insert: findSuccessor failed");
+      return err;
     }
 
     if (this.iAmTheNode(successor)) {
@@ -516,7 +520,7 @@ export class UserService extends ChordNode {
   async lookupWithHash(userId: number, isPrimaryHash: boolean) {
     let lookupKey: number | null = null;
     let errorString: string | null = null;
-    let successor = NULL_NODE;
+    let successor: Node;
 
     //compute primary user ID from hash
     if (userId && userId !== null) {
@@ -532,8 +536,10 @@ export class UserService extends ChordNode {
     try {
       successor = await this.findSuccessor(lookupKey, this.encapsulateSelf());
     } catch (err) {
-      successor = NULL_NODE;
+      // Routing failed: fail this hash location so lookup() can fall back to
+      // the other one, instead of proceeding with a sentinel value (#236).
       this.logger.error({ err }, "lookup: findSuccessor failed");
+      return { err, user: null };
     }
 
     if (this.iAmTheNode(successor)) {

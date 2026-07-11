@@ -1,7 +1,9 @@
 import pino from "pino";
 import {
+  ChordRoutingError,
   connect,
   isInModuloRange,
+  isNullNode,
   computeHostPortHash,
   handleGRPCErrors,
   createLogger,
@@ -113,31 +115,15 @@ export abstract class ChordNode {
    * @param nodeQueried node being queried for the ID
    *
    */
-  async findSuccessor(id: number, nodeQueried: Node) {
-    let nPrime = NULL_NODE;
-    let nPrimeSuccessor = NULL_NODE;
+  async findSuccessor(id: number, nodeQueried: Node): Promise<Node> {
+    let nPrimeSuccessor: Node;
     this.logger.debug(`findSuccessor: node queried {${nodeQueried.id}}.`);
     if (this.id != undefined && this.iAmTheNode(nodeQueried)) {
-      try {
-        nPrime = await this.findPredecessor(id);
-      } catch (err) {
-        this.logger.error({ err }, `findSuccessor: findPredecessor failed`);
-        nPrime = NULL_NODE;
-      }
-
+      // Failures propagate as ChordRoutingError instead of collapsing into
+      // the NULL_NODE sentinel that callers had to remember to check (#236).
+      const nPrime = await this.findPredecessor(id);
       this.logger.debug(`findSuccessor: n' is ${nPrime.id}`);
-
-      try {
-        nPrimeSuccessor = await this.getSuccessor(nPrime);
-      } catch (err) {
-        this.logger.error(
-          { err },
-          `findSuccessor: call to getSuccessor failed`,
-        );
-        nPrimeSuccessor = NULL_NODE;
-      }
-
-      this.logger.debug(`findSuccessor: n'.successor is ${nPrimeSuccessor.id}`);
+      nPrimeSuccessor = await this.getSuccessor(nPrime);
     } else {
       const nodeQueriedClient = connect(nodeQueried);
       try {
@@ -146,7 +132,6 @@ export abstract class ChordNode {
           node: nodeQueried,
         });
       } catch (err) {
-        nPrimeSuccessor = NULL_NODE;
         handleGRPCErrors(
           this.logger,
           "findSuccessor",
@@ -154,6 +139,17 @@ export abstract class ChordNode {
           nodeQueried.host,
           nodeQueried.port,
           err,
+        );
+        throw new ChordRoutingError(
+          `findSuccessor(${id}) via "${nodeQueried.host}:${nodeQueried.port}" failed`,
+          { cause: err },
+        );
+      }
+      if (isNullNode(nPrimeSuccessor)) {
+        // A remote NULL_NODE arrives wire-mangled as { 0, "", 0 }; refuse to
+        // hand a poisoned value back to routing.
+        throw new ChordRoutingError(
+          `findSuccessor(${id}) via "${nodeQueried.host}:${nodeQueried.port}" returned an unusable node`,
         );
       }
     }
@@ -182,21 +178,27 @@ export abstract class ChordNode {
       `findSuccessorRemoteHelper: id = ${id} nodeQueried = ${nodeQueried.id}.`,
     );
 
-    let nPrimeSuccessor = NULL_NODE;
     try {
-      nPrimeSuccessor = await this.findSuccessor(id, nodeQueried);
+      const nPrimeSuccessor = await this.findSuccessor(id, nodeQueried);
+      this.logger.debug(
+        `findSuccessorRemoteHelper: nPrimeSuccessor = ${nPrimeSuccessor.id}`,
+      );
+      callback(null, nPrimeSuccessor);
     } catch (err) {
       this.logger.error(
         { err },
         "findSuccessorRemoteHelper: findSuccessor failed",
       );
-      nPrimeSuccessor = NULL_NODE;
+      // Fail the RPC rather than answering with a NULL_NODE sentinel, which
+      // proto3 would mangle into { 0, "", 0 } on the wire (#236).
+      callback(
+        {
+          code: 13, // INTERNAL
+          details: `findSuccessor(${id}) failed on ${this.host}:${this.port}`,
+        },
+        NULL_NODE,
+      );
     }
-    callback(null, nPrimeSuccessor);
-
-    this.logger.debug(
-      `findSuccessorRemoteHelper: nPrimeSuccessor = ${nPrimeSuccessor.id}`,
-    );
   }
 
   /**
@@ -211,17 +213,15 @@ export abstract class ChordNode {
    * quickly rather than spinning through billions of remote round trips.
    * @param {number} id the key sought
    */
-  async findPredecessor(id: number) {
+  async findPredecessor(id: number): Promise<Node> {
     this.logger.debug(`findPredecessor: id = ${id}`);
 
+    // Any hop failure propagates as ChordRoutingError. The old behavior —
+    // collapse the failed hop into NULL_NODE and keep looping with it as the
+    // next RPC target — only failed safe because connect() happens to throw
+    // on a null host, and could return NULL_NODE as a routing answer (#236).
     let nPrime = this.encapsulateSelf();
-    let nPrimeSuccessor = NULL_NODE;
-    try {
-      nPrimeSuccessor = await this.getSuccessor(nPrime);
-    } catch (err) {
-      this.logger.error({ err }, "findPredecessor: getSuccessor failed");
-      nPrimeSuccessor = NULL_NODE;
-    }
+    let nPrimeSuccessor = await this.getSuccessor(nPrime);
 
     this.logger.debug(
       `findPredecessor: before while: nPrime = ${nPrime.id}; nPrimeSuccessor = ${nPrimeSuccessor.id}`,
@@ -241,25 +241,13 @@ export abstract class ChordNode {
       // loop should exit if the iterations are ridiculous
       // update loop protection
       iterationCounter--;
-      try {
-        nPrime = await this.closestPrecedingFinger(id, nPrime);
-      } catch (err) {
-        nPrime = NULL_NODE;
-      }
+      nPrime = await this.closestPrecedingFinger(id, nPrime);
 
       this.logger.debug(
-        `findPredecessor: At iterator ${iterationCounter} nPrime = ${nPrime}`,
+        `findPredecessor: At iterator ${iterationCounter} nPrime = ${nPrime.id}`,
       );
 
-      try {
-        nPrimeSuccessor = await this.getSuccessor(nPrime);
-      } catch (err) {
-        this.logger.error(
-          { err },
-          "findPredecessor: call to getSuccessor (2) failed",
-        );
-        nPrimeSuccessor = NULL_NODE;
-      }
+      nPrimeSuccessor = await this.getSuccessor(nPrime);
 
       this.logger.debug(
         `findPredecessor: nPrimeSuccessor = ${nPrimeSuccessor.id}`,
@@ -278,13 +266,14 @@ export abstract class ChordNode {
   /**
    * Return the successor of a given node by either a local lookup or an RPC.
    * If the querying node is the same as the queried node, it will be a local lookup.
-   * @returns : the successor if the successor seems valid, or a null node otherwise
+   * @returns the successor
+   * @throws ChordRoutingError when the successor cannot be determined (#236)
    */
-  async getSuccessor(nodeQueried: Node) {
+  async getSuccessor(nodeQueried: Node): Promise<Node> {
     this.logger.debug(`getSuccessor(${nodeQueried.id})`);
 
     // get n.successor either locally or remotely
-    let nSuccessor = NULL_NODE;
+    let nSuccessor: Node;
     if (this.iAmTheNode(nodeQueried)) {
       // use local value
       nSuccessor = this.fingerTable[0].successor;
@@ -294,7 +283,6 @@ export abstract class ChordNode {
       try {
         nSuccessor = await nodeQueriedClient.getSuccessorRemoteHelper();
       } catch (err) {
-        nSuccessor = { id: null, host: null, port: null };
         handleGRPCErrors(
           this.logger,
           "getSuccessor",
@@ -303,7 +291,19 @@ export abstract class ChordNode {
           nodeQueried.port,
           err,
         );
+        throw new ChordRoutingError(
+          `getSuccessor of "${nodeQueried.host}:${nodeQueried.port}" failed`,
+          { cause: err },
+        );
       }
+    }
+
+    if (isNullNode(nSuccessor)) {
+      // Either the local successor pointer isn't initialized yet or a remote
+      // answered with a (wire-mangled) NULL_NODE.
+      throw new ChordRoutingError(
+        `getSuccessor of {${nodeQueried.id}} returned an unusable node`,
+      );
     }
 
     this.logger.debug(
@@ -362,12 +362,13 @@ export abstract class ChordNode {
    * @returns the closest preceding node to ID
    *
    */
-  async closestPrecedingFinger(id: number, nodeQueried: Node) {
-    let nPreceding = NULL_NODE;
+  async closestPrecedingFinger(id: number, nodeQueried: Node): Promise<Node> {
     if (this.iAmTheNode(nodeQueried)) {
-      // use local value
+      // use local value; skip unusable finger entries rather than routing
+      // toward them (#236)
       for (let i = this.fingerTable.length - 1; i >= 0; i--) {
         if (
+          !isNullNode(this.fingerTable[i].successor) &&
           isInModuloRange(
             this.fingerTable[i].successor.id,
             nodeQueried.id,
@@ -376,14 +377,13 @@ export abstract class ChordNode {
             false,
           )
         ) {
-          nPreceding = this.fingerTable[i].successor;
-          return nPreceding;
+          return this.fingerTable[i].successor;
         }
       }
-      nPreceding = nodeQueried;
-      return nPreceding;
+      return nodeQueried;
     } else {
       const nodeQueriedClient = connect(nodeQueried);
+      let nPreceding: Node;
       try {
         nPreceding = await nodeQueriedClient.closestPrecedingFingerRemoteHelper(
           {
@@ -392,7 +392,6 @@ export abstract class ChordNode {
           },
         );
       } catch (err) {
-        nPreceding = NULL_NODE;
         handleGRPCErrors(
           this.logger,
           "closestPrecedingFinger",
@@ -400,6 +399,15 @@ export abstract class ChordNode {
           nodeQueried.host,
           nodeQueried.port,
           err,
+        );
+        throw new ChordRoutingError(
+          `closestPrecedingFinger(${id}) via "${nodeQueried.host}:${nodeQueried.port}" failed`,
+          { cause: err },
+        );
+      }
+      if (isNullNode(nPreceding)) {
+        throw new ChordRoutingError(
+          `closestPrecedingFinger(${id}) via "${nodeQueried.host}:${nodeQueried.port}" returned an unusable node`,
         );
       }
       return nPreceding;
@@ -418,17 +426,23 @@ export abstract class ChordNode {
   ) {
     const id = idAndNodeQueried.request.id;
     const nodeQueried = idAndNodeQueried.request.node;
-    let nPreceding = NULL_NODE;
     try {
-      nPreceding = await this.closestPrecedingFinger(id, nodeQueried);
+      const nPreceding = await this.closestPrecedingFinger(id, nodeQueried);
+      callback(null, nPreceding);
     } catch (err) {
       this.logger.error(
         { err },
         "closestPrecedingFingerRemoteHelper: closestPrecedingFinger failed",
       );
-      nPreceding = NULL_NODE;
+      // Fail the RPC rather than answering with a NULL_NODE sentinel (#236).
+      callback(
+        {
+          code: 13, // INTERNAL
+          details: `closestPrecedingFinger(${id}) failed on ${this.host}:${this.port}`,
+        },
+        NULL_NODE,
+      );
     }
-    callback(null, nPreceding);
   }
 
   /**
@@ -542,16 +556,13 @@ export abstract class ChordNode {
       try {
         possibleCollidingNode = await this.findSuccessor(this.id, knownNode);
       } catch (err) {
-        possibleCollidingNode = NULL_NODE;
+        errorString = `Error joining node "${this.host}:${this.port}" to node "${knownNode.host}:${knownNode.port}" because the cluster could not resolve a successor for ID {${this.id}}.`;
+        this.logger.error({ err }, errorString);
+        throw new RangeError(errorString);
       }
       if (this.iAmTheNode(possibleCollidingNode)) {
         // node collision
         errorString = `Error joining node "${this.host}:${this.port}" with ID {${this.id}} to node "${knownNode.host}:${knownNode.port}" because of a collision with node "${possibleCollidingNode.host}:${possibleCollidingNode.port}" having ID={${possibleCollidingNode.id}}.`;
-        this.logger.error(errorString);
-        throw new RangeError(errorString);
-      }
-      if (possibleCollidingNode.id == null) {
-        errorString = `Error joining node "${this.host}:${this.port}" to node "${knownNode.host}:${knownNode.port}" because the cluster could not resolve a successor for ID {${this.id}}.`;
         this.logger.error(errorString);
         throw new RangeError(errorString);
       }
@@ -817,15 +828,14 @@ export abstract class ChordNode {
             { err },
             `updateSuccessorTable: getSuccessor failed`,
           );
-          successorSuccessor = { id: null, host: null, port: null };
+          successorSuccessor = NULL_NODE;
         }
         this.logger.debug(
           `updateSuccessorTable: {${this.id}}.successorTable[${i}] = ${this.successorTable[i].id} and {${this.successorTable[i].id}}.successor[0] = ${successorSuccessor.id}`,
         );
 
         if (
-          successorSuccessor &&
-          successorSuccessor.id !== null &&
+          !isNullNode(successorSuccessor) &&
           !isInModuloRange(
             successorSuccessor.id,
             this.id,
@@ -916,7 +926,11 @@ export abstract class ChordNode {
       }
     }
 
+    // A remote with no predecessor answers getPredecessor with a NULL_NODE,
+    // which arrives wire-mangled as { id: 0, host: "", port: 0 } — and 0 is a
+    // valid ring position, so guard with isNullNode before adopting (#236).
     if (
+      !isNullNode(x) &&
       isInModuloRange(
         x.id,
         this.id,
@@ -1030,15 +1044,13 @@ export abstract class ChordNode {
    * Directly implements the pseudocode's fixFingers() method.
    */
   async fixFingers() {
-    let nSuccessor = NULL_NODE;
     try {
-      nSuccessor = await this.findSuccessor(
+      // findSuccessor now throws on failure instead of returning a sentinel,
+      // so a successful return is always safe to install (#236).
+      this.fingerTable[this.fingerToFix].successor = await this.findSuccessor(
         this.fingerTable[this.fingerToFix].start!,
         this.encapsulateSelf(),
       );
-      if (nSuccessor.id !== null) {
-        this.fingerTable[this.fingerToFix].successor = nSuccessor;
-      }
     } catch (err) {
       this.logger.error({ err }, `fixFingers: findSuccessor failed`);
     }
