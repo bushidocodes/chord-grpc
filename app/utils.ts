@@ -370,6 +370,19 @@ export function connect({
   return client;
 }
 
+// Per-call gRPC deadlines (issue #235): a peer that accepts the TCP
+// connection but never responds must fail the call with DEADLINE_EXCEEDED
+// instead of blocking the caller forever — a single hung call would otherwise
+// permanently freeze the maintenance loop that issued it. Deadlines are
+// absolute timestamps, so they are computed at call time, not wrap time.
+function unaryCallOptions(): grpc.CallOptions {
+  return { deadline: new Date(Date.now() + config.rpcDeadlineMs) };
+}
+
+function streamCallOptions(): grpc.CallOptions {
+  return { deadline: new Date(Date.now() + config.streamDeadlineMs) };
+}
+
 function promisifyClient(client: any) {
   // server-streaming: client sends one request, server sends a stream back
   const serverStreamMethods = new Set(["getFingerTableEntries", "getUserIds"]);
@@ -382,30 +395,37 @@ function promisifyClient(client: any) {
     const original = proto[method];
     if (typeof original !== "function") continue;
     if (clientStreamMethods.has(method)) {
-      // Bind only — callers get the raw writable stream and provide their own callback
-      client[method] = client[method].bind(client);
+      // Callers get the raw writable stream and provide their own callback
+      const origMethod = client[method].bind(client);
+      client[method] = (callback: any) =>
+        origMethod(streamCallOptions(), callback);
     } else if (serverStreamMethods.has(method)) {
       // Wrap streaming calls to allow zero-arg invocation
       const origMethod = client[method].bind(client);
-      client[method] = (req?: any) => origMethod(req || {});
+      client[method] = (req?: any) =>
+        origMethod(req || {}, streamCallOptions());
     } else {
       // Promisify unary calls, supporting optional request arg and optional callback
       const origMethod = client[method].bind(client);
       client[method] = (reqOrCb?: any, maybeCb?: any) => {
         // If called with a callback as second arg, use callback style
         if (typeof maybeCb === "function") {
-          return origMethod(reqOrCb || {}, maybeCb);
+          return origMethod(reqOrCb || {}, unaryCallOptions(), maybeCb);
         }
         // If called with a callback as first arg (no request), use callback style
         if (typeof reqOrCb === "function") {
-          return origMethod({}, reqOrCb);
+          return origMethod({}, unaryCallOptions(), reqOrCb);
         }
         // Otherwise return a promise
         return new Promise((resolve, reject) => {
-          origMethod(reqOrCb || {}, (err: any, response: any) => {
-            if (err) reject(err);
-            else resolve(response);
-          });
+          origMethod(
+            reqOrCb || {},
+            unaryCallOptions(),
+            (err: any, response: any) => {
+              if (err) reject(err);
+              else resolve(response);
+            },
+          );
         });
       };
     }

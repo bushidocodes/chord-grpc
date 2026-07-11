@@ -71,6 +71,8 @@ for logging and `GRPC_CERTS_DIR` for TLS):
 | `CHORD_STABILIZE_INTERVAL_MS`         | `1000`       | Cadence of the stabilize maintenance loop     |
 | `CHORD_FIX_FINGERS_INTERVAL_MS`       | `3000`       | Cadence of the fixFingers maintenance loop    |
 | `CHORD_CHECK_PREDECESSOR_INTERVAL_MS` | `1000`       | Cadence of the checkPredecessor loop          |
+| `CHORD_RPC_DEADLINE_MS`               | `3000`       | Deadline for outbound unary RPCs              |
+| `CHORD_STREAM_DEADLINE_MS`            | `30000`      | Deadline for outbound streaming RPCs          |
 | `CHORD_SHUTDOWN_TIMEOUT_MS`           | `5000`       | Bound on graceful shutdown                    |
 | `CHORD_DRAIN_TIMEOUT_MS`              | `2000`       | Bound on draining in-flight RPCs at shutdown  |
 | `CHORD_CRAWLER_INTERVAL_MS`           | `3000`       | Web crawler step interval (`--interval` wins) |

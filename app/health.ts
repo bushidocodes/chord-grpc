@@ -2,6 +2,7 @@ import path from "path";
 import * as grpc from "@grpc/grpc-js";
 import { loadSync } from "@grpc/proto-loader";
 import { loadTlsCredentials } from "./utils.ts";
+import { config } from "./config.ts";
 
 // Server-side implementation of and client factory for the standard gRPC
 // Health Checking Protocol (grpc.health.v1.Health). This replaces the bespoke
@@ -141,10 +142,15 @@ export function connectHealth({
       service: string = OVERALL_HEALTH,
     ): Promise<{ status: ServingStatus }> =>
       new Promise((resolve, reject) => {
-        client.Check({ service }, (err: unknown, res: any) => {
-          if (err) reject(err);
-          else resolve(res);
-        });
+        // Deadline so a wedged node fails the probe instead of hanging it (#235).
+        client.Check(
+          { service },
+          { deadline: new Date(Date.now() + config.rpcDeadlineMs) },
+          (err: unknown, res: any) => {
+            if (err) reject(err);
+            else resolve(res);
+          },
+        );
       }),
   };
 }
