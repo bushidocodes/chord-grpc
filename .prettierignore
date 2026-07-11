@@ -1,2 +1,4 @@
 data/
 pnpm-lock.yaml
+# Generated gRPC type stubs (pnpm run gen-proto-types, issue #240)
+app/generated/

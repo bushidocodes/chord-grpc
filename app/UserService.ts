@@ -1,10 +1,9 @@
 import os from "os";
-import path from "path";
 import * as grpc from "@grpc/grpc-js";
-import { loadSync } from "@grpc/proto-loader";
 
 import { ChordNode } from "./ChordNode.ts";
 import { HealthImplementation } from "./health.ts";
+import { chordProto } from "./proto.ts";
 import {
   connect,
   handleGRPCErrors,
@@ -13,18 +12,6 @@ import {
   computeIntegerHash,
   type Node,
 } from "./utils.ts";
-
-const packageDefinition = loadSync(
-  path.resolve(import.meta.dirname, "../protos/chord.proto"),
-  {
-    keepCase: true,
-    longs: String,
-    enums: String,
-    defaults: true,
-    oneofs: true,
-  },
-);
-const chord = grpc.loadPackageDefinition(packageDefinition).chord;
 
 interface Metadata {
   primaryHash: number;
@@ -71,7 +58,7 @@ export class UserService extends ChordNode {
     // Kept on the instance so destructor() can drain in-flight RPCs before
     // the process exits (issue #243).
     this.server = server;
-    server.addService((chord as any).Node.service, {
+    server.addService(chordProto.Node.service, {
       fetch: this.fetch.bind(this),
       remove: this.remove.bind(this),
       removeUserRemoteHelper: this.removeUserRemoteHelper.bind(this),

@@ -3,20 +3,13 @@ import path from "path";
 import process from "process";
 import crypto from "crypto";
 import * as grpc from "@grpc/grpc-js";
-import { loadSync } from "@grpc/proto-loader";
 import pino from "pino";
 import { config } from "./config.ts";
-
-const PROTO_PATH = path.resolve(import.meta.dirname, "../protos/chord.proto");
-
-const packageDefinition = loadSync(PROTO_PATH, {
-  keepCase: true,
-  longs: String,
-  enums: String,
-  defaults: true,
-  oneofs: true,
-});
-const chordProto = grpc.loadPackageDefinition(packageDefinition).chord as any;
+import { chordProto } from "./proto.ts";
+import type { NodeAddress__Output } from "./generated/chord/NodeAddress.ts";
+import type { FingerTableEntry__Output } from "./generated/chord/FingerTableEntry.ts";
+import type { User as WireUser, User__Output } from "./generated/chord/User.ts";
+import type { UserIdWithMetadata__Output } from "./generated/chord/UserIdWithMetadata.ts";
 
 // JavaScript bitwise operations only work on 32-bit numbers; config.ts
 // validates hashBitLength against this bound at load (#241/#242).
@@ -63,6 +56,81 @@ export class ChordRoutingError extends Error {
     super(message, options);
     this.name = "ChordRoutingError";
   }
+}
+
+// ---------------------------------------------------------------------------
+// Typed promisified client surface (issue #240). Request types tolerate the
+// domain's null-able Node fields because protobufjs treats null exactly like
+// undefined (unset) when serializing; response types are the generated
+// __Output shapes, which is what the wire actually delivers.
+// ---------------------------------------------------------------------------
+
+export interface WireNode {
+  id?: number | null;
+  host?: string | null;
+  port?: number | null;
+}
+
+export interface WireRemoteId {
+  id?: number | null;
+  node?: WireNode | null;
+}
+
+export interface WireUserId {
+  id?: number | null;
+  userId?: number | null;
+}
+
+export interface WireUserEdit {
+  user?: unknown;
+  edit?: boolean;
+  update_mask?: { paths?: string[] } | null;
+}
+
+/**
+ * A promisified unary method: request-only returns a Promise; passing a
+ * callback (with or without a request) uses classic callback style.
+ */
+interface UnaryCall<Req, Res> {
+  (request?: Req): Promise<Res>;
+  (request: Req, callback: (err: unknown, response: Res) => void): unknown;
+  (callback: (err: unknown, response: Res) => void): unknown;
+}
+
+export interface PromisifiedNodeClient {
+  // Chord protocol
+  getNodeIdRemoteHelper: UnaryCall<WireNode, NodeAddress__Output>;
+  findSuccessorRemoteHelper: UnaryCall<WireRemoteId, NodeAddress__Output>;
+  getSuccessorRemoteHelper: UnaryCall<{}, NodeAddress__Output>;
+  setSuccessor: UnaryCall<WireNode, {}>;
+  getPredecessor: UnaryCall<{}, NodeAddress__Output>;
+  setPredecessor: UnaryCall<WireNode, {}>;
+  closestPrecedingFingerRemoteHelper: UnaryCall<
+    WireRemoteId,
+    NodeAddress__Output
+  >;
+  notify: UnaryCall<WireNode, {}>;
+  // Application level
+  fetch: UnaryCall<WireUserId, User__Output>;
+  insert: UnaryCall<WireUserEdit, {}>;
+  insertUserRemoteHelper: UnaryCall<WireUserEdit, {}>;
+  lookup: UnaryCall<WireUserId, User__Output>;
+  lookupUserRemoteHelper: UnaryCall<WireUserId, User__Output>;
+  remove: UnaryCall<WireUserId, {}>;
+  removeUserRemoteHelper: UnaryCall<WireUserId, {}>;
+  migrateUsersToPredecessorRemoteHelper: UnaryCall<{}, {}>;
+  // Streaming
+  getFingerTableEntries(
+    request?: WireNode,
+  ): grpc.ClientReadableStream<FingerTableEntry__Output>;
+  getUserIds(
+    request?: WireNode,
+  ): grpc.ClientReadableStream<UserIdWithMetadata__Output>;
+  bulkInsertUsersRemoteHelper(
+    callback: (err: unknown, response?: {}) => void,
+  ): grpc.ClientWritableStream<WireUser>;
+  // Base grpc.Client surface we rely on
+  close(): void;
 }
 
 export function createLogger(host: string, port: number) {
@@ -360,7 +428,7 @@ export function loadTlsCredentials(): {
 // outbound RPC — in a multi-node ring that is dozens of new channels per
 // second. Entries are evicted by handleGRPCErrors on an UNAVAILABLE (code 14)
 // result so a dead node doesn't linger in the cache (issue #172).
-const channelCache = new Map<string, ReturnType<typeof promisifyClient>>();
+const channelCache = new Map<string, PromisifiedNodeClient>();
 
 /**
  * Creates a gRPC client for the Node service with promisified unary methods.
@@ -377,7 +445,7 @@ export function connect({
 }: {
   host: string | null;
   port: number | null;
-}) {
+}): PromisifiedNodeClient {
   if (!host || !port)
     throw new Error(`Cannot connect: null node (host=${host}, port=${port})`);
   const key = `${host}:${port}`;
@@ -418,36 +486,39 @@ function streamCallOptions(): grpc.CallOptions {
  */
 export function closeAllClients() {
   for (const client of channelCache.values()) {
-    (client as { close?: () => void }).close?.();
+    client.close();
   }
   channelCache.clear();
 }
 
-function promisifyClient(client: any) {
-  // server-streaming: client sends one request, server sends a stream back
-  const serverStreamMethods = new Set(["getFingerTableEntries", "getUserIds"]);
-  // client-streaming: client sends a stream, server sends one response back
-  const clientStreamMethods = new Set(["bulkInsertUsersRemoteHelper"]);
-  const proto = Object.getPrototypeOf(client);
-
-  for (const method of Object.keys(proto)) {
-    if (method.startsWith("$") || method.startsWith("_")) continue;
-    const original = proto[method];
-    if (typeof original !== "function") continue;
-    if (clientStreamMethods.has(method)) {
-      // Callers get the raw writable stream and provide their own callback
-      const origMethod = client[method].bind(client);
-      client[method] = (callback: any) =>
+function promisifyClient(client: grpc.Client): PromisifiedNodeClient {
+  // Method kinds (unary / server-streaming / client-streaming) come from the
+  // loaded service definition — the same source the types in app/generated
+  // are generated from — instead of hand-maintained method-name string sets
+  // that had to be kept in sync with chord.proto manually (issue #240). Add
+  // an RPC to the proto and it is classified correctly here with no further
+  // bookkeeping.
+  const anyClient = client as any;
+  for (const [method, definition] of Object.entries(
+    chordProto.Node.service as grpc.ServiceDefinition,
+  )) {
+    const origMethod = anyClient[method].bind(client);
+    if (definition.requestStream && definition.responseStream) {
+      // No bidi-streaming RPCs in chord.proto; leave any future one raw.
+      continue;
+    }
+    if (definition.requestStream) {
+      // client-streaming: callers get the raw writable stream and provide
+      // their own callback
+      anyClient[method] = (callback: any) =>
         origMethod(streamCallOptions(), callback);
-    } else if (serverStreamMethods.has(method)) {
-      // Wrap streaming calls to allow zero-arg invocation
-      const origMethod = client[method].bind(client);
-      client[method] = (req?: any) =>
+    } else if (definition.responseStream) {
+      // server-streaming: wrap to allow zero-arg invocation
+      anyClient[method] = (req?: any) =>
         origMethod(req || {}, streamCallOptions());
     } else {
       // Promisify unary calls, supporting optional request arg and optional callback
-      const origMethod = client[method].bind(client);
-      client[method] = (reqOrCb?: any, maybeCb?: any) => {
+      anyClient[method] = (reqOrCb?: any, maybeCb?: any) => {
         // If called with a callback as second arg, use callback style
         if (typeof maybeCb === "function") {
           return origMethod(reqOrCb || {}, unaryCallOptions(), maybeCb);
@@ -470,5 +541,5 @@ function promisifyClient(client: any) {
       };
     }
   }
-  return client;
+  return anyClient as PromisifiedNodeClient;
 }

@@ -23,6 +23,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Check generated proto stubs are current
+        run: |
+          pnpm run gen-proto-types
+          git diff --exit-code app/generated
+
       - name: Type-check
         run: pnpm typecheck
 
