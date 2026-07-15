@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import { withTimeout } from "../app/utils.ts";
 
 // Regression tests for #176: graceful shutdown must not hang forever when a

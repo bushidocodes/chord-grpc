@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import { UserService } from "../app/UserService.ts";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

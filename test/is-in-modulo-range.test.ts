@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import { isInModuloRange } from "../app/utils.ts";
 
 // Direct unit tests for isInModuloRange (#234, follow-up to #121). This

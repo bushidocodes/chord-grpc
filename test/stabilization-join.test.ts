@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import path from "path";
 
 // Integration test for #237: a node joins an existing ring with the lazy

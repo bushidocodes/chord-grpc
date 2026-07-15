@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import { loadTlsCredentials } from "../app/utils.ts";
 
 // Regression test for #171: loadTlsCredentials must not re-read the cert files

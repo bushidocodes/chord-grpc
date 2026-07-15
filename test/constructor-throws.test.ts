@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import { UserService } from "../app/UserService.ts";
 
 // Regression test for #241: library code must throw instead of calling

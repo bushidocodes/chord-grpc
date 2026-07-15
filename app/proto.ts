@@ -1,6 +1,6 @@
-import path from "path";
 import * as grpc from "@grpc/grpc-js";
 import { loadSync } from "@grpc/proto-loader";
+import path from "path";
 import type { ProtoGrpcType as ChordProtoGrpcType } from "./generated/chord.ts";
 import type { ProtoGrpcType as HealthProtoGrpcType } from "./generated/health.ts";
 

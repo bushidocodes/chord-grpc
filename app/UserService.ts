@@ -1,17 +1,17 @@
-import os from "os";
 import * as grpc from "@grpc/grpc-js";
+import os from "os";
 
 import { ChordNode } from "./ChordNode.ts";
+import { buildNodeServiceHandlers } from "./grpcServer.ts";
+import { GrpcTransport } from "./grpcTransport.ts";
 import { HealthImplementation } from "./health.ts";
 import { chordProto } from "./proto.ts";
-import { GrpcTransport } from "./grpcTransport.ts";
-import { buildNodeServiceHandlers } from "./grpcServer.ts";
 import type { PeerTransport, UserTransport } from "./transport.ts";
 import {
+  computeIntegerHash,
   createLogger,
   isInModuloRange,
   loadTlsCredentials,
-  computeIntegerHash,
   type Node,
 } from "./utils.ts";
 
@@ -314,7 +314,7 @@ export class UserService extends ChordNode {
   ): Promise<UserOpError | null> {
     const user = userEdit.user;
     userEdit.user.metadata.isPrimaryHash = isPrimaryHash;
-    let lookupKey: number = isPrimaryHash
+    const lookupKey: number = isPrimaryHash
       ? userEdit.user.metadata.primaryHash
       : userEdit.user.metadata.secondaryHash;
     let successor: Node;
@@ -503,15 +503,21 @@ export class UserService extends ChordNode {
 
   computeUserIdHashPrimary(userId: number): number {
     const highOrderBits = true;
-    let userIdString: string = userId.toString().toLowerCase();
-    let hashedUserId: number = computeIntegerHash(userIdString, highOrderBits);
+    const userIdString: string = userId.toString().toLowerCase();
+    const hashedUserId: number = computeIntegerHash(
+      userIdString,
+      highOrderBits,
+    );
     return hashedUserId;
   }
 
   computeUserIdHashSecondary(userId: number): number {
     const highOrderBits = false;
-    let userIdString: string = userId.toString().toLowerCase();
-    let hashedUserId: number = computeIntegerHash(userIdString, highOrderBits);
+    const userIdString: string = userId.toString().toLowerCase();
+    const hashedUserId: number = computeIntegerHash(
+      userIdString,
+      highOrderBits,
+    );
     return hashedUserId;
   }
 }

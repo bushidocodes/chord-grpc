@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import pino from "pino";
 import { connect, handleGRPCErrors } from "../app/utils.ts";
 

@@ -1,5 +1,6 @@
-import process from "process";
 import pino from "pino";
+import process from "process";
+import type { PeerTransport, UserTransport } from "./transport.ts";
 import {
   ChordRoutingError,
   connect,
@@ -7,7 +8,6 @@ import {
   isNullNode,
   type Node,
 } from "./utils.ts";
-import type { PeerTransport, UserTransport } from "./transport.ts";
 
 /**
  * gRPC adapter for the domain-owned transport ports (issue #233). Owns

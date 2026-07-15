@@ -7,6 +7,10 @@
   "scripts": {
     "typecheck": "tsc",
     "test": "node --test \"test/**/*.test.ts\"",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
     "gen-certs": "bash scripts/gen-certs.sh",
     "gen-proto-types": "node ./scripts/gen-proto-types.js",
     "cleanData": "node ./data/cleanData.ts",
@@ -34,12 +38,11 @@
     "pino": "^10.3.1"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.3",
     "@types/express": "^5.0.0",
     "fast-xml-parser": "^5.10.0",
     "husky": "^9.0.0",
     "is-ci": "^4.1.0",
-    "prettier": "^3.9.5",
-    "pretty-quick": "^4.0.0",
     "typescript": "^7.0.2",
     "vis-network": "^10.1.0"
   }

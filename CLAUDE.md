@@ -108,6 +108,6 @@ The `npm test` script is a placeholder that exits with an error.
 
 ## Code Style
 
-- Prettier enforced via Husky pre-commit hook (`pretty-quick --staged`)
+- Biome enforced via Husky pre-commit hook (`biome check --write --staged`)
 - 2-space indentation, LF line endings (`.editorconfig`)
 - TypeScript with ESM modules, run natively via Node 24's built-in type stripping (no ts-node)

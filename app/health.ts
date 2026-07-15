@@ -1,7 +1,7 @@
 import * as grpc from "@grpc/grpc-js";
-import { loadTlsCredentials } from "./utils.ts";
 import { config } from "./config.ts";
 import { healthProto } from "./proto.ts";
+import { loadTlsCredentials } from "./utils.ts";
 
 // Server-side implementation of and client factory for the standard gRPC
 // Health Checking Protocol (grpc.health.v1.Health). This replaces the bespoke
@@ -11,7 +11,10 @@ import { healthProto } from "./proto.ts";
 
 // Serving-status names as emitted/accepted by proto-loader (enums: String).
 export type ServingStatus =
-  "UNKNOWN" | "SERVING" | "NOT_SERVING" | "SERVICE_UNKNOWN";
+  | "UNKNOWN"
+  | "SERVING"
+  | "NOT_SERVING"
+  | "SERVICE_UNKNOWN";
 
 // The empty service name denotes the health of the whole server, per the spec.
 export const OVERALL_HEALTH = "";

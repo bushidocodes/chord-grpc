@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import path from "path";
 
 // Regression test for #235: outbound RPCs must carry a deadline so a peer

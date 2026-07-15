@@ -1,11 +1,11 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import crypto from "crypto";
 import {
-  computeIntegerHash,
   computeHostPortHash,
-  sha1,
+  computeIntegerHash,
   HASH_BIT_LENGTH,
+  sha1,
 } from "../app/utils.ts";
 
 // Direct unit tests for the hash truncation paths (#234, follow-up to #121).

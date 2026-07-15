@@ -1,5 +1,5 @@
-import fs from "fs";
 import { XMLParser } from "fast-xml-parser";
+import fs from "fs";
 
 const COUNT_OF_USERS_IN_TINY_USERS = 100;
 
@@ -20,7 +20,10 @@ interface XMLGeneratedPerson {
 }
 
 // Quick and dirty script to convert the StackOverflow data from XML to JSON
-const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
+const parser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "",
+});
 const rawData = parser.parse(
   fs.readFileSync(`${import.meta.dirname}/users.xml`, "utf8"),
 );
@@ -50,10 +53,7 @@ rawData.users.row
     result[person.id] = person;
   });
 
-fs.writeFileSync(
-  `${import.meta.dirname}/users.json`,
-  JSON.stringify(result),
-);
+fs.writeFileSync(`${import.meta.dirname}/users.json`, JSON.stringify(result));
 fs.writeFileSync(
   `${import.meta.dirname}/tinyUsers.json`,
   JSON.stringify(tinyResult),

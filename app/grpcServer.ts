@@ -1,9 +1,9 @@
 import * as grpc from "@grpc/grpc-js";
-import { NULL_NODE, type Node } from "./utils.ts";
 import type { NodeAddress__Output } from "./generated/chord/NodeAddress.ts";
 import type { RemoteId__Output } from "./generated/chord/RemoteId.ts";
 import type { UserId__Output } from "./generated/chord/UserId.ts";
 import type { UserService } from "./UserService.ts";
+import { type Node, NULL_NODE } from "./utils.ts";
 
 /**
  * Server-side gRPC adapter (issue #233): translates incoming gRPC calls into

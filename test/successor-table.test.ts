@@ -1,7 +1,7 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import { UserService } from "../app/UserService.ts";
-import { SUCCESSOR_TABLE_MAX_LENGTH, type Node } from "../app/utils.ts";
+import { type Node, SUCCESSOR_TABLE_MAX_LENGTH } from "../app/utils.ts";
 
 // Regression test for #167: the grow phase of updateSuccessorTable() must not
 // build the successor table past SUCCESSOR_TABLE_MAX_LENGTH, nor issue more

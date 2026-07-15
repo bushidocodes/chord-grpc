@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import { chordProto, healthProto } from "../app/proto.ts";
 import { closeAllClients, connect } from "../app/utils.ts";
 

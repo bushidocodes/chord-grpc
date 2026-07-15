@@ -1,1 +1,1 @@
-pnpm exec pretty-quick --staged
+pnpm exec biome check --write --staged --files-ignore-unknown=true --no-errors-on-unmatched
