@@ -22,7 +22,7 @@
     "prepare": "is-ci || husky"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "packageManager": "pnpm@11.5.0",
   "engines": {
     "node": ">=24"
