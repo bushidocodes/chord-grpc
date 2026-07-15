@@ -1,13 +1,13 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
+import type { UserService } from "../app/UserService.ts";
 import {
-  InMemoryNetwork,
   fingersAreConverged,
+  InMemoryNetwork,
   ringIsConverged,
   ringOwner,
   waitFor,
 } from "./helpers/in-memory-network.ts";
-import type { UserService } from "../app/UserService.ts";
 
 // Multi-node integration tests (#234) over the in-memory transport (#233):
 // deterministic, no sockets, fast enough for CI. Node ids are spread evenly

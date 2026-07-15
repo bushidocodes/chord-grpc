@@ -1,6 +1,6 @@
+import type { PeerTransport, UserTransport } from "../../app/transport.ts";
 import { UserService } from "../../app/UserService.ts";
 import { ChordRoutingError, isNullNode, type Node } from "../../app/utils.ts";
-import type { PeerTransport, UserTransport } from "../../app/transport.ts";
 
 // In-memory transport (issue #233's payoff, used by #234's tests): wires a
 // multi-node Chord ring inside one process with no sockets. Peer calls are

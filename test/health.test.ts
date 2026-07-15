@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import * as grpc from "@grpc/grpc-js";
 import { HealthImplementation, OVERALL_HEALTH } from "../app/health.ts";
 

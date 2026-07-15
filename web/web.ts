@@ -1,9 +1,10 @@
-import express from "express";
 import { parseArgs } from "node:util";
+import express from "express";
 import os from "os";
 import path from "path";
-import { connect } from "../app/utils.ts";
 import { config } from "../app/config.ts";
+import { connect } from "../app/utils.ts";
+
 const PUBLIC_PATH = path.resolve(import.meta.dirname, "./public");
 
 interface NodeSnapshot {

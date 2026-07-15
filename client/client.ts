@@ -1,5 +1,5 @@
 import { parseArgs } from "node:util";
-import { Client, type InsertArgs, type EditArgs } from "./common.ts";
+import { Client, type EditArgs, type InsertArgs } from "./common.ts";
 
 const VALID_COMMANDS =
   "lookup, insert, edit, remove, bulkInsert, summary, health, fingerTable, predecessor, successor";

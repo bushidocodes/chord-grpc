@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import { isConnectionError } from "../client/common.ts";
 
 // Regression tests for #206: bulkInsert must recognise an unreachable node so

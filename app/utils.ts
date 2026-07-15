@@ -1,15 +1,15 @@
+import * as grpc from "@grpc/grpc-js";
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import process from "process";
-import crypto from "crypto";
-import * as grpc from "@grpc/grpc-js";
 import pino from "pino";
+import process from "process";
 import { config } from "./config.ts";
-import { chordProto } from "./proto.ts";
-import type { NodeAddress__Output } from "./generated/chord/NodeAddress.ts";
 import type { FingerTableEntry__Output } from "./generated/chord/FingerTableEntry.ts";
-import type { User as WireUser, User__Output } from "./generated/chord/User.ts";
+import type { NodeAddress__Output } from "./generated/chord/NodeAddress.ts";
+import type { User__Output, User as WireUser } from "./generated/chord/User.ts";
 import type { UserIdWithMetadata__Output } from "./generated/chord/UserIdWithMetadata.ts";
+import { chordProto } from "./proto.ts";
 
 // JavaScript bitwise operations only work on 32-bit numbers; config.ts
 // validates hashBitLength against this bound at load (#241/#242).

@@ -1,21 +1,22 @@
 import pino from "pino";
+import { config } from "./config.ts";
+import { type HealthImplementation, OVERALL_HEALTH } from "./health.ts";
+import type { PeerTransport } from "./transport.ts";
 import {
   ChordRoutingError,
-  isInModuloRange,
-  isNullNode,
   computeHostPortHash,
   createLogger,
-  HASH_BIT_LENGTH,
   FIBONACCI_ALPHA,
+  HASH_BIT_LENGTH,
   IS_FIBONACCI_CHORD,
-  SUCCESSOR_TABLE_MAX_LENGTH,
-  NULL_NODE,
-  withTimeout,
+  isInModuloRange,
+  isNullNode,
   type Node,
+  NULL_NODE,
+  SUCCESSOR_TABLE_MAX_LENGTH,
+  withTimeout,
 } from "./utils.ts";
-import { config } from "./config.ts";
-import { OVERALL_HEALTH, type HealthImplementation } from "./health.ts";
-import type { PeerTransport } from "./transport.ts";
+
 const phi = (1 + Math.sqrt(5)) / 2;
 
 interface FingerTableEntry {

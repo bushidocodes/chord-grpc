@@ -1,10 +1,9 @@
-import process from "process";
 import { parseArgs } from "node:util";
-import { UserService } from "./UserService.ts";
+import process from "process";
 import readline from "readline";
-
-import { computeIntegerHash, HASH_BIT_LENGTH, withTimeout } from "./utils.ts";
 import { config } from "./config.ts";
+import { UserService } from "./UserService.ts";
+import { computeIntegerHash, HASH_BIT_LENGTH, withTimeout } from "./utils.ts";
 
 async function hashDryRun(sourceValue: string) {
   try {

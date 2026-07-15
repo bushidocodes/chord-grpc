@@ -1,4 +1,4 @@
-import { Network, DataSet } from "./vendor/vis-network.min.js";
+import { DataSet, Network } from "./vendor/vis-network.min.js";
 
 const CRAWLER_INTERVAL_MS = 1000;
 const HASH_SPACE = 2 ** 32;
@@ -184,7 +184,7 @@ async function loadData() {
 
   if (!network) {
     network = new Network(container, data, options);
-    network.on("click", function (params) {
+    network.on("click", (params) => {
       if (params.nodes.length > 0) {
         const nodeContent = document.getElementById("nodeContent");
         const data = nodeSet.get(params.nodes[0]).data;
@@ -270,7 +270,7 @@ async function loadData() {
   }
 }
 
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", () => {
   loadData();
   setInterval(() => {
     loadData();

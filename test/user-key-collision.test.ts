@@ -1,5 +1,5 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
+import { test } from "node:test";
 import { UserService } from "../app/UserService.ts";
 
 // User IDs 35097 and 40686 share the same primary hash bucket.
