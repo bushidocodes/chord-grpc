@@ -1,15 +1,26 @@
 ---
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: github-actions
+    directory: '/'
     schedule:
-      interval: "weekly"
+      interval: 'monthly'
+    open-pull-requests-limit: 1
+    groups:
+      github-actions:
+        patterns:
+          - '*'
     cooldown:
-      default-days: 3
-  - package-ecosystem: "npm"
-    directory: "/"
+      default-days: 7
+  - package-ecosystem: npm
+    directory: '/'
     schedule:
-      interval: "weekly"
+      interval: 'monthly'
+    open-pull-requests-limit: 5
+    groups:
+      production:
+        dependency-type: production
+      development:
+        dependency-type: development
     cooldown:
-      default-days: 3
+      default-days: 7
