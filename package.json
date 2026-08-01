@@ -38,7 +38,7 @@
     "pino": "^10.3.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.3",
+    "@biomejs/biome": "^2.5.5",
     "@types/express": "^5.0.0",
     "fast-xml-parser": "^5.10.1",
     "husky": "^9.0.0",
