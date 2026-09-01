@@ -38,12 +38,12 @@
     "pino": "^10.3.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.5",
+    "@biomejs/biome": "^2.5.10",
     "@types/express": "^5.0.0",
-    "fast-xml-parser": "^5.10.1",
+    "fast-xml-parser": "^5.11.0",
     "husky": "^9.0.0",
     "is-ci": "^4.1.0",
     "typescript": "^7.0.2",
-    "vis-network": "^10.1.0"
+    "vis-network": "^10.1.2"
   }
 }
